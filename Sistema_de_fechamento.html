@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fechamento Semanal do Salão</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jsPDF CDN for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        /* Define a fonte Inter para todo o corpo da página */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Cor de fundo suave para a página */
+        }
+        /* Esconde as setas de incremento/decremento em campos de número no Webkit (Chrome, Safari) */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        /* Esconde as setas de incremento/decremento em campos de número no Firefox */
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        /* Estilo para o modal de confirmação */
+        .modal {
+            display: none; /* Escondido por padrão */
+            position: fixed; /* Posição fixa na tela */
+            z-index: 1000; /* Acima de tudo */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto; /* Habilita rolagem se necessário */
+            background-color: rgba(0,0,0,0.4); /* Fundo semi-transparente */
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 400px;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            text-align: center;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            gap: 10px;
+        }
+        .modal-button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+            flex: 1;
+        }
+        .modal-button.confirm {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+        }
+        .modal-button.confirm:hover {
+            background-color: #dc2626; /* red-600 */
+        }
+        .modal-button.cancel {
+            background-color: #d1d5db; /* gray-300 */
+            color: #1f2937; /* gray-800 */
+        }
+        .modal-button.cancel:hover {
+            background-color: #9ca3af; /* gray-400 */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- Contêiner principal, centralizado e com largura máxima para telas maiores -->
+    <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-gray-200">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Fechamento Semanal do Salão</h1>
+
+        <!-- Área para mensagens de feedback (salvar/carregar) -->
+        <div id="app-message" class="hidden mb-4 p-3 rounded-lg text-center font-medium"></div>
+
+        <!-- Seção de Entrada de Data e Opções de Salvamento/Carregamento -->
+        <div class="mb-8 p-4 bg-purple-50 rounded-lg border border-purple-200">
+            <h2 class="text-xl font-semibold text-purple-700 mb-4">Informações do Fechamento</h2>
+            
+            <div class="mb-4">
+                <label for="salonName" class="block text-sm font-medium text-gray-700 mb-1">Nome do Salão</label>
+                <input type="text" id="salonName" placeholder="Seu Salão de Beleza" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
+            </div>
+            <div class="mb-4">
+                <label for="logoUrl" class="block text-sm font-medium text-gray-700 mb-1">URL do Logotipo (Opcional)</label>
+                <input type="url" id="logoUrl" placeholder="https://exemplo.com/sua-logo.png" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
+                <p class="text-xs text-gray-500 mt-1">Use uma URL de imagem pública. Se vazio, o nome do salão será usado.</p>
+            </div>
+
+            <h3 class="text-lg font-semibold text-purple-700 mb-4">Data do Fechamento Semanal</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="day" class="block text-sm font-medium text-gray-700 mb-1">Dia</label>
+                    <input type="number" id="day" min="1" max="31" placeholder="Dia" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateDateDisplay()">
+                </div>
+                <div>
+                    <label for="month" class="block text-sm font-medium text-gray-700 mb-1">Mês</label>
+                    <select id="month" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateDateDisplay()">
+                        <option value="">Selecione o Mês</option>
+                        <option value="1">Janeiro</option>
+                        <option value="2">Fevereiro</option>
+                        <option value="3">Março</option>
+                        <option value="4">Abril</option>
+                        <option value="5">Maio</option>
+                        <option value="6">Junho</option>
+                        <option value="7">Julho</option>
+                        <option value="8">Agosto</option>
+                        <option value="9">Setembro</option>
+                        <option value="10">Outubro</option>
+                        <option value="11">Novembro</option>
+                        <option value="12">Dezembro</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="year" class="block text-sm font-medium text-gray-700 mb-1">Ano</label>
+                    <input type="number" id="year" min="2000" max="2100" placeholder="Ano" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateDateDisplay()">
+                </div>
+            </div>
+            <p id="dateDisplay" class="text-center text-lg font-medium text-gray-800 mt-4"></p>
+
+            <div class="mt-6 border-t pt-4 border-purple-200">
+                <h3 class="text-lg font-semibold text-purple-700 mb-3">Opções de Dados</h3>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button onclick="exportDataToFile()" class="flex-1 bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                        Exportar Dados para Arquivo
+                    </button>
+                    <button onclick="importDataFromFile()" class="flex-1 bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                        Importar Dados de Arquivo
+                    </button>
+                    <button onclick="showClearConfirm()" class="flex-1 bg-gray-300 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-400 focus:ring-2 focus://ring-gray-300 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                        Limpar Tudo
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção de Colaboradoras -->
+        <div id="collaborators-section" class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-blue-700">Colaboradoras</h2>
+            </div>
+            <div id="collaborators-container">
+                <!-- As seções das colaboradoras serão adicionadas dinamicamente aqui -->
+            </div>
+            <!-- Botão com largura total ('w-full') para melhor usabilidade móvel -->
+            <button onclick="addCollaborator()" class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                Adicionar Colaboradora
+            </button>
+        </div>
+
+        <!-- Seção de Produtos Vendidos -->
+        <div id="products-section" class="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
+            <h2 class="text-xl font-semibold text-green-700 mb-4">Produtos Vendidos</h2>
+            <div id="products-container">
+                <!-- As linhas de produto serão adicionadas dinamicamente aqui, não há mais hardcoded -->
+            </div>
+            <button onclick="addProductRow()" class="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md mt-4">
+                Adicionar Produto
+            </button>
+            <div class="mt-4 text-right">
+                <p class="text-lg font-bold text-gray-800">Total Produtos: <span id="products-total">R$ 0,00</span></p>
+            </div>
+        </div>
+
+        <!-- Seção de Recursos Gemini AI -->
+        <div class="mb-8 p-4 bg-orange-50 rounded-lg border border-orange-200">
+            <h2 class="text-xl font-semibold text-orange-700 mb-4">Recursos ✨ Gemini AI</h2>
+            <div class="space-y-4">
+                <button onclick="generateWeeklyAnalysis()" class="w-full bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                    ✨ Gerar Análise da Semana
+                </button>
+                <button onclick="generateMarketingSlogans()" class="w-full bg-pink-500 text-white py-2 px-4 rounded-lg hover:bg-pink-600 focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                    ✨ Gerar Slogans de Marketing
+                </button>
+            </div>
+            <!-- Área de saída da IA, inicialmente oculta e com indicador de carregamento -->
+            <div id="gemini-output" class="mt-4 p-4 bg-white rounded-lg border border-gray-200 hidden">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Resultados da IA:</h3>
+                <p id="gemini-response" class="whitespace-pre-wrap text-gray-700"></p>
+                <div id="gemini-loading" class="text-center text-gray-500 mt-2 hidden">
+                    <!-- Ícone de carregamento (spinner) do SVG -->
+                    <svg class="animate-spin h-5 w-5 text-indigo-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Carregando...
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção de Resumo Geral -->
+        <div class="mb-8 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <h2 class="text-xl font-semibold text-yellow-700 mb-4">Resumo Geral</h2>
+            <div class="text-right space-y-2">
+                <p class="text-lg font-bold text-gray-800">Total Bruto Geral: <span id="overall-gross-total">R$ 0,00</span></p>
+                <p class="text-lg font-bold text-gray-800">Total Líquido Geral (c/ desconto): <span id="overall-net-total">R$ 0,00</span></p>
+            </div>
+            <!-- Visualização de Resumo Aprimorada (textual) -->
+            <div class="mt-4 pt-4 border-t border-yellow-200">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Detalhes da Contribuição:</h3>
+                <div id="detailed-contribution" class="text-gray-700">
+                    <!-- Detalhes da contribuição serão preenchidos aqui -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Campo de Observações/Notas -->
+        <div class="mb-8 p-4 bg-gray-100 rounded-lg border border-gray-200">
+            <label for="generalNotes" class="block text-xl font-semibold text-gray-700 mb-4">Observações Gerais</label>
+            <textarea id="generalNotes" rows="5" placeholder="Adicione notas importantes sobre o fechamento semanal aqui..." class="w-full p-3 border border-gray-300 rounded-md focus:ring-gray-400 focus:border-gray-400 shadow-sm"></textarea>
+        </div>
+
+
+        <!-- Botão de Exportar PDF Global -->
+        <button onclick="generatePDF()" class="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-xl text-lg font-bold">
+            Gerar PDF do Fechamento
+        </button>
+    </div>
+
+    <!-- Modal de Confirmação para Limpar Tudo -->
+    <div id="custom-confirm-modal" class="modal">
+        <div class="modal-content">
+            <p class="text-lg font-semibold text-gray-800 mb-4">Tem certeza que deseja limpar todos os dados?</p>
+            <p class="text-sm text-gray-600">Esta ação não pode ser desfeita.</p>
+            <div class="modal-buttons">
+                <button class="modal-button cancel" onclick="handleClearConfirm(false)">Cancelar</button>
+                <button class="modal-button confirm" onclick="handleClearConfirm(true)">Limpar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variáveis globais para armazenar os dados do sistema
+        let collaborators = []; // Array de objetos { name, clients: [{name, value}], discountPercentage }
+        let products = [];      // Array de objetos { clientName, value }
+        let salonName = "";     // Nome do salão
+        let logoUrl = "";       // URL do logotipo
+
+        // --- Funções de Feedback e Confirmação ---
+        function showMessage(message, type = 'success') {
+            const msgDiv = document.getElementById('app-message');
+            msgDiv.textContent = message;
+            msgDiv.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-blue-100', 'text-blue-800');
+            if (type === 'success') {
+                msgDiv.classList.add('bg-green-100', 'text-green-800');
+            } else if (type === 'error') {
+                msgDiv.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'info') {
+                msgDiv.classList.add('bg-blue-100', 'text-blue-800');
+            }
+            // Mostra a mensagem e a esconde após alguns segundos
+            msgDiv.classList.remove('hidden');
+            setTimeout(() => {
+                msgDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        // Exibe o modal de confirmação
+        function showClearConfirm() {
+            document.getElementById('custom-confirm-modal').style.display = 'flex';
+        }
+
+        // Lida com a resposta do modal de confirmação
+        function handleClearConfirm(confirmed) {
+            document.getElementById('custom-confirm-modal').style.display = 'none';
+            if (confirmed) {
+                clearAllData();
+            } else {
+                showMessage('Operação de limpeza cancelada.', 'info');
+            }
+        }
+        // --- Fim das Funções de Feedback e Confirmação ---
+
+        // Função para atualizar a exibição da data na UI
+        function updateDateDisplay() {
+            const day = document.getElementById('day').value;
+            const month = document.getElementById('month').value;
+            const year = document.getElementById('year').value;
+            const monthName = document.getElementById('month').options[document.getElementById('month').selectedIndex]?.text || '';
+
+            const dateDisplay = document.getElementById('dateDisplay');
+            if (day && month && year) {
+                dateDisplay.textContent = `Fechamento semana do dia ${day} de ${monthName} de ${year}`;
+            } else {
+                dateDisplay.textContent = 'Preencha a data para exibir.';
+            }
+        }
+
+        // --- Funções de Salvar/Carregar para Arquivo ---
+
+        // Função para exportar os dados para um arquivo JSON
+        function exportDataToFile() {
+            const dataToSave = {
+                salonName: document.getElementById('salonName').value,
+                logoUrl: document.getElementById('logoUrl').value,
+                collaborators: collaborators,
+                products: products,
+                date: {
+                    day: document.getElementById('day').value,
+                    month: document.getElementById('month').value,
+                    year: document.getElementById('year').value
+                },
+                notes: document.getElementById('generalNotes').value
+            };
+
+            const jsonString = JSON.stringify(dataToSave, null, 2); // Formata o JSON para leitura
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fechamento_salao_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.json`;
+            document.body.appendChild(a); // Necessário para Firefox
+            a.click();
+            document.body.removeChild(a); // Limpa o elemento
+            URL.revokeObjectURL(url); // Libera o objeto URL
+
+            showMessage('Dados exportados para "fechamento_salao.json"!', 'success');
+            console.log("Dados exportados:", dataToSave);
+        }
+
+        // Função para importar dados de um arquivo JSON
+        function importDataFromFile() {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json'; // Aceita apenas arquivos JSON
+
+            fileInput.onchange = (event) => {
+                const file = event.target.files[0];
+                if (!file) {
+                    showMessage('Nenhum arquivo selecionado.', 'info');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+
+                        // Valida a estrutura básica para evitar erros
+                        if (importedData.collaborators && Array.isArray(importedData.collaborators) &&
+                            importedData.products && Array.isArray(importedData.products) &&
+                            importedData.date && typeof importedData.date === 'object') {
+
+                            collaborators = importedData.collaborators;
+                            products = importedData.products;
+                            salonName = importedData.salonName || '';
+                            logoUrl = importedData.logoUrl || '';
+
+                            // Garante que cada colaboradora tenha um discountPercentage, caso o arquivo não o possua
+                            collaborators.forEach(collab => {
+                                if (collab.discountPercentage === undefined) {
+                                    collab.discountPercentage = 0.30; // Define um padrão se ausente
+                                }
+                            });
+
+                            // Atualiza os campos de data
+                            document.getElementById('day').value = importedData.date.day || '';
+                            document.getElementById('month').value = importedData.date.month || '';
+                            document.getElementById('year').value = importedData.date.year || '';
+                            document.getElementById('generalNotes').value = importedData.notes || '';
+                            document.getElementById('salonName').value = salonName;
+                            document.getElementById('logoUrl').value = logoUrl;
+
+                            renderAllUI(); // Renderiza toda a UI com os dados importados
+                            showMessage('Dados importados com sucesso!', 'success');
+                            console.log("Dados importados:", importedData);
+                        } else {
+                            showMessage('Formato de arquivo JSON inválido. Verifique se é um arquivo de fechamento do salão.', 'error');
+                            console.error("Formato de arquivo JSON inválido:", importedData);
+                        }
+                    } catch (parseError) {
+                        showMessage('Erro ao ler o arquivo: Não é um JSON válido.', 'error');
+                        console.error("Erro ao fazer parse do JSON:", parseError);
+                    }
+                };
+                reader.readAsText(file); // Lê o conteúdo do arquivo como texto
+            };
+
+            fileInput.click(); // Abre o seletor de arquivos
+        }
+
+        // --- Fim das Funções de Salvar/Carregar para Arquivo ---
+
+        // Função para limpar todos os dados e a UI
+        function clearAllData() {
+            // Limpa arrays de dados e variáveis globais
+            collaborators = [];
+            products = [];
+            salonName = "";
+            logoUrl = "";
+
+            // Limpa os campos da UI
+            document.getElementById('day').value = '';
+            document.getElementById('month').value = '';
+            document.getElementById('year').value = '';
+            document.getElementById('generalNotes').value = '';
+            document.getElementById('salonName').value = '';
+            document.getElementById('logoUrl').value = '';
+            document.getElementById('gemini-output').classList.add('hidden'); // Esconde a saída da IA
+            document.getElementById('gemini-response').textContent = '';
+
+            // Garante que haja pelo menos uma colaboradora e um produto após a limpeza
+            collaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
+            products.push({ clientName: '', value: 0 });
+
+            renderAllUI(); // Renderiza a UI com os novos dados padrão
+            updateDateDisplay(); // Atualiza a exibição da data vazia
+            calculateAllTotals(); // Zera os totais
+            showMessage('Todos os dados foram limpos.', 'success');
+            console.log("Todos os dados foram limpos.");
+        }
+
+        // Função para renderizar toda a UI a partir dos arrays de dados
+        function renderAllUI() {
+            // Limpa os contêineres existentes na UI
+            document.getElementById('collaborators-container').innerHTML = '';
+            document.getElementById('products-container').innerHTML = '';
+
+            // Renderiza colaboradoras
+            collaborators.forEach((collabData, index) => {
+                addCollaboratorUI(collabData, index);
+            });
+            // Renderiza produtos
+            products.forEach((productData, index) => {
+                addProductRowUI(productData, index);
+            });
+
+            // Atualiza a exibição da data e recalcula os totais
+            updateDateDisplay();
+            calculateAllTotals();
+        }
+
+        // Função para adicionar uma nova colaboradora ao array de dados e re-renderizar a UI
+        function addCollaborator() {
+            const newCollabData = { name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 }; // Desconto padrão 30%
+            collaborators.push(newCollabData);
+            renderAllUI(); // Re-renderiza toda a UI para garantir que os índices estejam corretos
+        }
+
+        // Função que realmente adiciona o HTML de uma colaboradora (chamada por renderAllUI)
+        function addCollaboratorUI(collabData, index) {
+            const container = document.getElementById('collaborators-container');
+            const newCollaboratorDiv = document.createElement('div');
+            newCollaboratorDiv.className = 'collaborator-block p-4 bg-white rounded-lg shadow-md mb-6 border border-gray-200';
+            newCollaboratorDiv.setAttribute('data-index', index);
+
+            newCollaboratorDiv.innerHTML = `
+                <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
+                    <input type="text" placeholder="Nome da Colaboradora" value="${collabData.name}" class="collaborator-name flex-grow text-lg font-semibold p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm min-w-[150px]" oninput="updateCollaboratorName(${index}, this.value)">
+                    <div class="flex items-center gap-2">
+                        <label for="collab-discount-${index}" class="text-sm font-medium text-gray-700">Comissão (%):</label>
+                        <input type="number" id="collab-discount-${index}" min="0" max="100" value="${(collabData.discountPercentage * 100).toFixed(0)}" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500" oninput="updateCollaboratorDiscount(${index}, this.value)">
+                    </div>
+                    <button onclick="removeCollaborator(this)" class="ml-auto bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+                <h3 class="text-md font-medium text-gray-700 mb-2">Clientes</h3>
+                <div class="clients-container">
+                    <!-- Client rows will be added here dynamically -->
+                </div>
+                <button onclick="addClientRow(${index})" class="w-full bg-blue-400 text-white py-2 px-4 rounded-lg hover:bg-blue-500 focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
+                    Adicionar Cliente
+                </button>
+                <div class="mt-4 text-right space-y-1">
+                    <p class="text-sm font-medium text-gray-700">Total: <span id="collab-total-display-${index}">R$ 0,00</span></p>
+                    <p class="text-sm font-medium text-gray-700">-<span id="collab-discount-percentage-display-${index}">${(collabData.discountPercentage * 100).toFixed(0)}</span>%: <span id="collab-discount-value-${index}">R$ 0,00</span></p>
+                    <p class="text-md font-bold text-gray-800">Total Líquido: <span id="collab-net-total-display-${index}">R$ 0,00</span></p>
+                </div>
+                <button onclick="generateCollaboratorPDF(${index})" class="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md mt-4">
+                    Gerar PDF do Colaborador
+                </button>
+            `;
+            container.appendChild(newCollaboratorDiv);
+
+            // Adiciona as linhas de cliente para esta colaboradora
+            collabData.clients.forEach((clientData, clientIndex) => {
+                addClientRowUI(newCollaboratorDiv.querySelector('.clients-container'), index, clientData, clientIndex);
+            });
+            calculateCollaboratorTotal(index);
+        }
+
+        // Função para remover uma seção de colaboradora
+        function removeCollaborator(button) {
+            const collabBlock = button.closest('.collaborator-block');
+            const indexToRemove = parseInt(collabBlock.getAttribute('data-index'));
+
+            collaborators.splice(indexToRemove, 1);
+            renderAllUI(); // Re-renderiza toda a UI para garantir que os índices estejam corretos
+        }
+
+        // Função para atualizar o nome da colaboradora na estrutura de dados
+        function updateCollaboratorName(index, name) {
+            if (collaborators[index]) {
+                collaborators[index].name = name;
+            }
+        }
+
+        // Função para atualizar o desconto individual da colaboradora
+        function updateCollaboratorDiscount(index, value) {
+            let newDiscount = parseFloat(value) / 100;
+            if (isNaN(newDiscount) || newDiscount < 0 || newDiscount > 1) {
+                newDiscount = 0.30; // Padrão se inválido
+                document.getElementById(`collab-discount-${index}`).value = 30; // Redefine o input
+            }
+            if (collaborators[index]) {
+                collaborators[index].discountPercentage = newDiscount;
+                // Atualiza o display do percentual de desconto no próprio bloco da colaboradora
+                document.getElementById(`collab-discount-percentage-display-${index}`).textContent = (newDiscount * 100).toFixed(0);
+                calculateCollaboratorTotal(index); // Recalcula o total desta colaboradora
+            }
+        }
+
+        // Função que realmente adiciona o HTML de uma linha de cliente
+        function addClientRowUI(container, collaboratorIndex, clientData, clientIndex) {
+            const newClientDiv = document.createElement('div');
+            newClientDiv.className = 'flex items-center gap-2 mb-2 client-row';
+            newClientDiv.innerHTML = `
+                <input type="text" placeholder="Nome do Cliente" value="${clientData.name}" class="client-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 min-w-[100px]" oninput="updateClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)">
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${clientData.value}" class="client-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500" oninput="updateClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)">
+                <button onclick="removeClientRow(this, ${collaboratorIndex}, ${clientIndex})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            container.appendChild(newClientDiv);
+        }
+
+        // Função para adicionar uma nova linha de cliente para uma colaboradora específica (adiciona ao array de dados)
+        function addClientRow(collaboratorIndex) {
+            if (collaborators[collaboratorIndex]) { // Garante que a colaboradora exista
+                collaborators[collaboratorIndex].clients.push({ name: '', value: 0 });
+                renderAllUI(); // Re-renderiza tudo para atualizar os índices e a UI
+            }
+        }
+
+        // Função para remover uma linha de cliente
+        function removeClientRow(button, collaboratorIndex, clientIndex) {
+            if (collaborators[collaboratorIndex]) { // Garante que a colaboradora exista
+                collaborators[collaboratorIndex].clients.splice(clientIndex, 1);
+                renderAllUI(); // Re-renderiza tudo para atualizar os índices e a UI
+            }
+        }
+
+        // Função para atualizar os dados do cliente na estrutura de dados e recalcular totais
+        function updateClientData(collaboratorIndex, clientIndex, field, value) {
+            if (collaborators[collaboratorIndex] && collaborators[collaboratorIndex].clients[clientIndex]) {
+                collaborators[collaboratorIndex].clients[clientIndex][field] = value;
+                calculateCollaboratorTotal(collaboratorIndex);
+            }
+        }
+
+        // Função para calcular o total de uma colaboradora específica
+        function calculateCollaboratorTotal(collaboratorIndex) {
+            let total = 0;
+            const collab = collaborators[collaboratorIndex];
+            if (collab) {
+                total = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                // Usa o desconto individual da colaboradora
+                const discount = total * collab.discountPercentage;
+                const netTotal = total - discount;
+
+                document.getElementById(`collab-total-display-${collaboratorIndex}`).textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+                document.getElementById(`collab-discount-value-${collaboratorIndex}`).textContent = `R$ ${discount.toFixed(2).replace('.', ',')}`;
+                document.getElementById(`collab-net-total-display-${collaboratorIndex}`).textContent = `R$ ${netTotal.toFixed(2).replace('.', ',')}`;
+            }
+
+            calculateAllTotals(); // Recalcula os totais gerais
+        }
+
+        // Função para adicionar uma nova linha de produto ao array de dados e re-renderizar a UI
+        function addProductRow() {
+            products.push({ clientName: '', value: 0 });
+            renderAllUI(); // Re-renderiza tudo para atualizar os índices e a UI
+        }
+
+        // Função que realmente adiciona o HTML de uma linha de produto (chamada por renderAllUI)
+        function addProductRowUI(productData, index) {
+            const container = document.getElementById('products-container');
+            const newProductDiv = document.createElement('div');
+            newProductDiv.className = 'flex items-center gap-2 mb-2 product-row';
+            newProductDiv.innerHTML = `
+                <input type="text" placeholder="Nome da Cliente" value="${productData.clientName}" class="product-client-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 min-w-[120px]" oninput="updateProductData(${index}, 'clientName', this.value)">
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${productData.value}" class="product-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-green-500 focus:border-green-500" oninput="updateProductData(${index}, 'value', parseFloat(this.value) || 0)">
+                <button onclick="removeProductRow(this, ${index})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            container.appendChild(newProductDiv);
+        }
+
+        // Função para remover uma linha de produto
+        function removeProductRow(button, productIndex) {
+            products.splice(productIndex, 1);
+            renderAllUI(); // Re-renderiza tudo para atualizar os índices e a UI
+        }
+
+        // Função para atualizar os dados do produto na estrutura de dados
+        function updateProductData(index, field, value) {
+            if (products[index]) {
+                products[index][field] = value;
+                calculateAllTotals(); // Recalcula todos os totais
+            }
+        }
+
+        // Função para calcular todos os totais gerais (bruto e líquido) e atualizar a visualização aprimorada
+        function calculateAllTotals() {
+            let overallGrossTotalServices = 0;
+            let overallNetTotalServices = 0;
+            let overallProductsTotal = 0;
+
+            // Calcula os totais das colaboradoras
+            collaborators.forEach(collab => {
+                const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                overallGrossTotalServices += collabTotal;
+                overallNetTotalServices += collabTotal * (1 - collab.discountPercentage); // Usa o desconto individual
+            });
+
+            // Calcula o total dos produtos
+            overallProductsTotal = products.reduce((sum, product) => sum + product.value, 0);
+
+            const overallGrossTotal = overallGrossTotalServices + overallProductsTotal;
+            const overallNetTotal = overallNetTotalServices + overallProductsTotal;
+
+            // Atualiza os elementos na UI com os valores calculados
+            document.getElementById('products-total').textContent = `R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`;
+            document.getElementById('overall-gross-total').textContent = `R$ ${overallGrossTotal.toFixed(2).replace('.', ',')}`;
+            document.getElementById('overall-net-total').textContent = `R$ ${overallNetTotal.toFixed(2).replace('.', ',')}`;
+
+            // Atualiza a visualização de contribuição detalhada
+            updateDetailedContribution(overallGrossTotalServices, overallProductsTotal);
+        }
+
+        // Função para atualizar a visualização de contribuição detalhada
+        function updateDetailedContribution(grossServicesTotal, productsTotal) {
+            const detailedContributionDiv = document.getElementById('detailed-contribution');
+            let content = '';
+
+            // Contribuição de cada colaboradora
+            if (collaborators.length > 0) {
+                content += '<p class="font-bold">Serviços por Colaboradora (Bruto):</p>';
+                collaborators.forEach(collab => {
+                    const collabGrossTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                    if (grossServicesTotal > 0) { // Evita divisão por zero
+                        const percentageOfServices = (collabGrossTotal / grossServicesTotal) * 100;
+                        content += `<p class="ml-4">${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')} (${percentageOfServices.toFixed(1)}% dos serviços)</p>`;
+                    } else {
+                         content += `<p class="ml-4">${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')}</p>`;
+                    }
+                });
+            } else {
+                content += '<p>Nenhum serviço registrado.</p>';
+            }
+
+            // Contribuição dos produtos
+            content += `<p class="font-bold mt-2">Venda de Produtos:</p>`;
+            content += `<p class="ml-4">Total de Produtos: R$ ${productsTotal.toFixed(2).replace('.', ',')}</p>`;
+
+            detailedContributionDiv.innerHTML = content;
+        }
+
+
+        // Helper function to show/hide loading state and output area
+        function showLoading(message) {
+            const geminiOutputDiv = document.getElementById('gemini-output');
+            const geminiResponseP = document.getElementById('gemini-response');
+            const geminiLoadingDiv = document.getElementById('gemini-loading');
+
+            geminiOutputDiv.classList.remove('hidden'); // Mostra a área de saída da IA
+            geminiResponseP.textContent = ''; // Limpa a resposta anterior
+            geminiLoadingDiv.classList.remove('hidden'); // Mostra o spinner de carregamento
+            geminiResponseP.innerHTML = `<p class="text-center">${message}</p>`; // Exibe a mensagem de carregamento personalizada
+        }
+
+        // Função auxiliar para esconder o estado de carregamento
+        function hideLoading() {
+            document.getElementById('gemini-loading').classList.add('hidden');
+        }
+
+        // Função para gerar Análise Semanal usando a API Gemini
+        async function generateWeeklyAnalysis() {
+            showLoading('Gerando análise da semana...');
+
+            const dateText = document.getElementById('dateDisplay').textContent;
+            const generalNotes = document.getElementById('generalNotes').value;
+
+            let prompt = `Analise os seguintes dados de vendas semanais para um salão de beleza. Forneça insights sobre o desempenho, identifique pontos fortes e fracos, e sugira melhorias acionáveis para a próxima semana. Considere que a comissão dos serviços pode variar por colaboradora.
+
+Data do Fechamento: ${dateText || 'Não especificada'}
+
+Detalhes de Serviços por Colaboradora (Bruto e Líquido com suas respectivas comissões):`;
+
+            if (collaborators.length === 0) {
+                prompt += "\n  Nenhuma colaboradora adicionada.";
+            } else {
+                collaborators.forEach(collab => {
+                    const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                    const collabNetTotal = collabTotal * (1 - collab.discountPercentage);
+                    prompt += `\n  ${collab.name || 'Colaboradora sem nome'}: Bruto R$${collabTotal.toFixed(2).replace('.', ',')}, Líquido R$${collabNetTotal.toFixed(2).replace('.', ',')} (Comissão: ${(collab.discountPercentage * 100).toFixed(0)}%)`;
+                });
+            }
+
+            prompt += `\n\nProdutos Vendidos (pelo nome da cliente e valor):`;
+            if (products.length === 0) {
+                prompt += "\n  Nenhum produto vendido.";
+            } else {
+                products.forEach(product => {
+                    prompt += `\n  ${product.clientName || 'Cliente sem nome'}: R$${product.value.toFixed(2).replace('.', ',')}`;
+                });
+            }
+
+            const overallGrossTotal = parseFloat(document.getElementById('overall-gross-total').textContent.replace('R$ ', '').replace(',', '.'));
+            const overallNetTotal = parseFloat(document.getElementById('overall-net-total').textContent.replace('R$ ', '').replace(',', '.'));
+
+            prompt += `\n\nTotais Gerais:
+  Total Bruto Geral: R$${overallGrossTotal.toFixed(2).replace('.', ',')}
+  Total Líquido Geral (com todas as comissões aplicadas): R$${overallNetTotal.toFixed(2).replace('.', ',')}`;
+
+            if (generalNotes) {
+                prompt += `\n\nObservações Adicionais: ${generalNotes}`;
+            }
+
+            console.log("Prompt para análise:", prompt); // Para depuração
+
+            try {
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                const payload = { contents: chatHistory };
+                const apiKey = ""; // O Canvas fornecerá automaticamente
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    document.getElementById('gemini-response').textContent = text;
+                } else {
+                    document.getElementById('gemini-response').textContent = 'Erro ao gerar análise: Nenhuma resposta válida da IA.';
+                    console.error('Erro na resposta da Gemini API:', result);
+                }
+            } catch (error) {
+                hideLoading();
+                document.getElementById('gemini-response').textContent = 'Erro ao conectar com a IA: ' + error.message;
+                console.error('Erro na requisição da Gemini API:', error);
+            }
+        }
+
+        // Função para gerar Slogans de Marketing usando a API Gemini
+        async function generateMarketingSlogans() {
+            showLoading('Gerando slogans de marketing...');
+
+            const dateText = document.getElementById('dateDisplay').textContent;
+            const overallGrossTotalServices = collaborators.reduce((sum, collab) => sum + collab.clients.reduce((s, c) => s + c.value, 0), 0);
+            const overallProductsTotal = products.reduce((sum, product) => sum + product.value, 0);
+            const generalNotes = document.getElementById('generalNotes').value;
+
+
+            let prompt = `Com base nos seguintes dados de vendas semanais de um salão de beleza, gere 3-5 slogans de marketing criativos e envolventes (em português) para a próxima semana. Adapte-os para destacar pontos fortes ou incentivar áreas de crescimento. Seja conciso e focado em atrair clientes.
+
+Data do Fechamento: ${dateText || 'Não especificada'}
+
+Total Bruto de Serviços: R$${overallGrossTotalServices.toFixed(2).replace('.', ',')}
+Total Bruto de Produtos: R$${overallProductsTotal.toFixed(2).replace('.', ',')}
+Total Bruto Geral: R$${(overallGrossTotalServices + overallProductsTotal).toFixed(2).replace('.', ',')}`;
+
+            if (generalNotes) {
+                prompt += `\n\nConsiderando as seguintes observações: ${generalNotes}`;
+            }
+
+            console.log("Prompt para slogans:", prompt); // Para depuração
+
+            try {
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                const payload = { contents: chatHistory };
+                const apiKey = ""; // O Canvas fornecerá automaticamente
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                hideLoading();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    document.getElementById('gemini-response').textContent = text;
+                } else {
+                    document.getElementById('gemini-response').textContent = 'Erro ao gerar slogans: Nenhuma resposta válida da IA.';
+                    console.error('Erro na resposta da Gemini API:', result);
+                }
+            } catch (error) {
+                hideLoading();
+                document.getElementById('gemini-response').textContent = 'Erro ao conectar com a IA: ' + error.message;
+                console.error('Erro na requisição da Gemini API:', error);
+            }
+        }
+
+        // Função para gerar PDF para uma única colaboradora
+        function generateCollaboratorPDF(collaboratorIndex) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            const collab = collaborators[collaboratorIndex];
+            if (!collab) {
+                console.error("Colaboradora não encontrada para geração de PDF.");
+                return;
+            }
+
+            const currentSalonName = document.getElementById('salonName').value || "Salão de Beleza";
+            const currentLogoUrl = document.getElementById('logoUrl').value;
+            const dateText = document.getElementById('dateDisplay').textContent;
+            const collabName = collab.name || 'Colaboradora sem nome';
+            const generalNotes = document.getElementById('generalNotes').value;
+
+            // Posição Y fixa para a logo, bem no topo
+            const logoY = -15; // Ajustado para -15
+            // Posição Y fixa para o título principal da colaboradora, logo abaixo da logo
+            const collabTitleY = 60; // Mantido em 60
+
+            // Add Logo or Salon Name
+            if (currentLogoUrl) {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous'; // Crucial for loading images from other origins
+                img.src = currentLogoUrl;
+                img.onload = () => {
+                    const imgWidth = 100; 
+                    const imgHeight = (img.height * imgWidth) / img.width; // Maintain aspect ratio
+                    const xPos = (doc.internal.pageSize.width - imgWidth) / 2; // Center horizontally
+                    doc.addImage(img, 'PNG', xPos, logoY, imgWidth, imgHeight);
+                    addCollabPDFContent(doc, collabTitleY);
+                };
+                img.onerror = () => {
+                    console.warn("Could not load logo image from URL. Using salon name as text.");
+                    doc.setFontSize(24);
+                    doc.text(currentSalonName, 105, logoY + 10, null, null, "center"); // Salon name as text, slightly below logoY
+                    addCollabPDFContent(doc, collabTitleY);
+                };
+            } else {
+                doc.setFontSize(24);
+                doc.text(currentSalonName, 105, logoY + 10, null, null, "center"); // Salon name as text
+                addCollabPDFContent(doc, collabTitleY);
+            }
+
+            function addCollabPDFContent(docInstance, startY) {
+                let y = startY;
+
+                docInstance.setFontSize(20);
+                docInstance.text(`Fechamento Semanal: ${collabName}`, 105, y, null, null, "center"); // Título da colaboradora na posição definida
+                y += 15; // Espaço após o título
+                docInstance.setFontSize(12);
+                docInstance.text(dateText, 105, y, null, null, "center");
+                y += 15;
+
+                docInstance.setFontSize(14);
+                docInstance.text("Serviços Prestados:", 15, y);
+                y += 10;
+
+                if (collab.clients.length === 0) {
+                    docInstance.setFontSize(10);
+                    docInstance.text("Nenhum cliente registrado para esta colaboradora.", 20, y);
+                    y += 10;
+                } else {
+                    collab.clients.forEach(client => {
+                        if (y > 270) { docInstance.addPage(); y = 15; }
+                        docInstance.setFontSize(10);
+                        docInstance.text(`${client.name || 'Nome do Cliente'}: R$ ${client.value.toFixed(2).replace('.', ',')}`, 25, y);
+                        y += 5;
+                    });
+                }
+
+                const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                const collabDiscount = collabTotal * collab.discountPercentage;
+                const collabNetTotal = collabTotal - collabDiscount;
+
+                if (y > 270) { docInstance.addPage(); y = 15; }
+                docInstance.setFontSize(10);
+                docInstance.text(`Total Bruto Serviços: R$ ${collabTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 5;
+                docInstance.text(`Comissão (-${(collab.discountPercentage * 100).toFixed(0)}%): R$ ${collabDiscount.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 5;
+                docInstance.setFontSize(12);
+                docInstance.text(`Total Líquido para ${collabName}: R$ ${collabNetTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 15; // Espaço após o total
+
+                if (generalNotes) {
+                     if (y > 270) { docInstance.addPage(); y = 15; }
+                     docInstance.setFontSize(12);
+                     docInstance.text("Observações Gerais:", 15, y);
+                     y += 7;
+                     docInstance.setFontSize(10);
+                     const splitNotes = docInstance.splitTextToSize(generalNotes, 180);
+                     docInstance.text(splitNotes, 20, y);
+                     y += splitNotes.length * 5;
+                 }
+
+                docInstance.save(`fechamento_semanal_${collabName.replace(/\s+/g, '_').toLowerCase()}.pdf`);
+            }
+        }
+
+
+        // Função para gerar o PDF com todos os dados
+        function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            const currentSalonName = document.getElementById('salonName').value || "Salão de Beleza";
+            const currentLogoUrl = document.getElementById('logoUrl').value;
+            const dateText = document.getElementById('dateDisplay').textContent;
+            const generalNotes = document.getElementById('generalNotes').value;
+
+            // Posição Y fixa para a logo, bem no topo
+            const logoY = -15; // Ajustado para -15
+            // Posição Y fixa para o título principal, logo abaixo da logo
+            const mainTitleY = 60; // Mantido em 60
+
+            // Add Logo or Salon Name to the top of the PDF
+            if (currentLogoUrl) {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous'; // Crucial for loading images from other origins
+                img.src = currentLogoUrl;
+                img.onload = () => {
+                    const imgWidth = 100; 
+                    const imgHeight = (img.height * imgWidth) / img.width; // Maintain aspect ratio
+                    const xPos = (doc.internal.pageSize.width - imgWidth) / 2; // Center horizontally
+                    doc.addImage(img, 'PNG', xPos, logoY, imgWidth, imgHeight);
+                    addMainPDFContent(doc, mainTitleY);
+                };
+                img.onerror = () => {
+                    console.warn("Could not load logo image from URL. Using salon name as text.");
+                    doc.setFontSize(24);
+                    doc.text(currentSalonName, 105, logoY + 10, null, null, "center"); // Salon name as text, slightly below logoY
+                    addMainPDFContent(doc, mainTitleY);
+                };
+            } else {
+                doc.setFontSize(24);
+                doc.text(currentSalonName, 105, logoY + 10, null, null, "center"); // Salon name as text
+                addMainPDFContent(doc, mainTitleY);
+            }
+
+            function addMainPDFContent(docInstance, startY) {
+                let y = startY; // Este será mainTitleY (60)
+
+                docInstance.setFontSize(22);
+                docInstance.text("Fechamento Semanal do Salão", 105, y, null, null, "center"); // Título principal na posição definida
+                y += 15; // Espaço após o título
+                docInstance.setFontSize(14);
+                docInstance.text(dateText, 105, y, null, null, "center");
+                y += 15; // Espaço após a data
+
+                docInstance.setFontSize(16);
+                docInstance.text("Colaboradoras:", 15, y);
+                y += 10;
+
+                if (collaborators.length === 0) {
+                    docInstance.setFontSize(12);
+                    docInstance.text("Nenhuma colaboradora adicionada.", 15, y);
+                    y += 10;
+                } else {
+                    collaborators.forEach(collab => {
+                        if (y > 270) { docInstance.addPage(); y = 15; } // Adiciona nova página se o conteúdo exceder
+                        docInstance.setFontSize(14);
+                        docInstance.text(`${collab.name || 'Nome da Colaboradora'}:`, 20, y);
+                        y += 7;
+
+                        if (collab.clients.length === 0) {
+                            docInstance.setFontSize(10);
+                            docInstance.text("Nenhum cliente registrado.", 25, y);
+                            y += 7;
+                        } else {
+                            collab.clients.forEach(client => {
+                                if (y > 270) { docInstance.addPage(); y = 15; }
+                                docInstance.setFontSize(10);
+                                docInstance.text(`${client.name || 'Nome do Cliente'}: R$ ${client.value.toFixed(2).replace('.', ',')}`, 25, y);
+                                y += 5;
+                            });
+                        }
+
+                        const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                        const collabDiscount = collabTotal * collab.discountPercentage; // Usa o desconto individual
+                        const collabNetTotal = collabTotal - collabDiscount;
+
+                        if (y > 270) { docInstance.addPage(); y = 15; }
+                        docInstance.setFontSize(10);
+                        docInstance.text(`Total Bruto Serviços: R$ ${collabTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                        y += 5;
+                        docInstance.text(`Comissão (-${(collab.discountPercentage * 100).toFixed(0)}%): R$ ${collabDiscount.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right"); // Exibe a % individual
+                        y += 5;
+                        docInstance.setFontSize(12);
+                        docInstance.text(`Total Líquido: R$ ${collabNetTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                        y += 15; // Espaço após cada colaboradora
+                    });
+                }
+
+                if (y > 260) { docInstance.addPage(); y = 15; }
+                docInstance.setFontSize(16);
+                docInstance.text("Produtos Vendidos:", 15, y);
+                y += 10;
+
+                if (products.length === 0) {
+                    docInstance.setFontSize(12);
+                    docInstance.text("Nenhum produto vendido.", 15, y);
+                    y += 10;
+                } else {
+                    products.forEach(product => {
+                        if (y > 270) { docInstance.addPage(); y = 15; }
+                        docInstance.setFontSize(10);
+                        docInstance.text(`${product.clientName || 'Cliente sem nome'}: R$ ${product.value.toFixed(2).replace('.', ',')}`, 20, y);
+                        y += 5;
+                    });
+                }
+
+                const overallProductsTotal = products.reduce((sum, product) => sum + product.value, 0);
+                if (y > 270) { docInstance.addPage(); y = 15; }
+                docInstance.setFontSize(12);
+                docInstance.text(`Total Produtos: R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 15; // Espaço após produtos
+
+                // Adicionar detalhes da contribuição no PDF
+                if (y > 260) { docInstance.addPage(); y = 15; }
+                docInstance.setFontSize(16);
+                docInstance.text("Detalhes da Contribuição:", 15, y);
+                y += 10;
+
+                let grossServicesTotalForPDF = collaborators.reduce((sum, collab) => sum + collab.clients.reduce((s, c) => s + c.value, 0), 0);
+                
+                if (collaborators.length > 0) {
+                    if (y > 270) { docInstance.addPage(); y = 15; }
+                    docInstance.setFontSize(12);
+                    docInstance.text("Serviços por Colaboradora (Bruto):", 20, y);
+                    y += 7;
+                    collaborators.forEach(collab => {
+                        const collabGrossTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                        if (grossServicesTotalForPDF > 0) {
+                            const percentageOfServices = (collabGrossTotal / grossServicesTotalForPDF) * 100;
+                            if (y > 270) { docInstance.addPage(); y = 15; }
+                            docInstance.setFontSize(10);
+                            docInstance.text(`${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')} (${percentageOfServices.toFixed(1)}% dos serviços)`, 25, y);
+                            y += 5;
+                        } else {
+                            if (y > 270) { docInstance.addPage(); y = 15; }
+                            docInstance.setFontSize(10);
+                            docInstance.text(`${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')}`, 25, y);
+                            y += 5;
+                        }
+                    });
+                } else {
+                    if (y > 270) { docInstance.addPage(); y = 15; }
+                    docInstance.setFontSize(10);
+                    docInstance.text("Nenhum serviço registrado.", 20, y);
+                    y += 5;
+                }
+
+                if (y > 270) { docInstance.addPage(); y = 15; }
+                docInstance.setFontSize(12);
+                docInstance.text("Venda de Produtos:", 20, y);
+                y += 7;
+                docInstance.setFontSize(10);
+                docInstance.text(`Total de Produtos: R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`, 25, y);
+                y += 10;
+
+
+                if (y > 260) { docInstance.addPage(); y = 15; }
+                docInstance.setFontSize(16);
+                docInstance.text("Resumo Geral:", 15, y);
+                y += 10;
+
+                let overallGrossTotalServices = 0;
+                let overallNetTotalServices = 0;
+                collaborators.forEach(collab => {
+                    const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                    overallGrossTotalServices += collabTotal;
+                    overallNetTotalServices += collabTotal * (1 - collab.discountPercentage);
+                });
+
+                const overallGrossTotal = overallGrossTotalServices + overallProductsTotal;
+                const overallNetTotal = overallNetTotalServices + overallProductsTotal;
+
+                if (y > 270) { docInstance.addPage(); y = 15; }
+                docInstance.setFontSize(14);
+                docInstance.text(`Total Bruto Geral: R$ ${overallGrossTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 10;
+                docInstance.text(`Total Líquido Geral (com comissões aplicadas): R$ ${overallNetTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 10;
+
+                if (generalNotes) {
+                    if (y > 270) { docInstance.addPage(); y = 15; }
+                    docInstance.setFontSize(12);
+                    docInstance.text("Observações Gerais:", 15, y);
+                    y += 7;
+                    docInstance.setFontSize(10);
+                    const splitNotes = docInstance.splitTextToSize(generalNotes, 180);
+                    docInstance.text(splitNotes, 20, y);
+                    y += splitNotes.length * 5;
+                }
+
+
+                docInstance.save("fechamento_semanal_salao.pdf");
+            }
+        }
+
+        // Função de inicialização da aplicação
+        function initializeApp() {
+            // Inicializa com dados padrão se os arrays estiverem vazios
+            if (collaborators.length === 0) {
+                collaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
+            }
+            if (products.length === 0) {
+                products.push({ clientName: '', value: 0 });
+            }
+            
+            renderAllUI(); 
+            updateDateDisplay(); // Atualiza a exibição da data
+            calculateAllTotals(); // Garante que os totais estejam corretos
+        }
+
+        // Inicializa o aplicativo quando o DOM estiver completamente carregado
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
+
