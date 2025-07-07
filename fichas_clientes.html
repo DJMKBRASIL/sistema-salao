@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Fichas de Cliente</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
+            authDomain: "sistema-do-salao.firebaseapp.com",
+            projectId: "sistema-do-salao",
+            storageBucket: "sistema-do-salao.firebasestorage.app",
+            messagingSenderId: "395887083088",
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
+            measurementId: "G-1D996M5FKZ"
+        };
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = 'loading...'; // Será atualizado após a autenticação
+        let fichasCollectionRef; // Referência à coleção de fichas no Firestore
+
+        // Função de inicialização do Firebase e autenticação
+        async function initializeFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Monitorar o estado de autenticação
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('user-id-display').textContent = `ID do Usuário: ${userId}`;
+                        console.log("Usuário autenticado:", userId);
+                        initializeAppLogic(); // Carregar dados iniciais após autenticação
+                    } else {
+                        // Se não houver usuário, tentar autenticação anônima
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Erro na autenticação:", error);
+                            document.getElementById('user-id-display').textContent = `Erro de Autenticação: ${error.message}`;
+                            showMessage('Erro na autenticação. Tente recarregar a página.', 'error');
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
+            }
+        }
+
+        // Chamar a inicialização do Firebase quando o DOM estiver pronto
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
+
+        // Funções Firebase para uso global (exportadas para o escopo global)
+        window.getFirestore = () => db;
+        window.getAuth = () => auth;
+        window.getUserId = () => userId;
+        window.doc = doc;
+        window.getDoc = getDoc;
+        window.setDoc = setDoc;
+        window.deleteDoc = deleteDoc;
+        window.collection = collection;
+        window.query = query;
+        window.where = where;
+        window.getDocs = getDocs;
+        window.addDoc = addDoc; // Adicionado para adicionar novos documentos
+        window.appId = appId; // Disponibiliza appId globalmente
+    </script>
+
+    <style>
+        /* Define a fonte Inter para todo o corpo da página */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Cor de fundo suave para a página */
+        }
+        /* Esconde as setas de incremento/decremento em campos de número no Webkit (Chrome, Safari) */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        /* Esconde as setas de incremento/decremento em campos de número no Firefox */
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        /* Estilo para o modal de confirmação */
+        .modal {
+            display: none; /* Escondido por padrão */
+            position: fixed; /* Posição fixa na tela */
+            z-index: 1000; /* Acima de tudo */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto; /* Habilita rolagem se necessário */
+            background-color: rgba(0,0,0,0.4); /* Fundo semi-transparente */
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 400px;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            text-align: center;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            gap: 10px;
+        }
+        .modal-button {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+            flex: 1;
+        }
+        .modal-button.confirm {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+        }
+        .modal-button.confirm:hover {
+            background-color: #dc2626; /* red-600 */
+        }
+        .modal-button.cancel {
+            background-color: #d1d5db; /* gray-300 */
+            color: #1f2937; /* gray-800 */
+        }
+        .modal-button.cancel:hover {
+            background-color: #9ca3af; /* gray-400 */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- Main container, centered and with max-width for larger screens -->
+    <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-gray-200">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Registro de Fichas de Cliente</h1>
+
+        <!-- ID do Usuário -->
+        <p id="user-id-display" class="text-sm text-gray-500 text-center mb-4">ID do Usuário: Carregando...</p>
+
+        <!-- Area for feedback messages -->
+        <div id="app-message" class="hidden mb-4 p-3 rounded-lg text-center font-medium"></div>
+
+        <!-- Ficha Input Section -->
+        <div class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h2 class="text-xl font-semibold text-blue-700 mb-4">Nova Ficha de Atendimento</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="clientName" class="block text-sm font-medium text-gray-700 mb-1">Nome da Cliente</label>
+                    <input type="text" id="clientName" placeholder="Nome Completo da Cliente" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                </div>
+                <div>
+                    <label for="professionalName" class="block text-sm font-medium text-gray-700 mb-1">Nome da Profissional</label>
+                    <input type="text" id="professionalName" placeholder="Nome da Profissional" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-md font-medium text-gray-700 mb-2">Serviços</h3>
+                <div id="services-container">
+                    <!-- Service rows will be added dynamically here -->
+                </div>
+                <button onclick="addServiceRow()" class="w-full bg-blue-400 text-white py-2 px-4 rounded-lg hover:bg-blue-500 focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-2">
+                    Adicionar Serviço
+                </button>
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-md font-medium text-gray-700 mb-2">Produtos Vendidos (Opcional)</h3>
+                <div id="products-sold-container">
+                    <!-- Products sold rows will be added dynamically here -->
+                </div>
+                <button onclick="addProductSoldRow()" class="w-full bg-green-400 text-white py-2 px-4 rounded-lg hover:bg-green-500 focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-2">
+                    Adicionar Produto
+                </button>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button id="addFichaBtn" onclick="addFicha()" class="bg-indigo-600 text-white py-3 px-6 rounded-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md text-lg font-bold" disabled>
+                    Registrar Ficha
+                </button>
+            </div>
+        </div>
+
+        <!-- Recorded Fichas Section -->
+        <div class="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Fichas Registradas</h2>
+            <div id="fichas-list" class="overflow-x-auto">
+                <table class="min-w-full bg-white rounded-lg shadow-md">
+                    <thead>
+                        <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
+                            <th class="py-3 px-6 text-left">Cliente</th>
+                            <th class="py-3 px-6 text-left">Profissional</th>
+                            <th class="py-3 px-6 text-left">Serviços</th>
+                            <th class="py-3 px-6 text-left">Produtos</th>
+                            <th class="py-3 px-6 text-center">Total Ficha</th>
+                            <th class="py-3 px-6 text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-600 text-sm font-light" id="fichas-table-body">
+                        <!-- Fichas will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                <button id="clearAllFichasBtn" onclick="showClearAllFichasConfirm()" class="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
+                    Limpar Todas as Fichas
+                </button>
+                <button id="exportWeeklyDataBtn" onclick="generateAndExportWeeklyData()" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
+                    Exportar Dados para Fechamento Semanal
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação para Limpar Tudo -->
+    <div id="custom-confirm-modal" class="modal">
+        <div class="modal-content">
+            <p class="text-lg font-semibold text-gray-800 mb-4">Tem certeza que deseja limpar todas as fichas?</p>
+            <p class="text-sm text-gray-600">Esta ação não pode ser desfeita.</p>
+            <div class="modal-buttons">
+                <button class="modal-button cancel" onclick="handleClearAllFichasConfirm(false)">Cancelar</button>
+                <button class="modal-button confirm" onclick="handleClearAllFichasConfirm(true)">Limpar Tudo</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let fichas = []; // Array local para armazenar os objetos de ficha (para renderização e agregação)
+
+        // --- Helper Functions for Messages and Modals ---
+        function showMessage(message, type = 'success') {
+            const msgDiv = document.getElementById('app-message');
+            msgDiv.textContent = message;
+            msgDiv.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-blue-100', 'text-blue-800');
+            if (type === 'success') {
+                msgDiv.classList.add('bg-green-100', 'text-green-800');
+            } else if (type === 'error') {
+                msgDiv.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'info') {
+                msgDiv.classList.add('bg-blue-100', 'text-blue-800');
+            }
+            msgDiv.classList.remove('hidden');
+            setTimeout(() => {
+                msgDiv.classList.add('hidden');
+            }, 5000);
+        }
+
+        function showClearAllFichasConfirm() {
+            document.getElementById('custom-confirm-modal').style.display = 'flex';
+        }
+
+        function handleClearAllFichasConfirm(confirmed) {
+            document.getElementById('custom-confirm-modal').style.display = 'none';
+            if (confirmed) {
+                clearAllFichas();
+            } else {
+                showMessage('Operação de limpeza cancelada.', 'info');
+            }
+        }
+        // --- End Helper Functions ---
+
+        // --- Firestore Functions ---
+        async function saveFichaToFirestore(fichaData) {
+            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível salvar a ficha.', 'error');
+                return;
+            }
+            try {
+                // Adiciona um novo documento à coleção 'fichas'
+                const docRef = await window.addDoc(fichasCollectionRef, fichaData);
+                console.log("Ficha salva com ID:", docRef.id);
+                showMessage('Ficha registrada e salva na nuvem!', 'success');
+                return docRef.id; // Retorna o ID do documento salvo
+            } catch (e) {
+                console.error("Erro ao adicionar ficha ao Firestore: ", e);
+                showMessage('Erro ao salvar ficha na nuvem: ' + e.message, 'error');
+                return null;
+            }
+        }
+
+        async function loadFichasFromFirestore() {
+            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) {
+                console.log('Firebase não inicializado ou usuário não autenticado. Não foi possível carregar as fichas.');
+                return;
+            }
+            showMessage('Carregando fichas do Firestore...', 'info');
+            try {
+                // Limpa o array local antes de carregar do Firestore
+                fichas = []; 
+                const querySnapshot = await window.getDocs(fichasCollectionRef);
+                querySnapshot.forEach((doc) => {
+                    // Adiciona o ID do documento ao objeto da ficha
+                    fichas.push({ id: doc.id, ...doc.data() });
+                });
+                renderFichasTable();
+                showMessage('Fichas carregadas do Firestore com sucesso!', 'success');
+                console.log("Fichas carregadas:", fichas);
+            } catch (e) {
+                console.error("Erro ao carregar fichas do Firestore: ", e);
+                showMessage('Erro ao carregar fichas da nuvem: ' + e.message, 'error');
+            }
+        }
+
+        async function removeFichaFromFirestore(fichaId) {
+            if (!window.getFirestore() || !window.getUserId()) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível remover a ficha.', 'error');
+                return false;
+            }
+            try {
+                await window.deleteDoc(window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/fichas`, fichaId));
+                showMessage('Ficha removida da nuvem.', 'info');
+                return true;
+            } catch (e) {
+                console.error("Erro ao remover ficha do Firestore: ", e);
+                showMessage('Erro ao remover ficha da nuvem: ' + e.message, 'error');
+                return false;
+            }
+        }
+
+        async function saveWeeklyReportDataToFirestore(data) {
+            if (!window.getFirestore() || !window.getUserId()) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados.', 'error');
+                return;
+            }
+            try {
+                // Salva os dados agregados em um documento específico para o fechamento semanal
+                const docRef = window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/weeklyReports/currentWeek`);
+                await window.setDoc(docRef, data);
+                showMessage('Dados agregados para fechamento semanal salvos no Firestore!', 'success');
+                console.log("Dados agregados salvos no Firestore:", data);
+            } catch (e) {
+                console.error("Erro ao salvar dados agregados no Firestore: ", e);
+                showMessage('Erro ao salvar dados agregados na nuvem: ' + e.message, 'error');
+            }
+        }
+        // --- End Firestore Functions ---
+
+        // --- Dynamic Input Row Management ---
+        function addServiceRow(serviceName = '', serviceValue = '') {
+            const container = document.getElementById('services-container');
+            const newServiceDiv = document.createElement('div');
+            newServiceDiv.className = 'flex items-center gap-2 mb-2 service-row';
+            newServiceDiv.innerHTML = `
+                <input type="text" placeholder="Nome do Serviço" value="${serviceName}" class="service-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 min-w-[100px]">
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${serviceValue}" class="service-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500">
+                <button onclick="removeRow(this)" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            container.appendChild(newServiceDiv);
+        }
+
+        function addProductSoldRow(productName = '', productValue = '') {
+            const container = document.getElementById('products-sold-container');
+            const newProductDiv = document.createElement('div');
+            newProductDiv.className = 'flex items-center gap-2 mb-2 product-sold-row';
+            newProductDiv.innerHTML = `
+                <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 min-w-[100px]">
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${productValue}" class="product-sold-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-green-500 focus:border-green-500">
+                <button onclick="removeRow(this)" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            container.appendChild(newProductDiv);
+        }
+
+        function removeRow(button) {
+            button.closest('.flex').remove();
+        }
+
+        function clearInputFields() {
+            document.getElementById('clientName').value = '';
+            document.getElementById('professionalName').value = '';
+            document.getElementById('services-container').innerHTML = ''; // Clear all service rows
+            document.getElementById('products-sold-container').innerHTML = ''; // Clear all product rows
+            addServiceRow(); // Add one empty service row back
+            addProductSoldRow(); // Add one empty product row back
+        }
+        // --- End Dynamic Input Row Management ---
+
+        // --- Ficha Management Functions ---
+        async function addFicha() {
+            // A verificação agora é mais robusta, incluindo fichasCollectionRef
+            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Por favor, aguarde alguns segundos e tente novamente.', 'error');
+                return;
+            }
+
+            const clientName = document.getElementById('clientName').value.trim();
+            const professionalName = document.getElementById('professionalName').value.trim();
+
+            if (!clientName || !professionalName) {
+                showMessage('Por favor, preencha o nome da Cliente e da Profissional.', 'error');
+                return;
+            }
+
+            const services = [];
+            document.querySelectorAll('.service-row').forEach(row => {
+                const name = row.querySelector('.service-name').value.trim();
+                const value = parseFloat(row.querySelector('.service-value').value) || 0;
+                if (name && value > 0) {
+                    services.push({ name, value });
+                }
+            });
+
+            const productsSold = [];
+            document.querySelectorAll('.product-sold-row').forEach(row => {
+                const name = row.querySelector('.product-sold-name').value.trim();
+                const value = parseFloat(row.querySelector('.product-sold-value').value) || 0;
+                if (name && value > 0) {
+                    productsSold.push({ name, value });
+                }
+            });
+
+            if (services.length === 0 && productsSold.length === 0) {
+                showMessage('Por favor, adicione pelo menos um serviço ou um produto vendido.', 'error');
+                return;
+            }
+
+            const totalFicha = services.reduce((sum, s) => sum + s.value, 0) + productsSold.reduce((sum, p) => sum + p.value, 0);
+
+            const newFicha = {
+                clientName,
+                professionalName,
+                services,
+                productsSold,
+                totalFicha,
+                timestamp: new Date().toISOString() // Para ordenação e ID único
+            };
+
+            const fichaId = await saveFichaToFirestore(newFicha);
+            if (fichaId) {
+                fichas.push({ id: fichaId, ...newFicha }); // Adiciona ao array local apenas após salvar no Firestore
+                renderFichasTable();
+                clearInputFields();
+            }
+        }
+
+        async function removeFicha(index) {
+            const fichaToRemove = fichas[index];
+            if (!fichaToRemove || !fichaToRemove.id) {
+                showMessage('Erro: Ficha ou ID da ficha não encontrado para remoção.', 'error');
+                return;
+            }
+
+            const removed = await removeFichaFromFirestore(fichaToRemove.id);
+            if (removed) {
+                fichas.splice(index, 1); // Remove do array local apenas se removido do Firestore
+                renderFichasTable();
+            }
+        }
+
+        async function clearAllFichas() {
+            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) { // Adicionado verificação para fichasCollectionRef
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível limpar as fichas.', 'error');
+                return;
+            }
+            showMessage('Limpando todas as fichas no Firestore...', 'info');
+            try {
+                const querySnapshot = await window.getDocs(fichasCollectionRef);
+                const deletePromises = [];
+                querySnapshot.forEach((doc) => {
+                    deletePromises.push(window.deleteDoc(window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/fichas`, doc.id)));
+                });
+                await Promise.all(deletePromises);
+                fichas = []; // Limpa o array local após a exclusão no Firestore
+                renderFichasTable();
+                showMessage('Todas as fichas foram limpas (Firestore).', 'success');
+            } catch (e) {
+                console.error("Erro ao limpar todas as fichas do Firestore: ", e);
+                showMessage('Erro ao limpar todas as fichas da nuvem: ' + e.message, 'error');
+            }
+        }
+
+        function renderFichasTable() {
+            const tableBody = document.getElementById('fichas-table-body');
+            tableBody.innerHTML = ''; // Clear existing rows
+
+            if (fichas.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="py-3 px-6 text-center text-gray-500">Nenhuma ficha registrada ainda.</td></tr>`;
+                return;
+            }
+
+            fichas.forEach((ficha, index) => {
+                const row = tableBody.insertRow();
+                row.className = 'border-b border-gray-200 hover:bg-gray-100';
+
+                // Client Name
+                const clientCell = row.insertCell();
+                clientCell.className = 'py-3 px-6 text-left whitespace-nowrap';
+                clientCell.textContent = ficha.clientName;
+
+                // Professional Name
+                const professionalCell = row.insertCell();
+                professionalCell.className = 'py-3 px-6 text-left whitespace-nowrap';
+                professionalCell.textContent = ficha.professionalName;
+
+                // Services
+                const servicesCell = row.insertCell();
+                servicesCell.className = 'py-3 px-6 text-left';
+                servicesCell.innerHTML = ficha.services.map(s => `
+                    <p>${s.name} (R$ ${s.value.toFixed(2).replace('.', ',')})</p>
+                `).join('');
+                if (ficha.services.length === 0) servicesCell.textContent = 'Nenhum';
+
+                // Products Sold
+                const productsCell = row.insertCell();
+                productsCell.className = 'py-3 px-6 text-left';
+                productsCell.innerHTML = ficha.productsSold.map(p => `
+                    <p>${p.name} (R$ ${p.value.toFixed(2).replace('.', ',')})</p>
+                `).join('');
+                if (ficha.productsSold.length === 0) productsCell.textContent = 'Nenhum';
+
+                // Total Ficha
+                const totalCell = row.insertCell();
+                totalCell.className = 'py-3 px-6 text-center font-bold';
+                totalCell.textContent = `R$ ${ficha.totalFicha.toFixed(2).replace('.', ',')}`;
+
+                // Actions
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'py-3 px-6 text-center';
+                actionsCell.innerHTML = `
+                    <button onclick="removeFicha(${index})" class="text-red-600 hover:text-red-800 font-medium">Remover</button>
+                `;
+            });
+        }
+        // --- End Ficha Management Functions ---
+
+        // --- Integration with Weekly Closing System (Firestore) ---
+        async function generateAndExportWeeklyData() {
+            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) { // Adicionado verificação para fichasCollectionRef
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados para fechamento semanal.', 'error');
+                return;
+            }
+
+            const aggregatedData = {
+                collaborators: {}, // Use an object to easily group by professional name
+                products: []
+            };
+
+            fichas.forEach(ficha => {
+                const professionalName = ficha.professionalName.trim();
+
+                // Aggregate services by professional
+                if (!aggregatedData.collaborators[professionalName]) {
+                    aggregatedData.collaborators[professionalName] = {
+                        name: professionalName,
+                        clients: [], // Will store { name: clientName, value: serviceValue } for this professional
+                        discountPercentage: 0.30 // Default, can be adjusted in the main app
+                    };
+                }
+                ficha.services.forEach(service => {
+                    // For simplicity, each service is treated as a client entry for the professional's total
+                    // If a professional does multiple services for the same client, they'll appear as separate entries
+                    // This matches the current structure of the main app's 'clients' array
+                    aggregatedData.collaborators[professionalName].clients.push({
+                        name: ficha.clientName + ' - ' + service.name, // Combine client and service for clarity
+                        value: service.value
+                    });
+                });
+
+                // Aggregate products
+                ficha.productsSold.forEach(product => {
+                    aggregatedData.products.push({
+                        clientName: ficha.clientName + ' - ' + product.name, // Combine client and product for clarity
+                        value: product.value
+                    });
+                });
+            });
+
+            // Convert collaborators object back to an array
+            const finalCollaboratorsArray = Object.values(aggregatedData.collaborators);
+
+            const dataToExport = {
+                collaborators: finalCollaboratorsArray,
+                products: aggregatedData.products,
+                lastUpdated: new Date().toISOString() // Adiciona um timestamp de atualização
+            };
+
+            await saveWeeklyReportDataToFirestore(dataToExport);
+        }
+        // --- End Integration ---
+
+        // --- Initialization ---
+        function initializeAppLogic() {
+            // Garante que fichasCollectionRef seja definido aqui, após db estar disponível
+            if (!window.getFirestore()) { // Alterado para usar window.getFirestore()
+                console.error("Firestore DB não disponível ao tentar inicializar fichasCollectionRef.");
+                showMessage('Erro interno: Banco de dados não disponível. Recarregue a página.', 'error');
+                return;
+            }
+            fichasCollectionRef = collection(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/fichas`); // Alterado para usar window.getFirestore()
+
+            loadFichasFromFirestore(); // Carrega fichas do Firestore
+            // Ensure there's always at least one empty row for input
+            if (document.querySelectorAll('.service-row').length === 0) {
+                addServiceRow();
+            }
+            if (document.querySelectorAll('.product-sold-row').length === 0) {
+                addProductSoldRow();
+            }
+            // Habilitar botões após a inicialização do Firebase e autenticação
+            document.getElementById('addFichaBtn').disabled = false;
+            document.getElementById('clearAllFichasBtn').disabled = false;
+            document.getElementById('exportWeeklyDataBtn').disabled = false;
+        }
+
+        // initializeAppLogic será chamada após a autenticação Firebase
+        // document.addEventListener('DOMContentLoaded', initializeApp); // Removido
+    </script>
+</body>
+</html>
