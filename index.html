@@ -16,8 +16,9 @@
         import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        // Agora declaradas diretamente no objeto window para garantir acessibilidade global
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
             authDomain: "sistema-do-salao.firebaseapp.com",
             projectId: "sistema-do-salao",
@@ -26,37 +27,35 @@
             appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
             measurementId: "G-1D996M5FKZ"
         };
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let app;
-        let db;
-        let auth;
-        let userId = 'loading...'; // Será atualizado após a autenticação
+        // Variáveis do Firebase agora como propriedades de window para acessibilidade global
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = 'loading...'; // Será atualizado após a autenticação
 
         // Função de inicialização do Firebase e autenticação
         async function initializeFirebase() {
             try {
-                // Aqui estamos usando a firebaseConfig fornecida ou a padrão do Canvas
-                app = initializeApp(firebaseConfig);
-                
-                db = getFirestore(app);
-                auth = getAuth(app);
+                window.app = initializeApp(window.firebaseConfig);
+                window.db = getFirestore(window.app);
+                window.auth = getAuth(window.app);
 
                 // Monitorar o estado de autenticação
-                onAuthStateChanged(auth, async (user) => {
+                onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
-                        userId = user.uid;
-                        document.getElementById('user-id-display').textContent = `ID do Usuário: ${userId}`;
-                        console.log("Usuário autenticado:", userId);
-                        // Carregar dados iniciais após autenticação
-                        initializeAppLogic();
+                        window.userId = user.uid;
+                        document.getElementById('user-id-display').textContent = `ID do Usuário: ${window.userId}`;
+                        console.log("Usuário autenticado:", window.userId);
+                        initializeAppLogic(); // Carregar dados iniciais após autenticação
                     } else {
                         // Se não houver usuário, tentar autenticação anônima
                         try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
+                            if (window.initialAuthToken) {
+                                await signInWithCustomToken(window.auth, window.initialAuthToken);
                             } else {
-                                await signInAnonymously(auth);
+                                await signInAnonymously(window.auth);
                             }
                         } catch (error) {
                             console.error("Erro na autenticação:", error);
@@ -75,10 +74,7 @@
         // Chamar a inicialização do Firebase quando o DOM estiver pronto
         document.addEventListener('DOMContentLoaded', initializeFirebase);
 
-        // Funções Firebase para uso global (exportadas para o escopo global)
-        window.getFirestore = () => db;
-        window.getAuth = () => auth;
-        window.getUserId = () => userId;
+        // Expondo as funções do Firestore SDK diretamente, se necessário
         window.doc = doc;
         window.getDoc = getDoc;
         window.setDoc = setDoc;
@@ -87,7 +83,6 @@
         window.query = query;
         window.where = where;
         window.getDocs = getDocs;
-        window.appId = appId; // Disponibiliza appId globalmente
     </script>
 
     <style>
@@ -227,10 +222,10 @@
                     <button onclick="importDataFromFile()" class="flex-1 bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
                         Importar Dados de Arquivo
                     </button>
-                    <button onclick="loadDataFromFichasSystem()" class="flex-1 bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                    <button id="loadDataFromFichasSystemBtn" onclick="loadDataFromFichasSystem()" class="flex-1 bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                         Importar Dados das Fichas
                     </button>
-                    <button onclick="showClearConfirm()" class="flex-1 bg-gray-300 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-400 focus:ring-2 focus://ring-gray-300 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                    <button id="clearAllDataBtn" onclick="showClearConfirm()" class="flex-1 bg-gray-300 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-400 focus:ring-2 focus://ring-gray-300 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                         Limpar Tudo
                     </button>
                 </div>
@@ -269,10 +264,10 @@
         <div class="mb-8 p-4 bg-orange-50 rounded-lg border border-orange-200">
             <h2 class="text-xl font-semibold text-orange-700 mb-4">Recursos ✨ Gemini AI</h2>
             <div class="space-y-4">
-                <button onclick="generateWeeklyAnalysis()" class="w-full bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                <button id="generateWeeklyAnalysisBtn" onclick="generateWeeklyAnalysis()" class="w-full bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                     ✨ Gerar Análise da Semana
                 </button>
-                <button onclick="generateMarketingSlogans()" class="w-full bg-pink-500 text-white py-2 px-4 rounded-lg hover:bg-pink-600 focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                <button id="generateMarketingSlogansBtn" onclick="generateMarketingSlogans()" class="w-full bg-pink-500 text-white py-2 px-4 rounded-lg hover:bg-pink-600 focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                     ✨ Gerar Slogans de Marketing
                 </button>
             </div>
@@ -487,14 +482,14 @@
 
         // --- Função para Importar Dados do Sistema de Fichas (AGORA DO FIRESTORE) ---
         async function loadDataFromFichasSystem() {
-            if (!window.db || !window.getUserId()) {
+            if (!window.db || !window.userId) { // Acessar diretamente window.db e window.userId
                 showMessage('Firebase não inicializado ou usuário não autenticado. Tente novamente.', 'info');
                 return;
             }
 
             showMessage('Carregando dados das fichas do Firestore...', 'info');
             try {
-                const docRef = window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/weeklyReports/currentWeek`);
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
                 const docSnap = await window.getDoc(docRef);
 
                 if (docSnap.exists()) {
@@ -535,7 +530,7 @@
 
         // Função para limpar todos os dados e a UI (AGORA TAMBÉM NO FIRESTORE)
         async function clearAllData() {
-            if (!window.db || !window.getUserId()) {
+            if (!window.db || !window.userId) { // Acessar diretamente window.db e window.userId
                 showMessage('Firebase não inicializado ou usuário não autenticado. Tente novamente.', 'info');
                 return;
             }
@@ -563,15 +558,15 @@
                 products.push({ clientName: '', value: 0 });
 
                 // Limpar dados no Firestore (documento de fechamento semanal)
-                const docRef = window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/weeklyReports/currentWeek`);
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
                 await window.deleteDoc(docRef);
 
                 // Opcional: Limpar todas as fichas individuais do Firestore também
-                const fichasCollectionRef = window.collection(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/fichas`);
+                const fichasCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
                 const querySnapshot = await window.getDocs(fichasCollectionRef);
                 const deletePromises = [];
                 querySnapshot.forEach((doc) => {
-                    deletePromises.push(window.deleteDoc(window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/fichas`, doc.id)));
+                    deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, doc.id)));
                 });
                 await Promise.all(deletePromises);
 
@@ -861,6 +856,10 @@
 
         // Função para gerar Análise Semanal usando a API Gemini
         async function generateWeeklyAnalysis() {
+            if (!window.db || !window.userId) { // Acessar diretamente window.db e window.userId
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível gerar análise.', 'error');
+                return;
+            }
             showLoading('Gerando análise da semana...');
 
             const dateText = document.getElementById('dateDisplay').textContent;
@@ -938,6 +937,10 @@ Detalhes de Serviços por Colaboradora (Bruto e Líquido com suas respectivas co
 
         // Função para gerar Slogans de Marketing usando a API Gemini
         async function generateMarketingSlogans() {
+            if (!window.db || !window.userId) { // Acessar diretamente window.db e window.userId
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível gerar slogans.', 'error');
+                return;
+            }
             showLoading('Gerando slogans de marketing...');
 
             const dateText = document.getElementById('dateDisplay').textContent;
@@ -1308,10 +1311,17 @@ Total Bruto Geral: R$${(overallGrossTotalServices + overallProductsTotal).toFixe
             renderAllUI(); 
             updateDateDisplay(); // Atualiza a exibição da data
             calculateAllTotals(); // Garante que os totais estejam corretos
+
+            // Habilitar botões após a inicialização do Firebase e autenticação
+            document.getElementById('loadDataFromFichasSystemBtn').disabled = false;
+            document.getElementById('clearAllDataBtn').disabled = false;
+            document.getElementById('generateWeeklyAnalysisBtn').disabled = false;
+            document.getElementById('generateMarketingSlogansBtn').disabled = false;
         }
 
-        // Não chame initializeAppLogic diretamente aqui, pois ela será chamada após a autenticação Firebase
+        // initializeAppLogic será chamada após a autenticação Firebase
         // document.addEventListener('DOMContentLoaded', initializeApp); // Removido
     </script>
 </body>
 </html>
+
