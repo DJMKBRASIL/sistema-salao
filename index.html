@@ -69,22 +69,11 @@
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Entrar com Google</button>
                         `;
-                        // Tentar autenticação anónima ou com token inicial se não houver usuário logado
-                        try {
-                            if (window.initialAuthToken) {
-                                await signInWithCustomToken(window.auth, window.initialAuthToken);
-                                console.log("Tentativa de autenticação com token personalizado.");
-                            } else {
-                                await signInAnonymously(window.auth);
-                                console.log("Tentativa de autenticação anónima.");
-                            }
-                        } catch (error) {
-                            console.error("Erro na autenticação inicial:", error);
-                            showMessage('Erro na autenticação inicial. Tente recarregar a página.', 'error');
-                        }
                         // Desabilitar botões que dependem de autenticação completa
                         document.getElementById('loadDataFromFichasSystemBtn').disabled = true;
                         document.getElementById('clearAllDataBtn').disabled = true;
+                        document.getElementById('saveToFirestoreBtn').disabled = true;
+                        document.getElementById('loadFromFirestoreBtn').disabled = true; // Desabilita o novo botão
                     }
                 });
 
@@ -114,12 +103,12 @@
                 // Limpar dados locais ao sair
                 collaborators = [];
                 products = [];
-                salonName = "";
+                // salonName = ""; // Campo removido
+                // document.getElementById('salonName').value = ''; // Campo removido
                 document.getElementById('day').value = '';
                 document.getElementById('month').value = '';
                 document.getElementById('year').value = '';
-                document.getElementById('generalNotes').value = '';
-                document.getElementById('salonName').value = '';
+                // document.getElementById('generalNotes').value = ''; // Campo removido
                 renderAllUI(); // Renderiza a UI com os dados padrão (vazios)
                 updateDateDisplay();
                 calculateAllTotals();
@@ -238,11 +227,7 @@
         <div class="mb-8 p-4 bg-purple-50 rounded-lg border border-purple-200">
             <h2 class="text-xl font-semibold text-purple-700 mb-4">Informações do Fechamento</h2>
             
-            <div class="mb-4">
-                <label for="salonName" class="block text-sm font-medium text-gray-700 mb-1">Nome do Salão</label>
-                <input type="text" id="salonName" placeholder="Seu Salão de Beleza" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-            </div>
-            <!-- Campo de URL do Logotipo removido -->
+            <!-- Campo de Nome do Salão removido -->
 
             <h3 class="text-lg font-semibold text-purple-700 mb-4">Data do Fechamento Semanal</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -283,6 +268,12 @@
                     </button>
                     <button onclick="importDataFromFile()" class="flex-1 bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
                         Importar Dados de Arquivo
+                    </button>
+                    <button id="saveToFirestoreBtn" onclick="saveWeeklyClosingToFirestore()" class="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
+                        Salvar no Firestore
+                    </button>
+                    <button id="loadFromFirestoreBtn" onclick="loadWeeklyClosingFromFirestore()" class="flex-1 bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
+                        Carregar do Firestore
                     </button>
                     <button id="loadDataFromFichasSystemBtn" onclick="loadDataFromFichasSystem()" class="flex-1 bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                         Importar Dados das Fichas
@@ -338,11 +329,7 @@
             </div>
         </div>
 
-        <!-- Campo de Observações/Notas -->
-        <div class="mb-8 p-4 bg-gray-100 rounded-lg border border-gray-200">
-            <label for="generalNotes" class="block text-xl font-semibold text-gray-700 mb-4">Observações Gerais</label>
-            <textarea id="generalNotes" rows="5" placeholder="Adicione notas importantes sobre o fechamento semanal aqui..." class="w-full p-3 border border-gray-300 rounded-md focus:ring-gray-400 focus:border-gray-400 shadow-sm"></textarea>
-        </div>
+        <!-- Campo de Observações/Notas removido -->
 
 
         <!-- Botão de Exportar PDF Global -->
@@ -367,7 +354,7 @@
         // Variáveis globais para armazenar os dados do sistema
         let collaborators = []; // Array de objetos { name, clients: [{name, value}], discountPercentage }
         let products = [];      // Array de objetos { clientName, value }
-        let salonName = "";     // Nome do salão
+        let salonName = "Salão de Beleza"; // Valor padrão, já que o campo foi removido
 
         // --- Funções de Feedback e Confirmação ---
         function showMessage(message, type = 'success') {
@@ -424,7 +411,7 @@
         // Função para exportar os dados para um arquivo JSON
         function exportDataToFile() {
             const dataToSave = {
-                salonName: document.getElementById('salonName').value,
+                salonName: salonName, // Usa a variável global
                 collaborators: collaborators,
                 products: products,
                 date: {
@@ -432,7 +419,7 @@
                     month: document.getElementById('month').value,
                     year: document.getElementById('year').value
                 },
-                notes: document.getElementById('generalNotes').value
+                notes: "" // Observações gerais removidas
             };
 
             const jsonString = JSON.stringify(dataToSave, null, 2); // Formata o JSON para leitura
@@ -476,7 +463,7 @@
 
                             collaborators = importedData.collaborators;
                             products = importedData.products;
-                            salonName = importedData.salonName || '';
+                            salonName = importedData.salonName || 'Salão de Beleza'; // Usa o valor importado ou padrão
 
                             // Garante que cada colaboradora tenha um discountPercentage, caso o arquivo não o possua
                             collaborators.forEach(collab => {
@@ -489,8 +476,8 @@
                             document.getElementById('day').value = importedData.date.day || '';
                             document.getElementById('month').value = importedData.date.month || '';
                             document.getElementById('year').value = importedData.date.year || '';
-                            document.getElementById('generalNotes').value = importedData.notes || '';
-                            document.getElementById('salonName').value = salonName;
+                            // document.getElementById('generalNotes').value = importedData.notes || ''; // Campo removido
+                            // document.getElementById('salonName').value = salonName; // Campo removido
 
                             renderAllUI(); // Renderiza toda a UI com os dados importados
                             showMessage('Dados importados com sucesso!', 'success');
@@ -512,11 +499,85 @@
 
         // --- Fim das Funções de Salvar/Carregar para Arquivo ---
 
+        // --- Função para Salvar Dados do Fechamento Semanal no Firestore ---
+        async function saveWeeklyClosingToFirestore() {
+            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
+                showMessage('Por favor, faça login para salvar dados no Firestore.', 'error');
+                return;
+            }
+
+            showMessage('Salvando dados do fechamento semanal no Firestore...', 'info');
+
+            const dataToSave = {
+                salonName: salonName, // Usa a variável global
+                collaborators: collaborators,
+                products: products,
+                date: {
+                    day: document.getElementById('day').value,
+                    month: document.getElementById('month').value,
+                    year: document.getElementById('year').value
+                },
+                notes: "", // Observações gerais removidas
+                lastSaved: new Date().toISOString() // Adiciona um timestamp de quando foi salvo
+            };
+
+            try {
+                // Salva os dados em um documento específico para o fechamento semanal manual
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSave`);
+                await window.setDoc(docRef, dataToSave);
+                showMessage('Dados do fechamento semanal salvos no Firestore!', 'success');
+                console.log("Dados do fechamento semanal salvos no Firestore:", dataToSave);
+            } catch (e) {
+                console.error("Erro ao salvar dados do fechamento semanal no Firestore: ", e);
+                showMessage('Erro ao salvar dados na nuvem: ' + e.message, 'error');
+            }
+        }
+        // --- Fim da Função de Salvar no Firestore ---
+
+        // --- Função para Carregar Dados do Fechamento Semanal do Firestore ---
+        async function loadWeeklyClosingFromFirestore() {
+            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
+                showMessage('Por favor, faça login para carregar dados do Firestore.', 'error');
+                return;
+            }
+
+            showMessage('Carregando dados do fechamento semanal do Firestore...', 'info');
+            try {
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSave`);
+                const docSnap = await window.getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const loadedData = docSnap.data();
+                    
+                    collaborators = loadedData.collaborators || [];
+                    products = loadedData.products || [];
+                    salonName = loadedData.salonName || 'Salão de Beleza'; // Carrega ou usa o padrão
+
+                    document.getElementById('day').value = loadedData.date?.day || '';
+                    document.getElementById('month').value = loadedData.date?.month || '';
+                    document.getElementById('year').value = loadedData.date?.year || '';
+                    // generalNotes não é mais carregado pois o campo foi removido
+
+                    renderAllUI();
+                    showMessage('Dados do fechamento semanal carregados do Firestore com sucesso!', 'success');
+                    console.log("Dados do fechamento semanal carregados do Firestore:", loadedData);
+                } else {
+                    showMessage('Nenhum dado de fechamento semanal salvo no Firestore para carregar.', 'info');
+                    console.log("Nenhum documento 'manualSave' encontrado.");
+                }
+            } catch (error) {
+                showMessage('Erro ao carregar dados do Firestore: ' + error.message, 'error');
+                console.error('Erro ao carregar dados do Firestore:', error);
+            }
+        }
+        // --- Fim da Função de Carregar do Firestore ---
+
+
         // --- Função para Importar Dados do Sistema de Fichas (AGORA DO FIRESTORE) ---
         async function loadDataFromFichasSystem() {
-            if (!window.db || !window.userId) { // Acessar diretamente window.db e window.userId
+            if (!window.db || !window.userId || window.userId === 'Não autenticado') { // Acessar diretamente window.db e window.userId
                 console.error("Debug: window.db is", window.db, "window.userId is", window.userId); // Debug log
-                showMessage('Firebase não inicializado ou usuário não autenticado. Tente novamente.', 'info');
+                showMessage('Por favor, faça login para importar dados das fichas.', 'error');
                 return;
             }
 
@@ -564,8 +625,8 @@
 
         // Função para limpar todos os dados e a UI (AGORA TAMBÉM NO FIRESTORE)
         async function clearAllData() {
-            if (!window.db || !window.userId) { // Acessar diretamente window.db e window.userId
-                showMessage('Firebase não inicializado ou usuário não autenticado. Tente novamente.', 'info');
+            if (!window.db || !window.userId || window.userId === 'Não autenticado') { // Acessar diretamente window.db e window.userId
+                showMessage('Por favor, faça login para limpar dados no Firestore.', 'error');
                 return;
             }
 
@@ -574,22 +635,24 @@
                 // Limpar dados locais
                 collaborators = [];
                 products = [];
-                salonName = "";
-
-                // Limpar campos da UI
+                // salonName = ""; // Campo removido
+                // document.getElementById('salonName').value = ''; // Campo removido
                 document.getElementById('day').value = '';
                 document.getElementById('month').value = '';
                 document.getElementById('year').value = '';
-                document.getElementById('generalNotes').value = '';
-                document.getElementById('salonName').value = '';
+                // document.getElementById('generalNotes').value = ''; // Campo removido
 
                 // Garante que haja pelo menos uma colaboradora e um produto após a limpeza
                 collaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
                 products.push({ clientName: '', value: 0 });
 
-                // Limpar dados no Firestore (documento de fechamento semanal)
-                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
-                await window.deleteDoc(docRef);
+                // Limpar dados no Firestore (documento de fechamento semanal manual)
+                const manualSaveDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSave`);
+                await window.deleteDoc(manualSaveDocRef);
+
+                // Limpar dados no Firestore (documento de fechamento semanal agregado das fichas)
+                const currentWeekDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
+                await window.deleteDoc(currentWeekDocRef);
 
                 // Opcional: Limpar todas as fichas individuais do Firestore também
                 const fichasCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
@@ -877,10 +940,10 @@
                 return;
             }
 
-            const currentSalonName = document.getElementById('salonName').value || "Salão de Beleza";
+            const currentSalonName = salonName; // Usa a variável global
             const dateText = document.getElementById('dateDisplay').textContent;
             const collabName = collab.name || 'Colaboradora sem nome';
-            const generalNotes = document.getElementById('generalNotes').value;
+            const generalNotes = ""; // Observações gerais removidas
 
             // Posição Y fixa para o título principal da colaboradora
             const collabTitleY = 20; 
@@ -929,7 +992,7 @@
             doc.text(`Total Líquido para ${collabName}: R$ ${collabNetTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
             y += 15; // Espaço após o total
 
-            if (generalNotes) {
+            if (generalNotes) { // Será sempre vazio agora
                  if (y > 270) { doc.addPage(); y = 15; }
                  doc.setFontSize(12);
                  doc.text("Observações Gerais:", 15, y);
@@ -949,9 +1012,9 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
 
-            const currentSalonName = document.getElementById('salonName').value || "Salão de Beleza";
+            const currentSalonName = salonName; // Usa a variável global
             const dateText = document.getElementById('dateDisplay').textContent;
-            const generalNotes = document.getElementById('generalNotes').value;
+            const generalNotes = ""; // Observações gerais removidas
 
             // Posição Y fixa para o título principal
             const mainTitleY = 20; 
@@ -1104,7 +1167,7 @@
             doc.text(`Total Líquido Geral (com comissões aplicadas): R$ ${overallNetTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
             y += 10;
 
-            if (generalNotes) {
+            if (generalNotes) { // Será sempre vazio agora
                 if (y > 270) { doc.addPage(); y = 15; }
                 doc.setFontSize(12);
                 doc.text("Observações Gerais:", 15, y);
@@ -1137,6 +1200,8 @@
             // Habilitar botões após a inicialização do Firebase e autenticação
             document.getElementById('loadDataFromFichasSystemBtn').disabled = false;
             document.getElementById('clearAllDataBtn').disabled = false;
+            document.getElementById('saveToFirestoreBtn').disabled = false; // Habilita o novo botão
+            document.getElementById('loadFromFirestoreBtn').disabled = false; // Habilita o novo botão
             console.log("Buttons enabled."); // Debug log
         }
     </script>
