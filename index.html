@@ -41,14 +41,21 @@
                 window.app = initializeApp(window.firebaseConfig);
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
+                console.log("Firebase initialized: app, db, auth are set."); // Debug log
 
                 // Monitorar o estado de autenticação
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
                         window.userId = user.uid;
                         document.getElementById('user-id-display').textContent = `ID do Usuário: ${window.userId}`;
-                        console.log("Usuário autenticado:", window.userId);
-                        initializeAppLogic(); // Carregar dados iniciais após autenticação
+                        console.log("Usuário autenticado:", window.userId); // Debug log
+                        // Ensure db is set before calling initializeAppLogic
+                        if (window.db) { // Added check for window.db
+                            initializeAppLogic(); // Carregar dados iniciais após autenticação
+                        } else {
+                            console.error("Firebase DB not available after authentication. (Inside onAuthStateChanged)"); // Debug log
+                            showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
+                        }
                     } else {
                         // Se não houver usuário, tentar autenticação anônima
                         try {
@@ -57,6 +64,7 @@
                             } else {
                                 await signInAnonymously(window.auth);
                             }
+                            console.log("Tentativa de autenticação anônima/custom token."); // Debug log
                         } catch (error) {
                             console.error("Erro na autenticação:", error);
                             document.getElementById('user-id-display').textContent = `Erro de Autenticação: ${error.message}`;
@@ -483,6 +491,7 @@
         // --- Função para Importar Dados do Sistema de Fichas (AGORA DO FIRESTORE) ---
         async function loadDataFromFichasSystem() {
             if (!window.db || !window.userId) { // Acessar diretamente window.db e window.userId
+                console.error("Debug: window.db is", window.db, "window.userId is", window.userId); // Debug log
                 showMessage('Firebase não inicializado ou usuário não autenticado. Tente novamente.', 'info');
                 return;
             }
@@ -1300,6 +1309,7 @@ Total Bruto Geral: R$${(overallGrossTotalServices + overallProductsTotal).toFixe
 
         // Função de inicialização da lógica da aplicação (chamada após autenticação Firebase)
         function initializeAppLogic() {
+            console.log("initializeAppLogic called. window.db:", window.db, "window.userId:", window.userId); // Debug log
             // Inicializa com dados padrão se os arrays estiverem vazios
             if (collaborators.length === 0) {
                 collaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
@@ -1317,6 +1327,7 @@ Total Bruto Geral: R$${(overallGrossTotalServices + overallProductsTotal).toFixe
             document.getElementById('clearAllDataBtn').disabled = false;
             document.getElementById('generateWeeklyAnalysisBtn').disabled = false;
             document.getElementById('generateMarketingSlogansBtn').disabled = false;
+            console.log("Buttons enabled."); // Debug log
         }
 
         // initializeAppLogic será chamada após a autenticação Firebase
@@ -1324,4 +1335,3 @@ Total Bruto Geral: R$${(overallGrossTotalServices + overallProductsTotal).toFixe
     </script>
 </body>
 </html>
-
