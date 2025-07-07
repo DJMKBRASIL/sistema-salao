@@ -10,12 +10,12 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
             authDomain: "sistema-do-salao.firebaseapp.com",
             projectId: "sistema-do-salao",
@@ -24,51 +24,65 @@
             appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
             measurementId: "G-1D996M5FKZ"
         };
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        let app;
-        let db;
-        let auth;
-        let userId = 'loading...'; // Será atualizado após a autenticação
-        // Removido: let fichasCollectionRef; // Referência à coleção de fichas no Firestore
-
-        // Função para obter a referência da coleção de fichas, garantindo que db e userId estejam prontos
-        window.getFichasCollectionRef = () => {
-            if (!db || !userId) {
-                console.warn("Tentativa de obter fichasCollectionRef antes do Firebase estar totalmente inicializado.");
-                return null;
-            }
-            return collection(db, `artifacts/${appId}/users/${userId}/fichas`);
-        };
+        // Variáveis do Firebase agora como propriedades de window para acessibilidade global
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = 'loading...'; // Será atualizado após a autenticação
+        window.fichasCollectionRef = null; // Referência à coleção de fichas no Firestore
 
         // Função de inicialização do Firebase e autenticação
         async function initializeFirebase() {
             try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+                window.app = initializeApp(window.firebaseConfig);
+                window.db = getFirestore(window.app);
+                window.auth = getAuth(window.app);
+                console.log("Firebase initialized: app, db, auth are set."); // Debug log
 
                 // Monitorar o estado de autenticação
-                onAuthStateChanged(auth, async (user) => {
+                onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
-                        userId = user.uid;
-                        document.getElementById('user-id-display').textContent = `ID do Usuário: ${userId}`;
-                        // Removido: fichasCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/fichas`);
-                        console.log("Usuário autenticado:", userId);
-                        initializeAppLogic(); // Carregar dados iniciais após autenticação
+                        // Usuário autenticado (pode ser anónimo ou Google)
+                        window.userId = user.uid;
+                        document.getElementById('user-id-display').textContent = `ID do Usuário: ${window.userId}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Sair</button>
+                        `;
+                        // Definir fichasCollectionRef aqui, após db e userId estarem disponíveis
+                        window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
+                        console.log("Usuário autenticado:", window.userId); // Debug log
+                        if (window.db) {
+                            initializeAppLogic(); // Carregar dados iniciais após autenticação
+                        } else {
+                            console.error("Firebase DB not available after authentication. (Inside onAuthStateChanged)"); // Debug log
+                            showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
+                        }
                     } else {
-                        // Se não houver usuário, tentar autenticação anônima
+                        // Usuário não autenticado
+                        window.userId = 'Não autenticado';
+                        document.getElementById('user-id-display').textContent = `ID do Usuário: ${window.userId}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Entrar com Google</button>
+                        `;
+                        // Tentar autenticação anónima ou com token inicial se não houver usuário logado
                         try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
+                            if (window.initialAuthToken) {
+                                await signInWithCustomToken(window.auth, window.initialAuthToken);
+                                console.log("Tentativa de autenticação com token personalizado.");
                             } else {
-                                await signInAnonymously(auth);
+                                await signInAnonymously(window.auth);
+                                console.log("Tentativa de autenticação anónima.");
                             }
                         } catch (error) {
-                            console.error("Erro na autenticação:", error);
-                            document.getElementById('user-id-display').textContent = `Erro de Autenticação: ${error.message}`;
-                            showMessage('Erro na autenticação. Tente recarregar a página.', 'error');
+                            console.error("Erro na autenticação inicial:", error);
+                            showMessage('Erro na autenticação inicial. Tente recarregar a página.', 'error');
                         }
+                        // Desabilitar botões que dependem de autenticação completa
+                        document.getElementById('addFichaBtn').disabled = true;
+                        document.getElementById('clearAllFichasBtn').disabled = true;
+                        document.getElementById('exportWeeklyDataBtn').disabled = true;
                     }
                 });
 
@@ -78,13 +92,37 @@
             }
         }
 
+        // Função para autenticar com Google
+        async function signInWithGoogle() {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(window.auth, provider);
+                showMessage('Autenticado com Google!', 'success');
+            } catch (error) {
+                console.error("Erro ao autenticar com Google:", error);
+                showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
+            }
+        }
+
+        // Função para sair
+        async function signOutUser() {
+            try {
+                await signOut(window.auth);
+                showMessage('Sessão encerrada.', 'info');
+                // Limpar dados locais ao sair
+                fichas = [];
+                renderFichasTable();
+                clearInputFields();
+            } catch (error) {
+                console.error("Erro ao sair:", error);
+                showMessage('Erro ao sair: ' + error.message, 'error');
+            }
+        }
+
         // Chamar a inicialização do Firebase quando o DOM estiver pronto
         document.addEventListener('DOMContentLoaded', initializeFirebase);
 
-        // Funções Firebase para uso global (exportadas para o escopo global)
-        window.getFirestore = () => db;
-        window.getAuth = () => auth;
-        window.getUserId = () => userId;
+        // Expondo as funções do Firestore SDK diretamente, se necessário
         window.doc = doc;
         window.getDoc = getDoc;
         window.setDoc = setDoc;
@@ -94,7 +132,9 @@
         window.where = where;
         window.getDocs = getDocs;
         window.addDoc = addDoc; // Adicionado para adicionar novos documentos
-        window.appId = appId; // Disponibiliza appId globalmente
+        // Expondo funções de autenticação para o HTML
+        window.signInWithGoogle = signInWithGoogle;
+        window.signOutUser = signOutUser;
     </script>
 
     <style>
@@ -174,8 +214,13 @@
     <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-gray-200">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Registro de Fichas de Cliente</h1>
 
-        <!-- ID do Usuário -->
-        <p id="user-id-display" class="text-sm text-gray-500 text-center mb-4">ID do Usuário: Carregando...</p>
+        <!-- ID do Usuário e Botões de Autenticação -->
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">ID do Usuário: Carregando...</p>
+            <div id="auth-buttons" class="flex gap-2">
+                <!-- Botões de autenticação serão injetados aqui pelo JavaScript -->
+            </div>
+        </div>
 
         <!-- Area for feedback messages -->
         <div id="app-message" class="hidden mb-4 p-3 rounded-lg text-center font-medium"></div>
@@ -301,17 +346,15 @@
 
         // --- Firestore Functions ---
         async function saveFichaToFirestore(fichaData) {
-            const fichasCollection = window.getFichasCollectionRef(); // Obter a referência da coleção aqui
-            if (!window.getFirestore() || !window.getUserId() || !fichasCollection) {
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
                 showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível salvar a ficha.', 'error');
                 return;
             }
             try {
-                // Adiciona um novo documento à coleção 'fichas'
-                const docRef = await window.addDoc(fichasCollection, fichaData); // Usar a referência obtida
+                const docRef = await window.addDoc(window.fichasCollectionRef, fichaData);
                 console.log("Ficha salva com ID:", docRef.id);
                 showMessage('Ficha registrada e salva na nuvem!', 'success');
-                return docRef.id; // Retorna o ID do documento salvo
+                return docRef.id;
             } catch (e) {
                 console.error("Erro ao adicionar ficha ao Firestore: ", e);
                 showMessage('Erro ao salvar ficha na nuvem: ' + e.message, 'error');
@@ -320,18 +363,15 @@
         }
 
         async function loadFichasFromFirestore() {
-            const fichasCollection = window.getFichasCollectionRef(); // Obter a referência da coleção aqui
-            if (!window.getFirestore() || !window.getUserId() || !fichasCollection) {
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
                 console.log('Firebase não inicializado ou usuário não autenticado. Não foi possível carregar as fichas.');
                 return;
             }
             showMessage('Carregando fichas do Firestore...', 'info');
             try {
-                // Limpa o array local antes de carregar do Firestore
                 fichas = []; 
-                const querySnapshot = await window.getDocs(fichasCollection); // Usar a referência obtida
+                const querySnapshot = await window.getDocs(window.fichasCollectionRef);
                 querySnapshot.forEach((doc) => {
-                    // Adiciona o ID do documento ao objeto da ficha
                     fichas.push({ id: doc.id, ...doc.data() });
                 });
                 renderFichasTable();
@@ -344,12 +384,12 @@
         }
 
         async function removeFichaFromFirestore(fichaId) {
-            if (!window.getFirestore() || !window.getUserId()) {
+            if (!window.db || !window.userId) {
                 showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível remover a ficha.', 'error');
                 return false;
             }
             try {
-                await window.deleteDoc(window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/fichas`, fichaId));
+                await window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, fichaId));
                 showMessage('Ficha removida da nuvem.', 'info');
                 return true;
             } catch (e) {
@@ -360,13 +400,13 @@
         }
 
         async function saveWeeklyReportDataToFirestore(data) {
-            if (!window.getFirestore() || !window.getUserId()) {
+            if (!window.db || !window.userId) {
                 showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados.', 'error');
                 return;
             }
             try {
                 // Salva os dados agregados em um documento específico para o fechamento semanal
-                const docRef = window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/weeklyReports/currentWeek`);
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
                 await window.setDoc(docRef, data);
                 showMessage('Dados agregados para fechamento semanal salvos no Firestore!', 'success');
                 console.log("Dados agregados salvos no Firestore:", data);
@@ -426,8 +466,7 @@
 
         // --- Ficha Management Functions ---
         async function addFicha() {
-            // A verificação agora é mais robusta, incluindo fichasCollectionRef
-            if (!window.getFirestore() || !window.getUserId() || !window.getFichasCollectionRef()) { // Usar a nova função
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
                 showMessage('Firebase não inicializado ou usuário não autenticado. Por favor, aguarde alguns segundos e tente novamente.', 'error');
                 return;
             }
@@ -497,17 +536,16 @@
         }
 
         async function clearAllFichas() {
-            const fichasCollection = window.getFichasCollectionRef(); // Obter a referência da coleção aqui
-            if (!window.getFirestore() || !window.getUserId() || !fichasCollection) { // Usar a nova função
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
                 showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível limpar as fichas.', 'error');
                 return;
             }
             showMessage('Limpando todas as fichas no Firestore...', 'info');
             try {
-                const querySnapshot = await window.getDocs(fichasCollection); // Usar a referência obtida
+                const querySnapshot = await window.getDocs(window.fichasCollectionRef);
                 const deletePromises = [];
                 querySnapshot.forEach((doc) => {
-                    deletePromises.push(window.deleteDoc(window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/fichas`, doc.id)));
+                    deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, doc.id)));
                 });
                 await Promise.all(deletePromises);
                 fichas = []; // Limpa o array local após a exclusão no Firestore
@@ -575,8 +613,7 @@
 
         // --- Integration with Weekly Closing System (Firestore) ---
         async function generateAndExportWeeklyData() {
-            const fichasCollection = window.getFichasCollectionRef(); // Obter a referência da coleção aqui
-            if (!window.getFirestore() || !window.getUserId() || !fichasCollection) { // Usar a nova função
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
                 showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados para fechamento semanal.', 'error');
                 return;
             }
@@ -631,7 +668,7 @@
 
         // --- Initialization ---
         function initializeAppLogic() {
-            // A fichasCollectionRef já deve estar definida aqui, pois foi movida para onAuthStateChanged
+            console.log("initializeAppLogic called. window.db:", window.db, "window.userId:", window.userId); // Debug log
             loadFichasFromFirestore(); // Carrega fichas do Firestore
             // Ensure there's always at least one empty row for input
             if (document.querySelectorAll('.service-row').length === 0) {
@@ -644,12 +681,11 @@
             document.getElementById('addFichaBtn').disabled = false;
             document.getElementById('clearAllFichasBtn').disabled = false;
             document.getElementById('exportWeeklyDataBtn').disabled = false;
+            console.log("Buttons enabled."); // Debug log
         }
-
-        // initializeAppLogic será chamada após a autenticação Firebase
-        // document.addEventListener('DOMContentLoaded', initializeApp); // Removido
     </script>
 </body>
 </html>
+
 
 
