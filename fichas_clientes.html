@@ -412,8 +412,8 @@
                 // Salva os dados agregados em um documento específico para o fechamento semanal
                 const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
                 await window.setDoc(docRef, data);
+                console.log("Dados agregados para fechamento semanal salvos no Firestore com sucesso!");
                 showMessage('Dados agregados para fechamento semanal salvos no Firestore!', 'success');
-                console.log("Dados agregados salvos no Firestore:", data);
             } catch (e) {
                 console.error("Erro ao salvar dados agregados no Firestore: ", e);
                 showMessage('Erro ao salvar dados agregados na nuvem: ' + e.message, 'error');
@@ -619,9 +619,11 @@
         async function generateAndExportWeeklyData() {
             if (!window.db || !window.userId || !window.fichasCollectionRef) {
                 showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados para fechamento semanal.', 'error');
+                console.error("Erro: Firebase não inicializado ou usuário não autenticado ao tentar exportar dados semanais.");
                 return;
             }
 
+            console.log("Iniciando a geração e exportação de dados semanais...");
             const aggregatedData = {
                 collaborators: {}, // Use an object to easily group by professional name
                 products: []
@@ -666,7 +668,9 @@
                 lastUpdated: new Date().toISOString() // Adiciona um timestamp de atualização
             };
 
+            console.log("Dados agregados para exportação:", dataToExport);
             await saveWeeklyReportDataToFirestore(dataToExport);
+            console.log("Chamada para saveWeeklyReportDataToFirestore concluída.");
         }
         // --- End Integration ---
 
