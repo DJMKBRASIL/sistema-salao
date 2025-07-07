@@ -30,7 +30,16 @@
         let db;
         let auth;
         let userId = 'loading...'; // Será atualizado após a autenticação
-        let fichasCollectionRef; // Referência à coleção de fichas no Firestore
+        // Removido: let fichasCollectionRef; // Referência à coleção de fichas no Firestore
+
+        // Função para obter a referência da coleção de fichas, garantindo que db e userId estejam prontos
+        window.getFichasCollectionRef = () => {
+            if (!db || !userId) {
+                console.warn("Tentativa de obter fichasCollectionRef antes do Firebase estar totalmente inicializado.");
+                return null;
+            }
+            return collection(db, `artifacts/${appId}/users/${userId}/fichas`);
+        };
 
         // Função de inicialização do Firebase e autenticação
         async function initializeFirebase() {
@@ -44,8 +53,7 @@
                     if (user) {
                         userId = user.uid;
                         document.getElementById('user-id-display').textContent = `ID do Usuário: ${userId}`;
-                        // Definir fichasCollectionRef aqui, após db e userId estarem disponíveis
-                        fichasCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/fichas`);
+                        // Removido: fichasCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/fichas`);
                         console.log("Usuário autenticado:", userId);
                         initializeAppLogic(); // Carregar dados iniciais após autenticação
                     } else {
@@ -293,13 +301,14 @@
 
         // --- Firestore Functions ---
         async function saveFichaToFirestore(fichaData) {
-            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) {
+            const fichasCollection = window.getFichasCollectionRef(); // Obter a referência da coleção aqui
+            if (!window.getFirestore() || !window.getUserId() || !fichasCollection) {
                 showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível salvar a ficha.', 'error');
                 return;
             }
             try {
                 // Adiciona um novo documento à coleção 'fichas'
-                const docRef = await window.addDoc(fichasCollectionRef, fichaData);
+                const docRef = await window.addDoc(fichasCollection, fichaData); // Usar a referência obtida
                 console.log("Ficha salva com ID:", docRef.id);
                 showMessage('Ficha registrada e salva na nuvem!', 'success');
                 return docRef.id; // Retorna o ID do documento salvo
@@ -311,7 +320,8 @@
         }
 
         async function loadFichasFromFirestore() {
-            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) {
+            const fichasCollection = window.getFichasCollectionRef(); // Obter a referência da coleção aqui
+            if (!window.getFirestore() || !window.getUserId() || !fichasCollection) {
                 console.log('Firebase não inicializado ou usuário não autenticado. Não foi possível carregar as fichas.');
                 return;
             }
@@ -319,7 +329,7 @@
             try {
                 // Limpa o array local antes de carregar do Firestore
                 fichas = []; 
-                const querySnapshot = await window.getDocs(fichasCollectionRef);
+                const querySnapshot = await window.getDocs(fichasCollection); // Usar a referência obtida
                 querySnapshot.forEach((doc) => {
                     // Adiciona o ID do documento ao objeto da ficha
                     fichas.push({ id: doc.id, ...doc.data() });
@@ -417,7 +427,7 @@
         // --- Ficha Management Functions ---
         async function addFicha() {
             // A verificação agora é mais robusta, incluindo fichasCollectionRef
-            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) {
+            if (!window.getFirestore() || !window.getUserId() || !window.getFichasCollectionRef()) { // Usar a nova função
                 showMessage('Firebase não inicializado ou usuário não autenticado. Por favor, aguarde alguns segundos e tente novamente.', 'error');
                 return;
             }
@@ -487,13 +497,14 @@
         }
 
         async function clearAllFichas() {
-            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) { // Adicionado verificação para fichasCollectionRef
+            const fichasCollection = window.getFichasCollectionRef(); // Obter a referência da coleção aqui
+            if (!window.getFirestore() || !window.getUserId() || !fichasCollection) { // Usar a nova função
                 showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível limpar as fichas.', 'error');
                 return;
             }
             showMessage('Limpando todas as fichas no Firestore...', 'info');
             try {
-                const querySnapshot = await window.getDocs(fichasCollectionRef);
+                const querySnapshot = await window.getDocs(fichasCollection); // Usar a referência obtida
                 const deletePromises = [];
                 querySnapshot.forEach((doc) => {
                     deletePromises.push(window.deleteDoc(window.doc(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/fichas`, doc.id)));
@@ -564,7 +575,8 @@
 
         // --- Integration with Weekly Closing System (Firestore) ---
         async function generateAndExportWeeklyData() {
-            if (!window.getFirestore() || !window.getUserId() || !fichasCollectionRef) { // Adicionado verificação para fichasCollectionRef
+            const fichasCollection = window.getFichasCollectionRef(); // Obter a referência da coleção aqui
+            if (!window.getFirestore() || !window.getUserId() || !fichasCollection) { // Usar a nova função
                 showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados para fechamento semanal.', 'error');
                 return;
             }
@@ -635,8 +647,9 @@
         }
 
         // initializeAppLogic será chamada após a autenticação Firebase
-        // document.addEventListener('DOMContentLoaded', initializeFirebase); // Removido
+        // document.addEventListener('DOMContentLoaded', initializeApp); // Removido
     </script>
 </body>
 </html>
+
 
