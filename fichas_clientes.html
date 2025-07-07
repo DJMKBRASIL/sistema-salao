@@ -44,6 +44,8 @@
                     if (user) {
                         userId = user.uid;
                         document.getElementById('user-id-display').textContent = `ID do Usuário: ${userId}`;
+                        // Definir fichasCollectionRef aqui, após db e userId estarem disponíveis
+                        fichasCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/fichas`);
                         console.log("Usuário autenticado:", userId);
                         initializeAppLogic(); // Carregar dados iniciais após autenticação
                     } else {
@@ -617,14 +619,7 @@
 
         // --- Initialization ---
         function initializeAppLogic() {
-            // Garante que fichasCollectionRef seja definido aqui, após db estar disponível
-            if (!window.getFirestore()) { // Alterado para usar window.getFirestore()
-                console.error("Firestore DB não disponível ao tentar inicializar fichasCollectionRef.");
-                showMessage('Erro interno: Banco de dados não disponível. Recarregue a página.', 'error');
-                return;
-            }
-            fichasCollectionRef = collection(window.getFirestore(), `artifacts/${window.appId}/users/${window.getUserId()}/fichas`); // Alterado para usar window.getFirestore()
-
+            // A fichasCollectionRef já deve estar definida aqui, pois foi movida para onAuthStateChanged
             loadFichasFromFirestore(); // Carrega fichas do Firestore
             // Ensure there's always at least one empty row for input
             if (document.querySelectorAll('.service-row').length === 0) {
@@ -640,7 +635,8 @@
         }
 
         // initializeAppLogic será chamada após a autenticação Firebase
-        // document.addEventListener('DOMContentLoaded', initializeApp); // Removido
+        // document.addEventListener('DOMContentLoaded', initializeFirebase); // Removido
     </script>
 </body>
 </html>
+
