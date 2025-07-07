@@ -12,11 +12,10 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
-        // Agora declaradas diretamente no objeto window para garantir acessibilidade global
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
@@ -46,36 +45,83 @@
                 // Monitorar o estado de autenticação
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
+                        // Usuário autenticado (pode ser anónimo ou Google)
                         window.userId = user.uid;
                         document.getElementById('user-id-display').textContent = `ID do Usuário: ${window.userId}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Sair</button>
+                        `;
                         console.log("Usuário autenticado:", window.userId); // Debug log
-                        // Ensure db is set before calling initializeAppLogic
-                        if (window.db) { // Added check for window.db
+                        if (window.db) {
                             initializeAppLogic(); // Carregar dados iniciais após autenticação
                         } else {
                             console.error("Firebase DB not available after authentication. (Inside onAuthStateChanged)"); // Debug log
                             showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
                         }
                     } else {
-                        // Se não houver usuário, tentar autenticação anônima
+                        // Usuário não autenticado
+                        window.userId = 'Não autenticado';
+                        document.getElementById('user-id-display').textContent = `ID do Usuário: ${window.userId}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Entrar com Google</button>
+                        `;
+                        // Tentar autenticação anónima ou com token inicial se não houver usuário logado
                         try {
                             if (window.initialAuthToken) {
                                 await signInWithCustomToken(window.auth, window.initialAuthToken);
+                                console.log("Tentativa de autenticação com token personalizado.");
                             } else {
                                 await signInAnonymously(window.auth);
+                                console.log("Tentativa de autenticação anónima.");
                             }
-                            console.log("Tentativa de autenticação anônima/custom token."); // Debug log
                         } catch (error) {
-                            console.error("Erro na autenticação:", error);
-                            document.getElementById('user-id-display').textContent = `Erro de Autenticação: ${error.message}`;
-                            showMessage('Erro na autenticação. Tente recarregar a página.', 'error');
+                            console.error("Erro na autenticação inicial:", error);
+                            showMessage('Erro na autenticação inicial. Tente recarregar a página.', 'error');
                         }
+                        // Desabilitar botões que dependem de autenticação completa
+                        document.getElementById('loadDataFromFichasSystemBtn').disabled = true;
+                        document.getElementById('clearAllDataBtn').disabled = true;
                     }
                 });
 
             } catch (error) {
                 console.error("Erro ao inicializar Firebase:", error);
                 showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
+            }
+        }
+
+        // Função para autenticar com Google
+        async function signInWithGoogle() {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(window.auth, provider);
+                showMessage('Autenticado com Google!', 'success');
+            } catch (error) {
+                console.error("Erro ao autenticar com Google:", error);
+                showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
+            }
+        }
+
+        // Função para sair
+        async function signOutUser() {
+            try {
+                await signOut(window.auth);
+                showMessage('Sessão encerrada.', 'info');
+                // Limpar dados locais ao sair
+                collaborators = [];
+                products = [];
+                salonName = "";
+                document.getElementById('day').value = '';
+                document.getElementById('month').value = '';
+                document.getElementById('year').value = '';
+                document.getElementById('generalNotes').value = '';
+                document.getElementById('salonName').value = '';
+                renderAllUI(); // Renderiza a UI com os dados padrão (vazios)
+                updateDateDisplay();
+                calculateAllTotals();
+            } catch (error) {
+                console.error("Erro ao sair:", error);
+                showMessage('Erro ao sair: ' + error.message, 'error');
             }
         }
 
@@ -91,6 +137,9 @@
         window.query = query;
         window.where = where;
         window.getDocs = getDocs;
+        // Expondo funções de autenticação para o HTML
+        window.signInWithGoogle = signInWithGoogle;
+        window.signOutUser = signOutUser;
     </script>
 
     <style>
@@ -170,8 +219,13 @@
     <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-gray-200">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Fechamento Semanal do Salão</h1>
 
-        <!-- ID do Usuário -->
-        <p id="user-id-display" class="text-sm text-gray-500 text-center mb-4">ID do Usuário: Carregando...</p>
+        <!-- ID do Usuário e Botões de Autenticação -->
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">ID do Usuário: Carregando...</p>
+            <div id="auth-buttons" class="flex gap-2">
+                <!-- Botões de autenticação serão injetados aqui pelo JavaScript -->
+            </div>
+        </div>
 
         <!-- Área para mensagens de feedback (salvar/carregar) -->
         <div id="app-message" class="hidden mb-4 p-3 rounded-lg text-center font-medium"></div>
@@ -264,30 +318,6 @@
             </div>
         </div>
 
-        <!-- Seção de Recursos Gemini AI (Removida) -->
-        <!-- <div class="mb-8 p-4 bg-orange-50 rounded-lg border border-orange-200">
-            <h2 class="text-xl font-semibold text-orange-700 mb-4">Recursos ✨ Gemini AI</h2>
-            <div class="space-y-4">
-                <button id="generateWeeklyAnalysisBtn" onclick="generateWeeklyAnalysis()" class="w-full bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
-                    ✨ Gerar Análise da Semana
-                </button>
-                <button id="generateMarketingSlogansBtn" onclick="generateMarketingSlogans()" class="w-full bg-pink-500 text-white py-2 px-4 rounded-lg hover:bg-pink-600 focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
-                    ✨ Gerar Slogans de Marketing
-                </button>
-            </div>
-            <div id="gemini-output" class="mt-4 p-4 bg-white rounded-lg border border-gray-200 hidden">
-                <h3 class="text-lg font-semibold text-gray-800 mb-2">Resultados da IA:</h3>
-                <p id="gemini-response" class="whitespace-pre-wrap text-gray-700"></p>
-                <div id="gemini-loading" class="text-center text-gray-500 mt-2 hidden">
-                    <svg class="animate-spin h-5 w-5 text-indigo-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Carregando...
-                </div>
-            </div>
-        </div> -->
-
         <!-- Seção de Resumo Geral -->
         <div class="mb-8 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
             <h2 class="text-xl font-semibold text-yellow-700 mb-4">Resumo Geral</h2>
@@ -334,7 +364,6 @@
         let collaborators = []; // Array de objetos { name, clients: [{name, value}], discountPercentage }
         let products = [];      // Array de objetos { clientName, value }
         let salonName = "";     // Nome do salão
-        // Removed: let logoUrl = "";       // URL do logotipo
 
         // --- Funções de Feedback e Confirmação ---
         function showMessage(message, type = 'success') {
@@ -392,7 +421,6 @@
         function exportDataToFile() {
             const dataToSave = {
                 salonName: document.getElementById('salonName').value,
-                // Removed: logoUrl: document.getElementById('logoUrl').value,
                 collaborators: collaborators,
                 products: products,
                 date: {
@@ -445,7 +473,6 @@
                             collaborators = importedData.collaborators;
                             products = importedData.products;
                             salonName = importedData.salonName || '';
-                            // Removed: logoUrl = importedData.logoUrl || '';
 
                             // Garante que cada colaboradora tenha um discountPercentage, caso o arquivo não o possua
                             collaborators.forEach(collab => {
@@ -460,7 +487,6 @@
                             document.getElementById('year').value = importedData.date.year || '';
                             document.getElementById('generalNotes').value = importedData.notes || '';
                             document.getElementById('salonName').value = salonName;
-                            // Removed: document.getElementById('logoUrl').value = logoUrl;
 
                             renderAllUI(); // Renderiza toda a UI com os dados importados
                             showMessage('Dados importados com sucesso!', 'success');
@@ -492,6 +518,7 @@
 
             showMessage('Carregando dados das fichas do Firestore...', 'info');
             try {
+                // O caminho da coleção agora usa o userId do usuário autenticado
                 const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
                 const docSnap = await window.getDoc(docRef);
 
@@ -544,7 +571,6 @@
                 collaborators = [];
                 products = [];
                 salonName = "";
-                // Removed: logoUrl = "";
 
                 // Limpar campos da UI
                 document.getElementById('day').value = '';
@@ -552,9 +578,6 @@
                 document.getElementById('year').value = '';
                 document.getElementById('generalNotes').value = '';
                 document.getElementById('salonName').value = '';
-                // Removed: document.getElementById('logoUrl').value = '';
-                // Removed: document.getElementById('gemini-output').classList.add('hidden'); // Esconde a saída da IA
-                // Removed: document.getElementById('gemini-response').textContent = '';
 
                 // Garante que haja pelo menos uma colaboradora e um produto após a limpeza
                 collaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
@@ -839,11 +862,6 @@
             detailedContributionDiv.innerHTML = content;
         }
 
-        // Removed: Helper functions for AI loading states (showLoading, hideLoading)
-
-        // Removed: generateWeeklyAnalysis function
-        // Removed: generateMarketingSlogans function
-
         // Função para gerar PDF para uma única colaboradora
         function generateCollaboratorPDF(collaboratorIndex) {
             const { jsPDF } = window.jspdf;
@@ -856,7 +874,6 @@
             }
 
             const currentSalonName = document.getElementById('salonName').value || "Salão de Beleza";
-            // Removed: const currentLogoUrl = document.getElementById('logoUrl').value;
             const dateText = document.getElementById('dateDisplay').textContent;
             const collabName = collab.name || 'Colaboradora sem nome';
             const generalNotes = document.getElementById('generalNotes').value;
@@ -929,7 +946,6 @@
             const doc = new jsPDF();
 
             const currentSalonName = document.getElementById('salonName').value || "Salão de Beleza";
-            // Removed: const currentLogoUrl = document.getElementById('logoUrl').value;
             const dateText = document.getElementById('dateDisplay').textContent;
             const generalNotes = document.getElementById('generalNotes').value;
 
@@ -1117,8 +1133,6 @@
             // Habilitar botões após a inicialização do Firebase e autenticação
             document.getElementById('loadDataFromFichasSystemBtn').disabled = false;
             document.getElementById('clearAllDataBtn').disabled = false;
-            // Removed: document.getElementById('generateWeeklyAnalysisBtn').disabled = false;
-            // Removed: document.getElementById('generateMarketingSlogansBtn').disabled = false;
             console.log("Buttons enabled."); // Debug log
         }
 
