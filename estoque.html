@@ -55,6 +55,11 @@
         // Variável global para o callback do modal de confirmação genérico
         let currentConfirmCallback = null;
 
+        // --- Variáveis para controle de acesso por senha ---
+        const privilegedPassword = "admin123"; // SENHA PARA ACESSO RESTRITO - ALTERE AQUI!
+                                              // ATENÇÃO: Esta senha está no código-fonte e não é segura para ambientes de produção.
+        let privilegedAccessGranted = false; // Indica se o acesso privilegiado foi concedido para a sessão atual
+
         // Função de inicialização do Firebase e autenticação
         async function initializeFirebase() {
             console.log("Initializing Firebase...");
@@ -85,9 +90,15 @@
                             // Carregar a última aba ativa do localStorage
                             const lastActiveTab = localStorage.getItem('lastActiveTab');
                             if (lastActiveTab) {
-                                showSection(lastActiveTab);
+                                // Se a última aba for restrita, não a abre diretamente, mas mantém a intenção
+                                if (lastActiveTab === 'weekly-closing-section' || lastActiveTab === 'inventory-section') {
+                                    showSection('fichas-section'); // Volta para fichas por padrão se a última foi restrita
+                                    // A senha será solicitada se o usuário tentar acessar novamente
+                                } else {
+                                    showSection(lastActiveTab);
+                                }
                             } else {
-                                showSection('weekly-closing-section'); // Mostra a seção de fechamento por padrão
+                                showSection('fichas-section'); // Mostra a seção de fichas por padrão
                             }
 
                         } else {
@@ -105,6 +116,7 @@
                         toggleInventoryUIEnabled(false);
                         toggleFichasUIEnabled(false);
                         showMessage('Por favor, faça login para usar todas as funcionalidades.', 'info');
+                        showSection('fichas-section'); // Garante que a aba de fichas esteja visível mesmo sem login
                     }
                 });
 
@@ -146,7 +158,8 @@
                 toggleInventoryUIEnabled(false);
                 toggleFichasUIEnabled(false);
                 localStorage.removeItem('lastActiveTab'); // Limpa a aba salva ao sair
-                showSection('weekly-closing-section'); // Volta para a aba padrão
+                privilegedAccessGranted = false; // Reseta o acesso privilegiado
+                showSection('fichas-section'); // Volta para a aba padrão (Fichas)
             } catch (error) {
                 console.error("Erro ao sair:", error);
                 showMessage('Erro ao sair: ' + error.message, 'error');
@@ -760,21 +773,88 @@
         </div>
     </div>
 
+    <!-- Modal de Senha para Abas Restritas -->
+    <div id="password-modal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Acesso Restrito</h2>
+            <p class="text-gray-600 mb-4">Por favor, insira a senha para acessar esta seção.</p>
+            <input type="password" id="password-input" placeholder="Senha" class="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 shadow-sm mb-4">
+            <div class="modal-buttons">
+                <button class="modal-button cancel" onclick="closePasswordModal()">Cancelar</button>
+                <button class="modal-button confirm bg-indigo-500 hover:bg-indigo-600" onclick="checkPasswordAndShowSection()">Acessar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- Funções de Navegação entre Seções ---
+        let requestedSectionId = ''; // Armazena a seção que o usuário tentou acessar
+
         function showSection(sectionId) {
+            // Salvar a aba ativa no localStorage
+            localStorage.setItem('lastActiveTab', sectionId);
+
+            // Verifica se a seção requer senha
+            if ((sectionId === 'weekly-closing-section' || sectionId === 'inventory-section') && !privilegedAccessGranted) {
+                requestedSectionId = sectionId; // Armazena a seção que foi solicitada
+                openPasswordModal();
+                return; // Não mostra a seção ainda
+            }
+
+            // Esconde todas as seções
             document.querySelectorAll('.content-section').forEach(section => {
                 section.classList.remove('active');
             });
-            document.getElementById(sectionId).classList.add('active');
+            // Mostra a seção desejada
+            const targetSection = document.getElementById(sectionId);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
 
+            // Atualiza o estado dos botões de aba
             document.querySelectorAll('.tab-button').forEach(button => {
                 button.classList.remove('active');
             });
-            document.getElementById('tab-' + sectionId.replace('-section', '')).classList.add('active');
+            const targetButton = document.getElementById('tab-' + sectionId.replace('-section', ''));
+            if (targetButton) {
+                targetButton.classList.add('active');
+            }
+        }
 
-            // Salvar a aba ativa no localStorage
-            localStorage.setItem('lastActiveTab', sectionId);
+        // --- Funções do Modal de Senha ---
+        function openPasswordModal() {
+            const modal = document.getElementById('password-modal');
+            const passwordInput = document.getElementById('password-input');
+            if (modal) {
+                modal.style.display = 'flex';
+                if (passwordInput) {
+                    passwordInput.value = ''; // Limpa o campo de senha
+                    passwordInput.focus(); // Foca no campo de senha
+                }
+            }
+        }
+
+        function closePasswordModal() {
+            const modal = document.getElementById('password-modal');
+            if (modal) modal.style.display = 'none';
+            requestedSectionId = ''; // Limpa a seção solicitada
+        }
+
+        function checkPasswordAndShowSection() {
+            const passwordInput = document.getElementById('password-input');
+            if (passwordInput && passwordInput.value === privilegedPassword) {
+                privilegedAccessGranted = true;
+                closePasswordModal();
+                showMessage('Acesso concedido!', 'success');
+                // Se a senha estiver correta, mostra a seção que foi solicitada
+                if (requestedSectionId) {
+                    showSection(requestedSectionId);
+                    requestedSectionId = ''; // Limpa após mostrar
+                }
+            } else {
+                showMessage('Senha incorreta. Tente novamente.', 'error');
+                if (passwordInput) passwordInput.value = ''; // Limpa o campo para nova tentativa
+            }
         }
 
         // --- Funções de Feedback e Confirmação (Genéricas) ---
@@ -863,15 +943,15 @@
         }
 
         function updateWeeklyDateDisplay() {
-            const day = document.getElementById('weekly-day').value;
-            const month = document.getElementById('weekly-month').value;
-            const year = document.getElementById('weekly-year').value;
-            const monthName = document.getElementById('weekly-month').options[document.getElementById('weekly-month').selectedIndex]?.text || '';
+            const day = document.getElementById('weekly-day');
+            const month = document.getElementById('weekly-month');
+            const year = document.getElementById('weekly-year');
+            const monthName = month && month.options[month.selectedIndex] ? month.options[month.selectedIndex].text : '';
 
             const dateDisplay = document.getElementById('weekly-dateDisplay');
             if (dateDisplay) { // Added null check
-                if (day && month && year) {
-                    dateDisplay.textContent = `Fechamento semana do dia ${day} de ${monthName} de ${year}`;
+                if (day && month && year && day.value && month.value && year.value) {
+                    dateDisplay.textContent = `Fechamento semana do dia ${day.value} de ${monthName} de ${year.value}`;
                 } else {
                     dateDisplay.textContent = 'Preencha a data para exibir.';
                 }
