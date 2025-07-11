@@ -622,6 +622,7 @@
                     savedReports.push({ id: doc.id, ...data });
 
                     const reportItem = document.createElement('div');
+                    reportItem.setAttribute('data-report-id', doc.id); // Adiciona um atributo para fácil seleção
                     const date = data.date;
                     const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
                     const formattedDate = date.day && date.month && date.year ? 
@@ -638,7 +639,8 @@
                         </div>
                         <button class="text-red-500 hover:text-red-700 text-sm" onclick="event.stopPropagation(); deleteSavedReport('${doc.id}')">Excluir</button>
                     `;
-                    reportItem.onclick = () => selectReport(doc.id);
+                    // Passa o evento para a função selectReport
+                    reportItem.onclick = (event) => selectReport(event, doc.id);
                     reportsListDiv.appendChild(reportItem);
                 });
 
@@ -655,16 +657,14 @@
             document.getElementById('saved-reports-modal').style.display = 'none';
         }
 
-        function selectReport(reportId) {
+        // Modificada para receber o evento e o ID
+        function selectReport(event, reportId) {
             // Remove a classe 'selected' de todos os itens
             document.querySelectorAll('#saved-reports-list div').forEach(item => {
                 item.classList.remove('selected');
             });
             // Adiciona a classe 'selected' ao item clicado
-            const selectedItem = document.querySelector(`#saved-reports-list div[onclick*="${reportId}"]`);
-            if (selectedItem) {
-                selectedItem.classList.add('selected');
-            }
+            event.currentTarget.classList.add('selected');
             selectedReportId = reportId;
         }
 
