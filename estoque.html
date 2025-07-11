@@ -12,8 +12,8 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebase/auth"; // Updated import path for auth
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc, onSnapshot } from "https://www.gstatic.com/firebase/firestore"; // Updated import path for firestore
 
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -89,6 +89,11 @@
                             
                             // Carregar a última aba ativa do localStorage
                             const lastActiveTab = localStorage.getItem('lastActiveTab');
+                            
+                            // [CORREÇÃO] Forçar o reset de privilegedAccessGranted para garantir que a senha seja pedida em cada nova sessão/atualização para abas restritas.
+                            privilegedAccessGranted = false; 
+                            console.log("privilegedAccessGranted reset to false before showing last active tab:", privilegedAccessGranted);
+
                             if (lastActiveTab) {
                                 // A função showSection já lida com a lógica de senha para abas restritas
                                 showSection(lastActiveTab); 
@@ -789,12 +794,14 @@
             // Salvar a aba ativa no localStorage
             localStorage.setItem('lastActiveTab', sectionId);
 
-            // NOVO: Redefine privilegedAccessGranted se navegando para a 'fichas-section'
-            // Isso garante que a senha será solicitada novamente ao tentar acessar abas restritas.
+            // Redefine privilegedAccessGranted se navegando para a 'fichas-section'
+            // Isso garante que a senha será solicitada novamente ao tentar acessar abas restritas
+            // se o usuário navegar para "Fichas" e depois tentar voltar para uma aba restrita.
             if (sectionId === 'fichas-section') {
                 privilegedAccessGranted = false;
             }
 
+            console.log(`showSection chamada para ${sectionId}. privilegedAccessGranted é: ${privilegedAccessGranted}`);
             // Verifica se a seção requer senha
             if ((sectionId === 'weekly-closing-section' || sectionId === 'inventory-section') && !privilegedAccessGranted) {
                 requestedSectionId = sectionId; // Armazena a seção que foi solicitada
