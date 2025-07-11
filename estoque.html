@@ -18,13 +18,14 @@
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "YOUR_FIREBASE_API_KEY", // Substitua pela sua chave API do Firebase
-            authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
-            projectId: "YOUR_FIREBASE_PROJECT_ID",
-            storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
-            messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
-            appId: "YOUR_FIREBASE_APP_ID",
-            measurementId: "YOUR_FIREBASE_MEASUREMENT_ID"
+            // SUAS CREDENCIAIS DO FIREBASE FORNECIDAS PELO USUÁRIO
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
+            authDomain: "sistema-do-salao.firebaseapp.com",
+            projectId: "sistema-do-salao",
+            storageBucket: "sistema-do-salao.firebasestorage.app",
+            messagingSenderId: "395887083088",
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
+            measurementId: "G-1D996M5FKZ"
         };
         window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
@@ -73,10 +74,13 @@
                         `;
                         console.log("Usuário autenticado:", window.userId, "Método:", authMethod, "Nome:", user.displayName);
                         if (window.db) {
-                            initializeWeeklyClosingLogic(); // Inicializa lógica do fechamento semanal
-                            initializeInventoryLogic();    // Inicializa lógica do estoque
-                            initializeFichasLogic();       // Inicializa lógica das fichas
-                            showSection('weekly-closing-section'); // Mostra a seção de fechamento por padrão
+                            // Defer UI initialization to ensure DOM is fully loaded
+                            setTimeout(() => {
+                                initializeWeeklyClosingLogic();
+                                initializeInventoryLogic();
+                                initializeFichasLogic();
+                                showSection('weekly-closing-section');
+                            }, 0); // Use setTimeout to defer execution
                         } else {
                             console.error("Firebase DB not available after authentication.");
                             showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
@@ -91,12 +95,13 @@
                         toggleWeeklyClosingUIEnabled(false);
                         toggleInventoryUIEnabled(false);
                         toggleFichasUIEnabled(false);
+                        showMessage('Por favor, faça login para usar todas as funcionalidades.', 'info');
                     }
                 });
 
             } catch (error) {
                 console.error("Erro ao inicializar Firebase:", error);
-                showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
+                showMessage('Erro ao inicializar o Firebase. Verifique a configuração e sua chave API.', 'error');
             }
         }
 
@@ -127,6 +132,10 @@
                 renderFichasList();
                 updateWeeklyDateDisplay();
                 calculateWeeklyAllTotals();
+                // Re-desabilitar a UI após o logout
+                toggleWeeklyClosingUIEnabled(false);
+                toggleInventoryUIEnabled(false);
+                toggleFichasUIEnabled(false);
             } catch (error) {
                 console.error("Erro ao sair:", error);
                 showMessage('Erro ao sair: ' + error.message, 'error');
@@ -383,11 +392,11 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                         <label for="weekly-day" class="block text-sm font-medium text-gray-700 mb-1">Dia</label>
-                        <input type="number" id="weekly-day" min="1" max="31" placeholder="Dia" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateWeeklyDateDisplay()">
+                        <input type="number" id="weekly-day" min="1" max="31" placeholder="Dia" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateWeeklyDateDisplay()" disabled>
                     </div>
                     <div>
                         <label for="weekly-month" class="block text-sm font-medium text-gray-700 mb-1">Mês</label>
-                        <select id="weekly-month" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateWeeklyDateDisplay()">
+                        <select id="weekly-month" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateWeeklyDateDisplay()" disabled>
                             <option value="">Selecione o Mês</option>
                             <option value="1">Janeiro</option>
                             <option value="2">Fevereiro</option>
@@ -405,7 +414,7 @@
                     </div>
                     <div>
                         <label for="weekly-year" class="block text-sm font-medium text-gray-700 mb-1">Ano</label>
-                        <input type="number" id="weekly-year" min="2000" max="2100" placeholder="Ano" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateWeeklyDateDisplay()">
+                        <input type="number" id="weekly-year" min="2000" max="2100" placeholder="Ano" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateWeeklyDateDisplay()" disabled>
                     </div>
                 </div>
                 <p id="weekly-dateDisplay" class="text-center text-lg font-medium text-gray-800 mt-4"></p>
@@ -443,7 +452,7 @@
                 <div id="weekly-collaborators-container">
                     <!-- As seções das colaboradoras serão adicionadas dinamicamente aqui -->
                 </div>
-                <button onclick="addWeeklyCollaborator()" class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                <button onclick="addWeeklyCollaborator()" class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                     Adicionar Colaboradora
                 </button>
             </div>
@@ -454,7 +463,7 @@
                 <div id="weekly-products-container">
                     <!-- As linhas de produto serão adicionadas dinamicamente aqui -->
                 </div>
-                <button onclick="addWeeklyProductRow()" class="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md mt-4">
+                <button onclick="addWeeklyProductRow()" class="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md mt-4" disabled>
                     Adicionar Produto
                 </button>
                 <div class="mt-4 text-right">
@@ -479,7 +488,7 @@
             </div>
 
             <!-- Botão de Exportar PDF Global -->
-            <button onclick="generateWeeklyPDF()" class="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-xl text-lg font-bold">
+            <button id="weekly-generatePdfBtn" onclick="generateWeeklyPDF()" class="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-xl text-lg font-bold" disabled>
                 Gerar PDF do Fechamento
             </button>
         </div>
@@ -494,33 +503,33 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                         <label for="inventory-product-name" class="block text-sm font-medium text-gray-700 mb-1">Nome do Produto</label>
-                        <input type="text" id="inventory-product-name" placeholder="Ex: Shampoo Hidratante" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                        <input type="text" id="inventory-product-name" placeholder="Ex: Shampoo Hidratante" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm" disabled>
                     </div>
                     <div>
                         <label for="inventory-product-category" class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-                        <input type="text" id="inventory-product-category" placeholder="Ex: Cuidado Capilar, Coloração" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                        <input type="text" id="inventory-product-category" placeholder="Ex: Cuidado Capilar, Coloração" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm" disabled>
                     </div>
                     <div>
                         <label for="inventory-product-stock" class="block text-sm font-medium text-gray-700 mb-1">Estoque Atual</label>
-                        <input type="number" id="inventory-product-stock" min="0" value="0" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                        <input type="number" id="inventory-product-stock" min="0" value="0" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm" disabled>
                     </div>
                     <div>
                         <label for="inventory-product-min-stock" class="block text-sm font-medium text-gray-700 mb-1">Nível Mínimo de Estoque</label>
-                        <input type="number" id="inventory-product-min-stock" min="0" value="0" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                        <input type="number" id="inventory-product-min-stock" min="0" value="0" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm" disabled>
                     </div>
                     <div>
                         <label for="inventory-product-unit" class="block text-sm font-medium text-gray-700 mb-1">Unidade</label>
-                        <input type="text" id="inventory-product-unit" placeholder="Ex: litro, tubo, rolo" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+                        <input type="text" id="inventory-product-unit" placeholder="Ex: litro, tubo, rolo" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm" disabled>
                     </div>
                 </div>
                 <div class="flex flex-col sm:flex-row gap-3 mt-4">
                     <button id="inventory-addProductBtn" onclick="addInventoryProduct()" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                         Adicionar Produto
                     </button>
-                    <button id="inventory-updateProductBtn" onclick="updateInventoryProduct()" class="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
+                    <button id="inventory-updateProductBtn" onclick="updateInventoryProduct()" class="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden" disabled>
                         Atualizar Produto
                     </button>
-                    <button id="inventory-cancelEditBtn" onclick="cancelInventoryEdit()" class="flex-1 bg-gray-400 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
+                    <button id="inventory-cancelEditBtn" onclick="cancelInventoryEdit()" class="flex-1 bg-gray-400 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden" disabled>
                         Cancelar Edição
                     </button>
                 </div>
@@ -566,15 +575,15 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                         <label for="ficha-collaborator-name" class="block text-sm font-medium text-gray-700 mb-1">Nome da Colaboradora</label>
-                        <input type="text" id="ficha-collaborator-name" placeholder="Nome da Colaboradora" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
+                        <input type="text" id="ficha-collaborator-name" placeholder="Nome da Colaboradora" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" disabled>
                     </div>
                     <div>
                         <label for="ficha-client-name" class="block text-sm font-medium text-gray-700 mb-1">Nome da Cliente</label>
-                        <input type="text" id="ficha-client-name" placeholder="Nome da Cliente" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
+                        <input type="text" id="ficha-client-name" placeholder="Nome da Cliente" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" disabled>
                     </div>
                     <div>
                         <label for="ficha-date" class="block text-sm font-medium text-gray-700 mb-1">Data do Atendimento</label>
-                        <input type="date" id="ficha-date" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
+                        <input type="date" id="ficha-date" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" disabled>
                     </div>
                 </div>
 
@@ -582,7 +591,7 @@
                 <div id="ficha-services-container" class="space-y-2">
                     <!-- Linhas de serviço serão adicionadas aqui -->
                 </div>
-                <button onclick="addFichaServiceRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
+                <button onclick="addFichaServiceRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4" disabled>
                     Adicionar Serviço
                 </button>
                 <div class="mt-4 text-right">
@@ -593,7 +602,7 @@
                 <div id="ficha-products-container" class="space-y-2">
                     <!-- Linhas de produto serão adicionadas aqui -->
                 </div>
-                <button onclick="addFichaProductRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
+                <button onclick="addFichaProductRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4" disabled>
                     Adicionar Produto
                 </button>
                 <div class="mt-4 text-right">
@@ -602,7 +611,7 @@
 
                 <div class="mt-6">
                     <label for="ficha-notes" class="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-                    <textarea id="ficha-notes" rows="3" placeholder="Notas sobre o atendimento..." class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm"></textarea>
+                    <textarea id="ficha-notes" rows="3" placeholder="Notas sobre o atendimento..." class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" disabled></textarea>
                 </div>
 
                 <div class="mt-4 text-right">
@@ -613,10 +622,10 @@
                     <button id="ficha-addFichaBtn" onclick="addFicha()" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                         Adicionar Ficha
                     </button>
-                    <button id="ficha-updateFichaBtn" onclick="updateFicha()" class="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
+                    <button id="ficha-updateFichaBtn" onclick="updateFicha()" class="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden" disabled>
                         Atualizar Ficha
                     </button>
-                    <button id="ficha-cancelEditBtn" onclick="cancelFichaEdit()" class="flex-1 bg-gray-400 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
+                    <button id="ficha-cancelEditBtn" onclick="cancelFichaEdit()" class="flex-1 bg-gray-400 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden" disabled>
                         Cancelar Edição
                     </button>
                 </div>
@@ -776,7 +785,8 @@
             // Desabilitar inputs de colaboradoras e produtos também
             document.querySelectorAll('#weekly-collaborators-section input, #weekly-collaborators-section select, #weekly-collaborators-section button').forEach(el => el.disabled = !enabled);
             document.querySelectorAll('#weekly-products-section input, #weekly-products-section button').forEach(el => el.disabled = !enabled);
-            document.getElementById('tab-weekly-closing').disabled = !enabled;
+            // O botão da aba em si NÃO é desabilitado, apenas os elementos interativos DENTRO da aba.
+            document.getElementById('weekly-generatePdfBtn').disabled = !enabled; // Adicionado aqui, estava faltando
         }
 
         // Função de inicialização da lógica da aplicação (chamada após autenticação Firebase)
@@ -1172,12 +1182,12 @@
 
             newCollaboratorDiv.innerHTML = `
                 <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
-                    <input type="text" placeholder="Nome da Colaboradora" value="${collabData.name}" class="collaborator-name flex-grow text-lg font-semibold p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm min-w-[150px]" oninput="updateWeeklyCollaboratorName(${index}, this.value)">
+                    <input type="text" placeholder="Nome da Colaboradora" value="${collabData.name}" class="collaborator-name flex-grow text-lg font-semibold p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm min-w-[150px]" oninput="updateWeeklyCollaboratorName(${index}, this.value)" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                     <div class="flex items-center gap-2">
                         <label for="weekly-collab-discount-${index}" class="text-sm font-medium text-gray-700">Comissão (%):</label>
-                        <input type="number" id="weekly-collab-discount-${index}" min="0" max="100" value="${(collabData.discountPercentage * 100).toFixed(0)}" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500" oninput="updateWeeklyCollaboratorDiscount(${index}, this.value)">
+                        <input type="number" id="weekly-collab-discount-${index}" min="0" max="100" value="${(collabData.discountPercentage * 100).toFixed(0)}" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500" oninput="updateWeeklyCollaboratorDiscount(${index}, this.value)" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                     </div>
-                    <button onclick="removeWeeklyCollaborator(this)" class="ml-auto bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                    <button onclick="removeWeeklyCollaborator(this)" class="ml-auto bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
                     </svg>
@@ -1187,7 +1197,7 @@
                 <div class="weekly-clients-container">
                     <!-- Client rows will be added here dynamically -->
                 </div>
-                <button onclick="addWeeklyClientRow(${index})" class="w-full bg-blue-400 text-white py-2 px-4 rounded-lg hover:bg-blue-500 focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
+                <button onclick="addWeeklyClientRow(${index})" class="w-full bg-blue-400 text-white py-2 px-4 rounded-lg hover:bg-blue-500 focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                     Adicionar Cliente
                 </button>
                 <div class="mt-4 text-right space-y-1">
@@ -1195,7 +1205,7 @@
                     <p class="text-sm font-medium text-gray-700">-<span id="weekly-collab-discount-percentage-display-${index}">${(collabData.discountPercentage * 100).toFixed(0)}</span>%: <span id="weekly-collab-discount-value-${index}">R$ 0,00</span></p>
                     <p class="text-md font-bold text-gray-800">Total Líquido: <span id="weekly-collab-net-total-display-${index}">R$ 0,00</span></p>
                 </div>
-                <button onclick="generateWeeklyCollaboratorPDF(${index})" class="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md mt-4">
+                <button onclick="generateWeeklyCollaboratorPDF(${index})" class="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md mt-4" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                     Gerar PDF do Colaborador
                 </button>
             `;
@@ -1238,9 +1248,9 @@
             const newClientDiv = document.createElement('div');
             newClientDiv.className = 'flex items-center gap-2 mb-2 client-row';
             newClientDiv.innerHTML = `
-                <input type="text" placeholder="Nome do Cliente" value="${clientData.name}" class="client-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 min-w-[100px]" oninput="updateWeeklyClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)">
-                <input type="number" step="0.01" min="0" placeholder="Valor" value="${clientData.value}" class="client-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500" oninput="updateWeeklyClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)">
-                <button onclick="removeWeeklyClientRow(this, ${collaboratorIndex}, ${clientIndex})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                <input type="text" placeholder="Nome do Cliente" value="${clientData.name}" class="client-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 min-w-[100px]" oninput="updateWeeklyClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${clientData.value}" class="client-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500" oninput="updateWeeklyClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                <button onclick="removeWeeklyClientRow(this, ${collaboratorIndex}, ${clientIndex})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
                     </svg>
@@ -1296,9 +1306,9 @@
             const newProductDiv = document.createElement('div');
             newProductDiv.className = 'flex items-center gap-2 mb-2 product-row';
             newProductDiv.innerHTML = `
-                <input type="text" placeholder="Nome da Cliente" value="${productData.clientName}" class="product-client-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 min-w-[120px]" oninput="updateWeeklyProductData(${index}, 'clientName', this.value)">
-                <input type="number" step="0.01" min="0" placeholder="Valor" value="${productData.value}" class="client-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-green-500 focus:border-green-500" oninput="updateWeeklyProductData(${index}, 'value', parseFloat(this.value) || 0)">
-                <button onclick="removeWeeklyProductRow(this, ${index})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                <input type="text" placeholder="Nome da Cliente" value="${productData.clientName}" class="product-client-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 min-w-[120px]" oninput="updateWeeklyProductData(${index}, 'clientName', this.value)" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${productData.value}" class="client-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-green-500 focus:border-green-500" oninput="updateWeeklyProductData(${index}, 'value', parseFloat(this.value) || 0)" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                <button onclick="removeWeeklyProductRow(this, ${index})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
                     </svg>
@@ -1627,7 +1637,7 @@
             document.getElementById('inventory-saveToFirestoreBtn').disabled = !enabled;
             document.getElementById('inventory-loadFromFirestoreBtn').disabled = !enabled;
             document.getElementById('inventory-generatePdfBtn').disabled = !enabled;
-            document.getElementById('tab-inventory').disabled = !enabled;
+            // O botão da aba em si NÃO é desabilitado, apenas os elementos interativos DENTRO da aba.
         }
 
         function initializeInventoryLogic() {
@@ -1868,10 +1878,10 @@
                     </p>
                     <p class="text-sm text-gray-600 mb-4">Nível Mínimo: ${product.minStockLevel} ${product.unit}</p>
                     <div class="flex flex-wrap gap-2 justify-end">
-                        <button onclick="adjustInventoryStock('${product.id}', 1)" class="bg-green-500 text-white py-1 px-3 rounded-md hover:bg-green-600 transition ease-in-out duration-150 shadow-sm">+1</button>
-                        <button onclick="adjustInventoryStock('${product.id}', -1)" class="bg-red-500 text-white py-1 px-3 rounded-md hover:bg-red-600 transition ease-in-out duration-150 shadow-sm">-1</button>
-                        <button onclick="editInventoryProduct('${product.id}')" class="bg-blue-500 text-white py-1 px-3 rounded-md hover:bg-blue-600 transition ease-in-out duration-150 shadow-sm">Editar</button>
-                        <button onclick="deleteInventoryProduct('${product.id}')" class="bg-gray-400 text-gray-800 py-1 px-3 rounded-md hover:bg-gray-500 transition ease-in-out duration-150 shadow-sm">Excluir</button>
+                        <button onclick="adjustInventoryStock('${product.id}', 1)" class="bg-green-500 text-white py-1 px-3 rounded-md hover:bg-green-600 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>+1</button>
+                        <button onclick="adjustInventoryStock('${product.id}', -1)" class="bg-red-500 text-white py-1 px-3 rounded-md hover:bg-red-600 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>-1</button>
+                        <button onclick="editInventoryProduct('${product.id}')" class="bg-blue-500 text-white py-1 px-3 rounded-md hover:bg-blue-600 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>Editar</button>
+                        <button onclick="deleteInventoryProduct('${product.id}')" class="bg-gray-400 text-gray-800 py-1 px-3 rounded-md hover:bg-gray-500 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>Excluir</button>
                     </div>
                 `;
                 container.appendChild(productCard);
@@ -2119,7 +2129,7 @@
             document.getElementById('ficha-client-name').disabled = !enabled;
             document.getElementById('ficha-date').disabled = !enabled;
             document.getElementById('ficha-notes').disabled = !enabled;
-            document.getElementById('tab-fichas').disabled = !enabled;
+            // O botão da aba em si NÃO é desabilitado, apenas os elementos interativos DENTRO da aba.
             // Desabilitar inputs de serviços e produtos dentro da ficha
             document.querySelectorAll('#ficha-services-container input, #ficha-services-container button').forEach(el => el.disabled = !enabled);
             document.querySelectorAll('#ficha-products-container input, #ficha-products-container button').forEach(el => el.disabled = !enabled);
@@ -2163,9 +2173,9 @@
             const newServiceDiv = document.createElement('div');
             newServiceDiv.className = 'flex items-center gap-2 mb-2 ficha-service-row';
             newServiceDiv.innerHTML = `
-                <input type="text" placeholder="Descrição do Serviço" class="ficha-service-description flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaServiceData()">
-                <input type="number" step="0.01" min="0" placeholder="Valor" value="0" class="ficha-service-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaServiceData()">
-                <button onclick="removeFichaRow(this, 'service')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                <input type="text" placeholder="Descrição do Serviço" class="ficha-service-description flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaServiceData()" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="0" class="ficha-service-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaServiceData()" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                <button onclick="removeFichaRow(this, 'service')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
                     </svg>
@@ -2181,9 +2191,9 @@
             const newProductDiv = document.createElement('div');
             newProductDiv.className = 'flex items-center gap-2 mb-2 ficha-product-row';
             newProductDiv.innerHTML = `
-                <input type="text" placeholder="Nome do Produto" class="ficha-product-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaProductData()">
-                <input type="number" step="0.01" min="0" placeholder="Valor" value="0" class="ficha-product-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaProductData()">
-                <button onclick="removeFichaRow(this, 'product')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                <input type="text" placeholder="Nome do Produto" class="ficha-product-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaProductData()" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="0" class="ficha-product-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaProductData()" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                <button onclick="removeFichaRow(this, 'product')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
                     </svg>
@@ -2321,9 +2331,9 @@
                     const newServiceDiv = document.createElement('div');
                     newServiceDiv.className = 'flex items-center gap-2 mb-2 ficha-service-row';
                     newServiceDiv.innerHTML = `
-                        <input type="text" placeholder="Descrição do Serviço" value="${service.description}" class="ficha-service-description flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaServiceData()">
-                        <input type="number" step="0.01" min="0" placeholder="Valor" value="${service.value}" class="ficha-service-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaServiceData()">
-                        <button onclick="removeFichaRow(this, 'service')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                        <input type="text" placeholder="Descrição do Serviço" value="${service.description}" class="ficha-service-description flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaServiceData()" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                        <input type="number" step="0.01" min="0" placeholder="Valor" value="${service.value}" class="ficha-service-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaServiceData()" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                        <button onclick="removeFichaRow(this, 'service')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
                             </svg>
@@ -2339,9 +2349,9 @@
                     const newProductDiv = document.createElement('div');
                     newProductDiv.className = 'flex items-center gap-2 mb-2 ficha-product-row';
                     newProductDiv.innerHTML = `
-                        <input type="text" placeholder="Nome do Produto" value="${product.name}" class="ficha-product-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaProductData()">
-                        <input type="number" step="0.01" min="0" placeholder="Valor" value="${product.value}" class="ficha-product-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaProductData()">
-                        <button onclick="removeFichaRow(this, 'product')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                        <input type="text" placeholder="Nome do Produto" value="${product.name}" class="ficha-product-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaProductData()" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                        <input type="number" step="0.01" min="0" placeholder="Valor" value="${product.value}" class="ficha-product-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaProductData()" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
+                        <button onclick="removeFichaRow(this, 'product')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
                             </svg>
@@ -2355,7 +2365,7 @@
                 editingFichaId = fichaId;
                 document.getElementById('ficha-addFichaBtn').classList.add('hidden');
                 document.getElementById('ficha-updateFichaBtn').classList.remove('hidden');
-                document.getElementById('ficha-cancelEditBtn').classList.remove('hidden');
+                document.getElementById('ficha-cancelEditBtn').classList.add('hidden');
             }
         }
 
@@ -2467,9 +2477,9 @@
                     </div>
 
                     <div class="flex flex-wrap gap-2 justify-end">
-                        <button onclick="editFicha('${ficha.id}')" class="bg-blue-500 text-white py-1 px-3 rounded-md hover:bg-blue-600 transition ease-in-out duration-150 shadow-sm">Editar</button>
-                        <button onclick="generateFichaPDF('${ficha.id}')" class="bg-indigo-500 text-white py-1 px-3 rounded-md hover:bg-indigo-600 transition ease-in-out duration-150 shadow-sm">Gerar PDF</button>
-                        <button onclick="deleteFicha('${ficha.id}')" class="bg-gray-400 text-gray-800 py-1 px-3 rounded-md hover:bg-gray-500 transition ease-in-out duration-150 shadow-sm">Excluir</button>
+                        <button onclick="editFicha('${ficha.id}')" class="bg-blue-500 text-white py-1 px-3 rounded-md hover:bg-blue-600 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>Editar</button>
+                        <button onclick="generateFichaPDF('${ficha.id}')" class="bg-indigo-500 text-white py-1 px-3 rounded-md hover:bg-indigo-600 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>Gerar PDF</button>
+                        <button onclick="deleteFicha('${ficha.id}')" class="bg-gray-400 text-gray-800 py-1 px-3 rounded-md hover:bg-gray-500 transition ease-in-out duration-150 shadow-sm" ${window.userId === 'Não autenticado' ? 'disabled' : ''}>Excluir</button>
                     </div>
                 `;
                 container.appendChild(fichaCard);
@@ -2609,7 +2619,8 @@
                 const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichas`);
                 await window.addDoc(collectionRef, fichasData); // Usa addDoc para permitir múltiplos salvamentos
                 showMessage('Fichas salvas no Firestore!', 'success');
-            } catch (e) {
+            }
+            catch (e) {
                 console.error("Erro ao salvar fichas no Firestore: ", e);
                 showMessage('Erro ao salvar fichas na nuvem: ' + e.message, 'error');
             }
