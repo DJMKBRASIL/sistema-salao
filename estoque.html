@@ -90,13 +90,8 @@
                             // Carregar a última aba ativa do localStorage
                             const lastActiveTab = localStorage.getItem('lastActiveTab');
                             if (lastActiveTab) {
-                                // Se a última aba for restrita, não a abre diretamente, mas mantém a intenção
-                                if (lastActiveTab === 'weekly-closing-section' || lastActiveTab === 'inventory-section') {
-                                    showSection('fichas-section'); // Volta para fichas por padrão se a última foi restrita
-                                    // A senha será solicitada se o usuário tentar acessar novamente
-                                } else {
-                                    showSection(lastActiveTab);
-                                }
+                                // A função showSection já lida com a lógica de senha para abas restritas
+                                showSection(lastActiveTab); 
                             } else {
                                 showSection('fichas-section'); // Mostra a seção de fichas por padrão
                             }
