@@ -81,7 +81,15 @@
                             initializeWeeklyClosingLogic();
                             initializeInventoryLogic();
                             initializeFichasLogic();
-                            showSection('weekly-closing-section'); // Mostra a seção de fechamento por padrão
+                            
+                            // Carregar a última aba ativa do localStorage
+                            const lastActiveTab = localStorage.getItem('lastActiveTab');
+                            if (lastActiveTab) {
+                                showSection(lastActiveTab);
+                            } else {
+                                showSection('weekly-closing-section'); // Mostra a seção de fechamento por padrão
+                            }
+
                         } else {
                             console.error("Firebase DB not available after authentication.");
                             showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
@@ -137,6 +145,8 @@
                 toggleWeeklyClosingUIEnabled(false);
                 toggleInventoryUIEnabled(false);
                 toggleFichasUIEnabled(false);
+                localStorage.removeItem('lastActiveTab'); // Limpa a aba salva ao sair
+                showSection('weekly-closing-section'); // Volta para a aba padrão
             } catch (error) {
                 console.error("Erro ao sair:", error);
                 showMessage('Erro ao sair: ' + error.message, 'error');
@@ -762,6 +772,9 @@
                 button.classList.remove('active');
             });
             document.getElementById('tab-' + sectionId.replace('-section', '')).classList.add('active');
+
+            // Salvar a aba ativa no localStorage
+            localStorage.setItem('lastActiveTab', sectionId);
         }
 
         // --- Funções de Feedback e Confirmação (Genéricas) ---
