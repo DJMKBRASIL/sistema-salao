@@ -56,7 +56,7 @@
         let currentConfirmCallback = null;
 
         // --- Variáveis para controle de acesso por senha ---
-        const privilegedPassword = "admin123"; // SENHA PARA ACESSO RESTRITO - ALTERE AQUI!
+        window.privilegedPassword = "admin123"; // SENHA PARA ACESSO RESTRITO - ALTERE AQUI!
                                               // ATENÇÃO: Esta senha está no código-fonte e não é segura para ambientes de produção.
         let privilegedAccessGranted = false; // Indica se o acesso privilegiado foi concedido para a sessão atual
 
@@ -794,6 +794,12 @@
             // Salvar a aba ativa no localStorage
             localStorage.setItem('lastActiveTab', sectionId);
 
+            // NOVO: Redefine privilegedAccessGranted se navegando para a 'fichas-section'
+            // Isso garante que a senha será solicitada novamente ao tentar acessar abas restritas.
+            if (sectionId === 'fichas-section') {
+                privilegedAccessGranted = false;
+            }
+
             // Verifica se a seção requer senha
             if ((sectionId === 'weekly-closing-section' || sectionId === 'inventory-section') && !privilegedAccessGranted) {
                 requestedSectionId = sectionId; // Armazena a seção que foi solicitada
@@ -842,7 +848,8 @@
 
         function checkPasswordAndShowSection() {
             const passwordInput = document.getElementById('password-input');
-            if (passwordInput && passwordInput.value === privilegedPassword) {
+            // Alterado para usar window.privilegedPassword
+            if (passwordInput && passwordInput.value === window.privilegedPassword) {
                 privilegedAccessGranted = true;
                 closePasswordModal();
                 showMessage('Acesso concedido!', 'success');
