@@ -52,6 +52,8 @@
         let editingFichaId = null; // Armazena o ID da ficha que está sendo editada
         let savedFichas = []; // Armazena as fichas carregadas do Firestore para o modal
 
+        // Variável global para o callback do modal de confirmação genérico
+        let currentConfirmCallback = null;
 
         // Função de inicialização do Firebase e autenticação
         async function initializeFirebase() {
@@ -64,6 +66,7 @@
                 console.log("Firebase initialized and persistence set to LOCAL.");
 
                 onAuthStateChanged(window.auth, async (user) => {
+                    console.log("onAuthStateChanged fired. User:", user ? user.uid : 'null');
                     if (user) {
                         window.userId = user.uid;
                         const authMethod = user.isAnonymous ? 'Anónimo' : 'Google';
@@ -734,6 +737,18 @@
         </div>
     </div>
 
+    <!-- Generic Custom Confirmation Modal -->
+    <div id="generic-custom-confirm-modal" class="modal">
+        <div class="modal-content">
+            <p id="generic-confirm-message" class="text-lg font-semibold text-gray-800 mb-4"></p>
+            <p id="generic-confirm-submessage" class="text-sm text-gray-600"></p>
+            <div class="modal-buttons">
+                <button class="modal-button cancel" onclick="genericConfirmCallback(false)">Cancelar</button>
+                <button class="modal-button confirm" onclick="genericConfirmCallback(true)">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- Funções de Navegação entre Seções ---
         function showSection(sectionId) {
@@ -766,10 +781,44 @@
             }, 5000);
         }
 
+        // --- Funções do Modal de Confirmação Genérico ---
+        let currentConfirmCallback = null; // Já declarado globalmente no início do script
+
+        function showGenericConfirm(message, subMessage, callback) {
+            const modal = document.getElementById('generic-custom-confirm-modal');
+            const msgEl = document.getElementById('generic-confirm-message');
+            const subMsgEl = document.getElementById('generic-confirm-submessage');
+
+            if (modal && msgEl && subMsgEl) {
+                msgEl.textContent = message;
+                subMsgEl.textContent = subMessage;
+                currentConfirmCallback = callback;
+                modal.style.display = 'flex';
+            } else {
+                console.error("Erro: Elementos do modal de confirmação genérico não encontrados. Usando confirm() nativo como fallback.");
+                // Fallback para confirm() nativo se os elementos do modal não forem encontrados
+                if (window.confirm(message + "\n" + subMessage)) {
+                    callback(true);
+                } else {
+                    callback(false);
+                }
+            }
+        }
+
+        function genericConfirmCallback(confirmed) {
+            const modal = document.getElementById('generic-custom-confirm-modal');
+            if (modal) modal.style.display = 'none';
+            if (currentConfirmCallback) {
+                currentConfirmCallback(confirmed);
+                currentConfirmCallback = null; // Reset callback
+            }
+        }
+
         // --- Funções do Sistema de Fechamento Semanal ---
 
         // Função para habilitar/desabilitar botões e campos após autenticação (Fechamento Semanal)
         function toggleWeeklyClosingUIEnabled(enabled) {
+            console.log(`toggleWeeklyClosingUIEnabled called with enabled: ${enabled}`);
             const idsToToggle = [
                 'weekly-exportDataToFileBtn', 'weekly-importDataFromFileBtn', 'weekly-saveToFirestoreBtn',
                 'weekly-loadFromFirestoreBtn', 'weekly-loadDataFromFichasSystemBtn', 'weekly-clearAllDataBtn',
@@ -1056,17 +1105,25 @@
                 return;
             }
 
-            if (confirm('Tem certeza que deseja excluir este relatório salvo?')) {
-                try {
-                    const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`, reportId);
-                    await window.deleteDoc(docRef);
-                    showMessage('Relatório excluído com sucesso!', 'success');
-                    openWeeklySavedReportsModal();
-                } catch (error) {
-                    console.error('Erro ao excluir relatório salvo:', error);
-                    showMessage('Erro ao excluir relatório: ' + error.message, 'error');
+            showGenericConfirm(
+                'Tem certeza que deseja excluir este relatório salvo?',
+                'Esta ação não pode ser desfeita.',
+                async (confirmed) => {
+                    if (confirmed) {
+                        try {
+                            const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`, reportId);
+                            await window.deleteDoc(docRef);
+                            showMessage('Relatório excluído com sucesso!', 'success');
+                            openWeeklySavedReportsModal(); // Recarrega a lista após exclusão
+                        } catch (error) {
+                            console.error('Erro ao excluir relatório salvo:', error);
+                            showMessage('Erro ao excluir relatório: ' + error.message, 'error');
+                        }
+                    } else {
+                        showMessage('Operação de exclusão cancelada.', 'info');
+                    }
                 }
-            }
+            );
         }
 
         async function loadWeeklyDataFromFichasSystem() {
@@ -1153,7 +1210,12 @@
                 await Promise.all(deleteManualSavesPromises);
 
                 const currentWeekDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
-                await window.deleteDoc(currentWeekDocRef);
+                // Verifica se o documento existe antes de tentar excluí-lo
+                const currentWeekDocSnap = await window.getDoc(currentWeekDocRef);
+                if (currentWeekDocSnap.exists()) {
+                    await window.deleteDoc(currentWeekDocRef);
+                }
+                
 
                 const fichasCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
                 const querySnapshot = await window.getDocs(fichasCollectionRef);
@@ -1671,6 +1733,7 @@
 
         // Função para habilitar/desabilitar botões e campos após autenticação (Estoque)
         function toggleInventoryUIEnabled(enabled) {
+            console.log(`toggleInventoryUIEnabled called with enabled: ${enabled}`);
             const idsToToggle = [
                 'inventory-addProductBtn', 'inventory-clearAllProductsBtn', 'inventory-product-name',
                 'inventory-product-category', 'inventory-product-stock', 'inventory-product-min-stock',
@@ -1879,16 +1942,24 @@
                 return;
             }
 
-            if (confirm('Tem certeza que deseja excluir este produto do estoque?')) {
-                try {
-                    const productDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`, productId);
-                    await window.deleteDoc(productDocRef);
-                    showMessage('Produto excluído com sucesso!', 'success');
-                } catch (e) {
-                    console.error("Erro ao excluir produto: ", e);
-                    showMessage('Erro ao excluir produto: ' + e.message, 'error');
+            showGenericConfirm(
+                'Tem certeza que deseja excluir este produto do estoque?',
+                'Esta ação não pode ser desfeita.',
+                async (confirmed) => {
+                    if (confirmed) {
+                        try {
+                            const productDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`, productId);
+                            await window.deleteDoc(productDocRef);
+                            showMessage('Produto excluído com sucesso!', 'success');
+                        } catch (e) {
+                            console.error("Erro ao excluir produto: ", e);
+                            showMessage('Erro ao excluir produto: ' + e.message, 'error');
+                        }
+                    } else {
+                        showMessage('Operação de exclusão cancelada.', 'info');
+                    }
                 }
-            }
+            );
         }
 
         function showInventoryClearConfirm() {
@@ -1912,21 +1983,20 @@
                 return;
             }
 
-            if (confirm('Tem certeza que deseja limpar TODO o estoque? Esta ação é irreversível.')) {
-                showMessage('Limpando todo o estoque...', 'info');
-                try {
-                    const productsCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`);
-                    const querySnapshot = await window.getDocs(productsCollectionRef);
-                    const deletePromises = [];
-                    querySnapshot.forEach((doc) => {
-                        deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`, doc.id)));
-                    });
-                    await Promise.all(deletePromises);
-                    showMessage('Todo o estoque foi limpo!', 'success');
-                } catch (e) {
-                    console.error("Erro ao limpar todo o estoque: ", e);
-                    showMessage('Erro ao limpar todo o estoque: ' + e.message, 'error');
-                }
+            // A confirmação já é feita por handleInventoryClearConfirm
+            showMessage('Limpando todo o estoque...', 'info');
+            try {
+                const productsCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`);
+                const querySnapshot = await window.getDocs(productsCollectionRef);
+                const deletePromises = [];
+                querySnapshot.forEach((doc) => {
+                    deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`, doc.id)));
+                });
+                await Promise.all(deletePromises);
+                showMessage('Todo o estoque foi limpo!', 'success');
+            } catch (e) {
+                console.error("Erro ao limpar todo o estoque: ", e);
+                showMessage('Erro ao limpar todo o estoque: ' + e.message, 'error');
             }
         }
 
@@ -2144,17 +2214,25 @@
                 return;
             }
 
-            if (confirm('Tem certeza que deseja excluir este inventário salvo?')) {
-                try {
-                    const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/savedInventories`, reportId);
-                    await window.deleteDoc(docRef);
-                    showMessage('Inventário excluído com sucesso!', 'success');
-                    openInventorySavedReportsModal();
-                } catch (error) {
-                    console.error('Erro ao excluir inventário salvo:', error);
-                    showMessage('Erro ao excluir inventário: ' + error.message, 'error');
+            showGenericConfirm(
+                'Tem certeza que deseja excluir este inventário salvo?',
+                'Esta ação não pode ser desfeita.',
+                async (confirmed) => {
+                    if (confirmed) {
+                        try {
+                            const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/savedInventories`, reportId);
+                            await window.deleteDoc(docRef);
+                            showMessage('Inventário excluído com sucesso!', 'success');
+                            openInventorySavedReportsModal();
+                        } catch (error) {
+                            console.error('Erro ao excluir inventário salvo:', error);
+                            showMessage('Erro ao excluir inventário: ' + error.message, 'error');
+                        }
+                    } else {
+                        showMessage('Operação de exclusão cancelada.', 'info');
+                    }
                 }
-            }
+            );
         }
 
         function generateInventoryPDF() {
@@ -2206,6 +2284,7 @@
 
         // Função para habilitar/desabilitar botões e campos após autenticação (Fichas)
         function toggleFichasUIEnabled(enabled) {
+            console.log(`toggleFichasUIEnabled called with enabled: ${enabled}`);
             const idsToToggle = [
                 'ficha-addFichaBtn', 'ficha-exportFichasBtn', 'ficha-importFichasFromFileBtn',
                 'ficha-saveToFirestoreBtn', 'ficha-loadFromFirestoreBtn', 'ficha-clearAllFichasBtn',
@@ -2632,16 +2711,24 @@
                 return;
             }
 
-            if (confirm('Tem certeza que deseja excluir esta ficha?')) {
-                try {
-                    const fichaDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, fichaId);
-                    await window.deleteDoc(fichaDocRef);
-                    showMessage('Ficha excluída com sucesso!', 'success');
-                } catch (e) {
-                    console.error("Erro ao excluir ficha: ", e);
-                    showMessage('Erro ao excluir ficha: ' + e.message, 'error');
+            showGenericConfirm(
+                'Tem certeza que deseja excluir esta ficha?',
+                'Esta ação não pode ser desfeita.',
+                async (confirmed) => {
+                    if (confirmed) {
+                        try {
+                            const fichaDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, fichaId);
+                            await window.deleteDoc(fichaDocRef);
+                            showMessage('Ficha excluída com sucesso!', 'success');
+                        } catch (e) {
+                            console.error("Erro ao excluir ficha: ", e);
+                            showMessage('Erro ao excluir ficha: ' + e.message, 'error');
+                        }
+                    } else {
+                        showMessage('Operação de exclusão cancelada.', 'info');
+                    }
                 }
-            }
+            );
         }
 
         // Exibe o modal de confirmação para limpar todas as fichas
@@ -2869,17 +2956,25 @@
                 return;
             }
 
-            if (confirm('Tem certeza que deseja excluir este conjunto de fichas salvo?')) {
-                try {
-                    const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichas`, reportId);
-                    await window.deleteDoc(docRef);
-                    showMessage('Conjunto de fichas excluído com sucesso!', 'success');
-                    openFichaSavedReportsModal(); // Recarrega a lista após exclusão
-                } catch (error) {
-                    console.error('Erro ao excluir conjunto de fichas salvo:', error);
-                    showMessage('Erro ao excluir conjunto de fichas: ' + error.message, 'error');
+            showGenericConfirm(
+                'Tem certeza que deseja excluir este conjunto de fichas salvo?',
+                'Esta ação não pode ser desfeita.',
+                async (confirmed) => {
+                    if (confirmed) {
+                        try {
+                            const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichas`, reportId);
+                            await window.deleteDoc(docRef);
+                            showMessage('Conjunto de fichas excluído com sucesso!', 'success');
+                            openFichaSavedReportsModal(); // Recarrega a lista após exclusão
+                        } catch (error) {
+                            console.error('Erro ao excluir conjunto de fichas salvo:', error);
+                            showMessage('Erro ao excluir conjunto de fichas: ' + error.message, 'error');
+                        }
+                    } else {
+                        showMessage('Operação de exclusão cancelada.', 'info');
+                    }
                 }
-            }
+            );
         }
 
         // Gera um PDF para uma ficha específica
