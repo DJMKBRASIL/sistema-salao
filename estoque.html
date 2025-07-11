@@ -17,15 +17,16 @@
 
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // ATENÇÃO: SUBSTITUA ESTAS CREDENCIAIS PELAS SUAS REAIS DO PROJETO FIREBASE!
+        // Você pode encontrá-las na sua consola Firebase -> Configurações do Projeto -> Seus aplicativos
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            // SUAS CREDENCIAIS DO FIREBASE FORNECIDAS PELO USUÁRIO
-            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
-            authDomain: "sistema-do-salao.firebaseapp.com",
-            projectId: "sistema-do-salao",
-            storageBucket: "sistema-do-salao.firebasestorage.app",
-            messagingSenderId: "395887083088",
-            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
-            measurementId: "G-1D996M5FKZ"
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", // <--- SUBSTITUA PELA SUA API KEY
+            authDomain: "sistema-do-salao.firebaseapp.com", // <--- SUBSTITUA PELO SEU AUTH DOMAIN
+            projectId: "sistema-do-salao", // <--- SUBSTITUA PELO SEU PROJECT ID
+            storageBucket: "sistema-do-salao.firebasestorage.app", // <--- SUBSTITUA PELO SEU STORAGE BUCKET
+            messagingSenderId: "395887083088", // <--- SUBSTITUA PELO SEU MESSAGING SENDER ID
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55", // <--- SUBSTITUA PELO SEU APP ID
+            measurementId: "G-1D996M5FKZ" // <--- SUBSTITUA PELO SEU MEASUREMENT ID (se usar Analytics)
         };
         window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
@@ -68,12 +69,24 @@
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
                 
+                // Define a persistência da autenticação para o armazenamento local do navegador
                 await setPersistence(window.auth, browserLocalPersistence);
                 console.log("Firebase initialized and persistence set to LOCAL.");
 
+                // Tenta fazer login com o token personalizado se fornecido, caso contrário, faz login anonimamente
+                if (window.initialAuthToken) {
+                    console.log("Attempting signInWithCustomToken...");
+                    await signInWithCustomToken(window.auth, window.initialAuthToken);
+                } else {
+                    console.log("Attempting signInAnonymously...");
+                    await signInAnonymously(window.auth);
+                }
+
+                // Listener para mudanças no estado de autenticação
                 onAuthStateChanged(window.auth, async (user) => {
                     console.log("onAuthStateChanged fired. User:", user ? user.uid : 'null');
                     if (user) {
+                        // Usuário autenticado
                         window.userId = user.uid;
                         const authMethod = user.isAnonymous ? 'Anónimo' : 'Google';
                         const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${window.userId} (${authMethod})`;
@@ -82,12 +95,14 @@
                             <button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Sair</button>
                         `;
                         console.log("Usuário autenticado:", window.userId, "Método:", authMethod, "Nome:", user.displayName);
+                        
                         if (window.db) {
+                            // Inicializa a lógica das seções após a autenticação bem-sucedida
                             initializeWeeklyClosingLogic();
                             initializeInventoryLogic();
                             initializeFichasLogic();
                             
-                            // Carregar a última aba ativa do localStorage
+                            // Carrega a última aba ativa do localStorage
                             const lastActiveTab = localStorage.getItem('lastActiveTab');
                             
                             // [CORREÇÃO] Forçar o reset de privilegedAccessGranted para garantir que a senha seja pedida em cada nova sessão/atualização para abas restritas.
@@ -102,16 +117,17 @@
                             }
 
                         } else {
-                            console.error("Firebase DB not available after authentication.");
+                            console.error("Erro: Banco de dados (Firestore) não disponível após autenticação.");
                             showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
                         }
                     } else {
+                        // Usuário não autenticado
                         window.userId = 'Não autenticado';
                         document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Entrar com Google</button>
                         `;
-                        // Desabilitar todos os botões e campos que dependem de autenticação
+                        // Desabilita todos os botões e campos que dependem de autenticação
                         toggleWeeklyClosingUIEnabled(false);
                         toggleInventoryUIEnabled(false);
                         toggleFichasUIEnabled(false);
@@ -121,8 +137,14 @@
                 });
 
             } catch (error) {
-                console.error("Erro ao inicializar Firebase:", error);
-                showMessage('Erro ao inicializar o Firebase. Verifique a configuração e sua chave API.', 'error');
+                // Captura erros críticos durante a inicialização do Firebase
+                console.error("Erro crítico ao inicializar Firebase:", error);
+                document.getElementById('user-id-display').textContent = `Erro de Inicialização!`;
+                showMessage('Erro crítico ao inicializar o Firebase. Verifique a configuração da sua conta Firebase e a chave API. Erro: ' + error.message, 'error');
+                // Desabilita todos os elementos da UI se a inicialização falhar
+                toggleWeeklyClosingUIEnabled(false);
+                toggleInventoryUIEnabled(false);
+                toggleFichasUIEnabled(false);
             }
         }
 
