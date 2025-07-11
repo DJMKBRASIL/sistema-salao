@@ -74,13 +74,10 @@
                         `;
                         console.log("Usuário autenticado:", window.userId, "Método:", authMethod, "Nome:", user.displayName);
                         if (window.db) {
-                            // Defer UI initialization to ensure DOM is fully loaded
-                            setTimeout(() => {
-                                initializeWeeklyClosingLogic();
-                                initializeInventoryLogic();
-                                initializeFichasLogic();
-                                showSection('weekly-closing-section');
-                            }, 0); // Use setTimeout to defer execution
+                            initializeWeeklyClosingLogic();
+                            initializeInventoryLogic();
+                            initializeFichasLogic();
+                            showSection('weekly-closing-section'); // Mostra a seção de fechamento por padrão
                         } else {
                             console.error("Firebase DB not available after authentication.");
                             showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
@@ -773,20 +770,22 @@
 
         // Função para habilitar/desabilitar botões e campos após autenticação (Fechamento Semanal)
         function toggleWeeklyClosingUIEnabled(enabled) {
-            document.getElementById('weekly-exportDataToFileBtn').disabled = !enabled;
-            document.getElementById('weekly-importDataFromFileBtn').disabled = !enabled;
-            document.getElementById('weekly-saveToFirestoreBtn').disabled = !enabled;
-            document.getElementById('weekly-loadFromFirestoreBtn').disabled = !enabled;
-            document.getElementById('weekly-loadDataFromFichasSystemBtn').disabled = !enabled;
-            document.getElementById('weekly-clearAllDataBtn').disabled = !enabled;
-            document.getElementById('weekly-day').disabled = !enabled;
-            document.getElementById('weekly-month').disabled = !enabled;
-            document.getElementById('weekly-year').disabled = !enabled;
-            // Desabilitar inputs de colaboradoras e produtos também
-            document.querySelectorAll('#weekly-collaborators-section input, #weekly-collaborators-section select, #weekly-collaborators-section button').forEach(el => el.disabled = !enabled);
-            document.querySelectorAll('#weekly-products-section input, #weekly-products-section button').forEach(el => el.disabled = !enabled);
-            // O botão da aba em si NÃO é desabilitado, apenas os elementos interativos DENTRO da aba.
-            document.getElementById('weekly-generatePdfBtn').disabled = !enabled; // Adicionado aqui, estava faltando
+            const idsToToggle = [
+                'weekly-exportDataToFileBtn', 'weekly-importDataFromFileBtn', 'weekly-saveToFirestoreBtn',
+                'weekly-loadFromFirestoreBtn', 'weekly-loadDataFromFichasSystemBtn', 'weekly-clearAllDataBtn',
+                'weekly-day', 'weekly-month', 'weekly-year', 'weekly-generatePdfBtn'
+            ];
+            idsToToggle.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = !enabled;
+            });
+
+            document.querySelectorAll('#weekly-collaborators-section input, #weekly-collaborators-section select, #weekly-collaborators-section button').forEach(el => {
+                if (el) el.disabled = !enabled;
+            });
+            document.querySelectorAll('#weekly-products-section input, #weekly-products-section button').forEach(el => {
+                if (el) el.disabled = !enabled;
+            });
         }
 
         // Função de inicialização da lógica da aplicação (chamada após autenticação Firebase)
@@ -813,10 +812,12 @@
             const monthName = document.getElementById('weekly-month').options[document.getElementById('weekly-month').selectedIndex]?.text || '';
 
             const dateDisplay = document.getElementById('weekly-dateDisplay');
-            if (day && month && year) {
-                dateDisplay.textContent = `Fechamento semana do dia ${day} de ${monthName} de ${year}`;
-            } else {
-                dateDisplay.textContent = 'Preencha a data para exibir.';
+            if (dateDisplay) { // Added null check
+                if (day && month && year) {
+                    dateDisplay.textContent = `Fechamento semana do dia ${day} de ${monthName} de ${year}`;
+                } else {
+                    dateDisplay.textContent = 'Preencha a data para exibir.';
+                }
             }
         }
 
@@ -879,9 +880,13 @@
                                 }
                             });
 
-                            document.getElementById('weekly-day').value = importedData.date.day || '';
-                            document.getElementById('weekly-month').value = importedData.date.month || '';
-                            document.getElementById('weekly-year').value = importedData.date.year || '';
+                            const weeklyDayEl = document.getElementById('weekly-day');
+                            const weeklyMonthEl = document.getElementById('weekly-month');
+                            const weeklyYearEl = document.getElementById('weekly-year');
+
+                            if (weeklyDayEl) weeklyDayEl.value = importedData.date.day || '';
+                            if (weeklyMonthEl) weeklyMonthEl.value = importedData.date.month || '';
+                            if (weeklyYearEl) weeklyYearEl.value = importedData.date.year || '';
                             
                             renderWeeklyClosingUI();
                             showMessage('Dados importados com sucesso!', 'success');
@@ -946,6 +951,11 @@
 
             showMessage('Buscando relatórios salvos...', 'info');
             const reportsListDiv = document.getElementById('weekly-saved-reports-list');
+            if (!reportsListDiv) { // Added null check
+                console.error("Element 'weekly-saved-reports-list' not found.");
+                showMessage('Erro: Elemento de lista de relatórios não encontrado.', 'error');
+                return;
+            }
             reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Carregando...</p>';
             weeklySelectedReportId = null;
 
@@ -987,7 +997,8 @@
                     reportsListDiv.appendChild(reportItem);
                 });
 
-                document.getElementById('weekly-saved-reports-modal').style.display = 'flex';
+                const modal = document.getElementById('weekly-saved-reports-modal');
+                if (modal) modal.style.display = 'flex'; // Added null check
                 showMessage('Relatórios salvos carregados!', 'success');
 
             } catch (error) {
@@ -997,7 +1008,8 @@
         }
 
         function closeWeeklySavedReportsModal() {
-            document.getElementById('weekly-saved-reports-modal').style.display = 'none';
+            const modal = document.getElementById('weekly-saved-reports-modal');
+            if (modal) modal.style.display = 'none'; // Added null check
         }
 
         function selectWeeklyReport(event, reportId) {
@@ -1022,9 +1034,13 @@
                 weeklyProducts = reportToLoad.products || [];
                 weeklySalonName = reportToLoad.salonName || 'Salão de Beleza';
 
-                document.getElementById('weekly-day').value = reportToLoad.date?.day || '';
-                document.getElementById('weekly-month').value = reportToLoad.date?.month || '';
-                document.getElementById('weekly-year').value = reportToLoad.date?.year || '';
+                const weeklyDayEl = document.getElementById('weekly-day');
+                const weeklyMonthEl = document.getElementById('weekly-month');
+                const weeklyYearEl = document.getElementById('weekly-year');
+
+                if (weeklyDayEl) weeklyDayEl.value = reportToLoad.date?.day || '';
+                if (weeklyMonthEl) weeklyMonthEl.value = reportToLoad.date?.month || '';
+                if (weeklyYearEl) weeklyYearEl.value = reportToLoad.date?.year || '';
                 
                 renderWeeklyClosingUI();
                 closeWeeklySavedReportsModal();
@@ -1095,11 +1111,13 @@
         }
 
         function showWeeklyClearConfirm() {
-            document.getElementById('weekly-custom-confirm-modal').style.display = 'flex';
+            const modal = document.getElementById('weekly-custom-confirm-modal');
+            if (modal) modal.style.display = 'flex'; // Added null check
         }
 
         function handleWeeklyClearConfirm(confirmed) {
-            document.getElementById('weekly-custom-confirm-modal').style.display = 'none';
+            const modal = document.getElementById('weekly-custom-confirm-modal');
+            if (modal) modal.style.display = 'none'; // Added null check
             if (confirmed) {
                 clearWeeklyAllData();
             } else {
@@ -1115,14 +1133,16 @@
 
             showMessage('Limpando todos os dados do fechamento semanal...', 'info');
             try {
-                weeklyCollaborators = [];
-                weeklyProducts = [];
-                document.getElementById('weekly-day').value = '';
-                document.getElementById('weekly-month').value = '';
-                document.getElementById('weekly-year').value = '';
+                const weeklyDayEl = document.getElementById('weekly-day');
+                const weeklyMonthEl = document.getElementById('weekly-month');
+                const weeklyYearEl = document.getElementById('weekly-year');
 
-                weeklyCollaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
-                weeklyProducts.push({ clientName: '', value: 0 });
+                if (weeklyDayEl) weeklyDayEl.value = '';
+                if (weeklyMonthEl) weeklyMonthEl.value = '';
+                if (weeklyYearEl) weeklyYearEl.value = '';
+
+                weeklyCollaborators = [{ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 }];
+                weeklyProducts = [{ clientName: '', value: 0 }];
 
                 const manualSavesCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
                 const manualSavesSnapshot = await window.getDocs(manualSavesCollectionRef);
@@ -1154,8 +1174,11 @@
         }
 
         function renderWeeklyClosingUI() {
-            document.getElementById('weekly-collaborators-container').innerHTML = '';
-            document.getElementById('weekly-products-container').innerHTML = '';
+            const collaboratorsContainer = document.getElementById('weekly-collaborators-container');
+            const productsContainer = document.getElementById('weekly-products-container');
+            
+            if (collaboratorsContainer) collaboratorsContainer.innerHTML = '';
+            if (productsContainer) productsContainer.innerHTML = '';
 
             weeklyCollaborators.forEach((collabData, index) => {
                 addWeeklyCollaboratorUI(collabData, index);
@@ -1176,6 +1199,8 @@
 
         function addWeeklyCollaboratorUI(collabData, index) {
             const container = document.getElementById('weekly-collaborators-container');
+            if (!container) return; // Added null check
+
             const newCollaboratorDiv = document.createElement('div');
             newCollaboratorDiv.className = 'collaborator-block p-4 bg-white rounded-lg shadow-md mb-6 border border-gray-200';
             newCollaboratorDiv.setAttribute('data-index', index);
@@ -1211,14 +1236,18 @@
             `;
             container.appendChild(newCollaboratorDiv);
 
-            collabData.clients.forEach((clientData, clientIndex) => {
-                addWeeklyClientRowUI(newCollaboratorDiv.querySelector('.weekly-clients-container'), index, clientData, clientIndex);
-            });
+            const clientsContainer = newCollaboratorDiv.querySelector('.weekly-clients-container');
+            if (clientsContainer) { // Added null check
+                collabData.clients.forEach((clientData, clientIndex) => {
+                    addWeeklyClientRowUI(clientsContainer, index, clientData, clientIndex);
+                });
+            }
             calculateWeeklyCollaboratorTotal(index);
         }
 
         function removeWeeklyCollaborator(button) {
             const collabBlock = button.closest('.collaborator-block');
+            if (!collabBlock) return; // Added null check
             const indexToRemove = parseInt(collabBlock.getAttribute('data-index'));
 
             weeklyCollaborators.splice(indexToRemove, 1);
@@ -1235,16 +1264,19 @@
             let newDiscount = parseFloat(value) / 100;
             if (isNaN(newDiscount) || newDiscount < 0 || newDiscount > 1) {
                 newDiscount = 0.30;
-                document.getElementById(`weekly-collab-discount-${index}`).value = 30;
+                const discountEl = document.getElementById(`weekly-collab-discount-${index}`);
+                if (discountEl) discountEl.value = 30; // Added null check
             }
             if (weeklyCollaborators[index]) {
                 weeklyCollaborators[index].discountPercentage = newDiscount;
-                document.getElementById(`weekly-collab-discount-percentage-display-${index}`).textContent = (newDiscount * 100).toFixed(0);
+                const percentageDisplay = document.getElementById(`weekly-collab-discount-percentage-display-${index}`);
+                if (percentageDisplay) percentageDisplay.textContent = (newDiscount * 100).toFixed(0); // Added null check
                 calculateWeeklyCollaboratorTotal(index);
             }
         }
 
         function addWeeklyClientRowUI(container, collaboratorIndex, clientData, clientIndex) {
+            if (!container) return; // Added null check
             const newClientDiv = document.createElement('div');
             newClientDiv.className = 'flex items-center gap-2 mb-2 client-row';
             newClientDiv.innerHTML = `
@@ -1288,9 +1320,13 @@
                 const discount = total * collab.discountPercentage;
                 const netTotal = total - discount;
 
-                document.getElementById(`weekly-collab-total-display-${collaboratorIndex}`).textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
-                document.getElementById(`weekly-collab-discount-value-${collaboratorIndex}`).textContent = `R$ ${discount.toFixed(2).replace('.', ',')}`;
-                document.getElementById(`weekly-collab-net-total-display-${collaboratorIndex}`).textContent = `R$ ${netTotal.toFixed(2).replace('.', ',')}`;
+                const totalDisplay = document.getElementById(`weekly-collab-total-display-${collaboratorIndex}`);
+                const discountValue = document.getElementById(`weekly-collab-discount-value-${collaboratorIndex}`);
+                const netTotalDisplay = document.getElementById(`weekly-collab-net-total-display-${collaboratorIndex}`);
+
+                if (totalDisplay) totalDisplay.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+                if (discountValue) discountValue.textContent = `R$ ${discount.toFixed(2).replace('.', ',')}`;
+                if (netTotalDisplay) netTotalDisplay.textContent = `R$ ${netTotal.toFixed(2).replace('.', ',')}`;
             }
 
             calculateWeeklyAllTotals();
@@ -1303,6 +1339,8 @@
 
         function addWeeklyProductRowUI(productData, index) {
             const container = document.getElementById('weekly-products-container');
+            if (!container) return; // Added null check
+
             const newProductDiv = document.createElement('div');
             newProductDiv.className = 'flex items-center gap-2 mb-2 product-row';
             newProductDiv.innerHTML = `
@@ -1345,15 +1383,21 @@
             const overallGrossTotal = overallGrossTotalServices + overallProductsTotal;
             const overallNetTotal = overallNetTotalServices + overallProductsTotal;
 
-            document.getElementById('weekly-products-total').textContent = `R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`;
-            document.getElementById('weekly-overall-gross-total').textContent = `R$ ${overallGrossTotal.toFixed(2).replace('.', ',')}`;
-            document.getElementById('weekly-overall-net-total').textContent = `R$ ${overallNetTotal.toFixed(2).replace('.', ',')}`;
+            const productsTotalEl = document.getElementById('weekly-products-total');
+            const overallGrossTotalEl = document.getElementById('weekly-overall-gross-total');
+            const overallNetTotalEl = document.getElementById('weekly-overall-net-total');
+
+            if (productsTotalEl) productsTotalEl.textContent = `R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`;
+            if (overallGrossTotalEl) overallGrossTotalEl.textContent = `R$ ${overallGrossTotal.toFixed(2).replace('.', ',')}`;
+            if (overallNetTotalEl) overallNetTotalEl.textContent = `R$ ${overallNetTotal.toFixed(2).replace('.', ',')}`;
 
             updateWeeklyDetailedContribution(overallGrossTotalServices, overallProductsTotal);
         }
 
         function updateWeeklyDetailedContribution(grossServicesTotal, productsTotal) {
             const detailedContributionDiv = document.getElementById('weekly-detailed-contribution');
+            if (!detailedContributionDiv) return; // Added null check
+
             let content = '';
 
             if (weeklyCollaborators.length > 0) {
@@ -1388,7 +1432,8 @@
             }
 
             const currentSalonName = weeklySalonName;
-            const dateText = document.getElementById('weekly-dateDisplay').textContent;
+            const dateTextEl = document.getElementById('weekly-dateDisplay');
+            const dateText = dateTextEl ? dateTextEl.textContent : 'Data Indefinida'; // Added null check
             const collabName = collab.name || 'Colaboradora sem nome';
             const generalNotes = "";
 
@@ -1456,7 +1501,8 @@
             const doc = new jsPDF();
 
             const currentSalonName = weeklySalonName;
-            const dateText = document.getElementById('weekly-dateDisplay').textContent;
+            const dateTextEl = document.getElementById('weekly-dateDisplay');
+            const dateText = dateTextEl ? dateTextEl.textContent : 'Data Indefinida'; // Added null check
             const generalNotes = "";
 
             const mainTitleY = 20; 
@@ -1625,19 +1671,17 @@
 
         // Função para habilitar/desabilitar botões e campos após autenticação (Estoque)
         function toggleInventoryUIEnabled(enabled) {
-            document.getElementById('inventory-addProductBtn').disabled = !enabled;
-            document.getElementById('inventory-clearAllProductsBtn').disabled = !enabled;
-            document.getElementById('inventory-product-name').disabled = !enabled;
-            document.getElementById('inventory-product-category').disabled = !enabled;
-            document.getElementById('inventory-product-stock').disabled = !enabled;
-            document.getElementById('inventory-product-min-stock').disabled = !enabled;
-            document.getElementById('inventory-product-unit').disabled = !enabled;
-            document.getElementById('inventory-exportInventoryBtn').disabled = !enabled;
-            document.getElementById('inventory-importInventoryFromFileBtn').disabled = !enabled;
-            document.getElementById('inventory-saveToFirestoreBtn').disabled = !enabled;
-            document.getElementById('inventory-loadFromFirestoreBtn').disabled = !enabled;
-            document.getElementById('inventory-generatePdfBtn').disabled = !enabled;
-            // O botão da aba em si NÃO é desabilitado, apenas os elementos interativos DENTRO da aba.
+            const idsToToggle = [
+                'inventory-addProductBtn', 'inventory-clearAllProductsBtn', 'inventory-product-name',
+                'inventory-product-category', 'inventory-product-stock', 'inventory-product-min-stock',
+                'inventory-product-unit', 'inventory-exportInventoryBtn', 'inventory-importInventoryFromFileBtn',
+                'inventory-saveToFirestoreBtn', 'inventory-loadFromFirestoreBtn', 'inventory-generatePdfBtn',
+                'inventory-updateProductBtn', 'inventory-cancelEditBtn' // These might be hidden, but still good to toggle disabled
+            ];
+            idsToToggle.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = !enabled;
+            });
         }
 
         function initializeInventoryLogic() {
@@ -1669,11 +1713,17 @@
                 return;
             }
 
-            const name = document.getElementById('inventory-product-name').value.trim();
-            const category = document.getElementById('inventory-product-category').value.trim();
-            const currentStock = parseInt(document.getElementById('inventory-product-stock').value);
-            const minStockLevel = parseInt(document.getElementById('inventory-product-min-stock').value);
-            const unit = document.getElementById('inventory-product-unit').value.trim();
+            const nameInput = document.getElementById('inventory-product-name');
+            const categoryInput = document.getElementById('inventory-product-category');
+            const currentStockInput = document.getElementById('inventory-product-stock');
+            const minStockLevelInput = document.getElementById('inventory-product-min-stock');
+            const unitInput = document.getElementById('inventory-product-unit');
+
+            const name = nameInput ? nameInput.value.trim() : '';
+            const category = categoryInput ? categoryInput.value.trim() : '';
+            const currentStock = currentStockInput ? parseInt(currentStockInput.value) : 0;
+            const minStockLevel = minStockLevelInput ? parseInt(minStockLevelInput.value) : 0;
+            const unit = unitInput ? unitInput.value.trim() : '';
 
             if (!name || !category || isNaN(currentStock) || isNaN(minStockLevel) || !unit) {
                 showMessage('Por favor, preencha todos os campos do produto.', 'error');
@@ -1703,16 +1753,26 @@
         function editInventoryProduct(productId) {
             const product = window.productsInventory.find(p => p.id === productId);
             if (product) {
-                document.getElementById('inventory-product-name').value = product.name;
-                document.getElementById('inventory-product-category').value = product.category;
-                document.getElementById('inventory-product-stock').value = product.currentStock;
-                document.getElementById('inventory-product-min-stock').value = product.minStockLevel;
-                document.getElementById('inventory-product-unit').value = product.unit;
+                const nameInput = document.getElementById('inventory-product-name');
+                const categoryInput = document.getElementById('inventory-product-category');
+                const currentStockInput = document.getElementById('inventory-product-stock');
+                const minStockLevelInput = document.getElementById('inventory-product-min-stock');
+                const unitInput = document.getElementById('inventory-product-unit');
+
+                if (nameInput) nameInput.value = product.name;
+                if (categoryInput) categoryInput.value = product.category;
+                if (currentStockInput) currentStockInput.value = product.currentStock;
+                if (minStockLevelInput) minStockLevelInput.value = product.minStockLevel;
+                if (unitInput) unitInput.value = product.unit;
 
                 inventoryEditingProductId = productId;
-                document.getElementById('inventory-addProductBtn').classList.add('hidden');
-                document.getElementById('inventory-updateProductBtn').classList.remove('hidden');
-                document.getElementById('inventory-cancelEditBtn').classList.remove('hidden');
+                const addBtn = document.getElementById('inventory-addProductBtn');
+                const updateBtn = document.getElementById('inventory-updateProductBtn');
+                const cancelBtn = document.getElementById('inventory-cancelEditBtn');
+
+                if (addBtn) addBtn.classList.add('hidden');
+                if (updateBtn) updateBtn.classList.remove('hidden');
+                if (cancelBtn) cancelBtn.classList.remove('hidden');
             }
         }
 
@@ -1726,11 +1786,17 @@
                 return;
             }
 
-            const name = document.getElementById('inventory-product-name').value.trim();
-            const category = document.getElementById('inventory-product-category').value.trim();
-            const currentStock = parseInt(document.getElementById('inventory-product-stock').value);
-            const minStockLevel = parseInt(document.getElementById('inventory-product-min-stock').value);
-            const unit = document.getElementById('inventory-product-unit').value.trim();
+            const nameInput = document.getElementById('inventory-product-name');
+            const categoryInput = document.getElementById('inventory-product-category');
+            const currentStockInput = document.getElementById('inventory-product-stock');
+            const minStockLevelInput = document.getElementById('inventory-product-min-stock');
+            const unitInput = document.getElementById('inventory-product-unit');
+
+            const name = nameInput ? nameInput.value.trim() : '';
+            const category = categoryInput ? categoryInput.value.trim() : '';
+            const currentStock = currentStockInput ? parseInt(currentStockInput.value) : 0;
+            const minStockLevel = minStockLevelInput ? parseInt(minStockLevelInput.value) : 0;
+            const unit = unitInput ? unitInput.value.trim() : '';
 
             if (!name || !category || isNaN(currentStock) || isNaN(minStockLevel) || !unit) {
                 showMessage('Por favor, preencha todos os campos do produto.', 'error');
@@ -1761,17 +1827,27 @@
         function cancelInventoryEdit() {
             inventoryEditingProductId = null;
             clearInventoryProductForm();
-            document.getElementById('inventory-addProductBtn').classList.remove('hidden');
-            document.getElementById('inventory-updateProductBtn').classList.add('hidden');
-            document.getElementById('inventory-cancelEditBtn').classList.add('hidden');
+            const addBtn = document.getElementById('inventory-addProductBtn');
+            const updateBtn = document.getElementById('inventory-updateProductBtn');
+            const cancelBtn = document.getElementById('inventory-cancelEditBtn');
+
+            if (addBtn) addBtn.classList.remove('hidden');
+            if (updateBtn) updateBtn.classList.add('hidden');
+            if (cancelBtn) cancelBtn.classList.add('hidden');
         }
 
         function clearInventoryProductForm() {
-            document.getElementById('inventory-product-name').value = '';
-            document.getElementById('inventory-product-category').value = '';
-            document.getElementById('inventory-product-stock').value = '0';
-            document.getElementById('inventory-product-min-stock').value = '0';
-            document.getElementById('inventory-product-unit').value = '';
+            const nameInput = document.getElementById('inventory-product-name');
+            const categoryInput = document.getElementById('inventory-product-category');
+            const currentStockInput = document.getElementById('inventory-product-stock');
+            const minStockLevelInput = document.getElementById('inventory-product-min-stock');
+            const unitInput = document.getElementById('inventory-product-unit');
+
+            if (nameInput) nameInput.value = '';
+            if (categoryInput) categoryInput.value = '';
+            if (currentStockInput) currentStockInput.value = '0';
+            if (minStockLevelInput) minStockLevelInput.value = '0';
+            if (unitInput) unitInput.value = '';
         }
 
         async function adjustInventoryStock(productId, change) {
@@ -1816,11 +1892,13 @@
         }
 
         function showInventoryClearConfirm() {
-            document.getElementById('inventory-custom-confirm-modal').style.display = 'flex';
+            const modal = document.getElementById('inventory-custom-confirm-modal');
+            if (modal) modal.style.display = 'flex'; // Added null check
         }
 
         function handleInventoryClearConfirm(confirmed) {
-            document.getElementById('inventory-custom-confirm-modal').style.display = 'none';
+            const modal = document.getElementById('inventory-custom-confirm-modal');
+            if (modal) modal.style.display = 'none'; // Added null check
             if (confirmed) {
                 clearAllInventoryProducts();
             } else {
@@ -1854,6 +1932,8 @@
 
         function renderInventoryProductsList() {
             const container = document.getElementById('inventory-products-list-container');
+            if (!container) return; // Added null check
+
             container.innerHTML = '';
 
             if (window.productsInventory.length === 0) {
@@ -1975,6 +2055,11 @@
 
             showMessage('Buscando inventários salvos...', 'info');
             const reportsListDiv = document.getElementById('inventory-saved-reports-list');
+            if (!reportsListDiv) { // Added null check
+                console.error("Element 'inventory-saved-reports-list' not found.");
+                showMessage('Erro: Elemento de lista de inventários não encontrado.', 'error');
+                return;
+            }
             reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Carregando...</p>';
             inventoryEditingProductId = null; // Reinicia a seleção
 
@@ -2011,7 +2096,8 @@
                     reportsListDiv.appendChild(reportItem);
                 });
 
-                document.getElementById('inventory-saved-reports-modal').style.display = 'flex';
+                const modal = document.getElementById('inventory-saved-reports-modal');
+                if (modal) modal.style.display = 'flex'; // Added null check
                 showMessage('Inventários salvos carregados!', 'success');
 
             } catch (error) {
@@ -2021,7 +2107,8 @@
         }
 
         function closeInventorySavedReportsModal() {
-            document.getElementById('inventory-saved-reports-modal').style.display = 'none';
+            const modal = document.getElementById('inventory-saved-reports-modal');
+            if (modal) modal.style.display = 'none'; // Added null check
         }
 
         function selectInventoryReport(event, reportId) {
@@ -2119,20 +2206,23 @@
 
         // Função para habilitar/desabilitar botões e campos após autenticação (Fichas)
         function toggleFichasUIEnabled(enabled) {
-            document.getElementById('ficha-addFichaBtn').disabled = !enabled;
-            document.getElementById('ficha-exportFichasBtn').disabled = !enabled;
-            document.getElementById('ficha-importFichasFromFileBtn').disabled = !enabled;
-            document.getElementById('ficha-saveToFirestoreBtn').disabled = !enabled;
-            document.getElementById('ficha-loadFromFirestoreBtn').disabled = !enabled;
-            document.getElementById('ficha-clearAllFichasBtn').disabled = !enabled;
-            document.getElementById('ficha-collaborator-name').disabled = !enabled;
-            document.getElementById('ficha-client-name').disabled = !enabled;
-            document.getElementById('ficha-date').disabled = !enabled;
-            document.getElementById('ficha-notes').disabled = !enabled;
-            // O botão da aba em si NÃO é desabilitado, apenas os elementos interativos DENTRO da aba.
-            // Desabilitar inputs de serviços e produtos dentro da ficha
-            document.querySelectorAll('#ficha-services-container input, #ficha-services-container button').forEach(el => el.disabled = !enabled);
-            document.querySelectorAll('#ficha-products-container input, #ficha-products-container button').forEach(el => el.disabled = !enabled);
+            const idsToToggle = [
+                'ficha-addFichaBtn', 'ficha-exportFichasBtn', 'ficha-importFichasFromFileBtn',
+                'ficha-saveToFirestoreBtn', 'ficha-loadFromFirestoreBtn', 'ficha-clearAllFichasBtn',
+                'ficha-collaborator-name', 'ficha-client-name', 'ficha-date', 'ficha-notes',
+                'ficha-updateFichaBtn', 'ficha-cancelEditBtn'
+            ];
+            idsToToggle.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = !enabled;
+            });
+
+            document.querySelectorAll('#ficha-services-container input, #ficha-services-container button').forEach(el => {
+                if (el) el.disabled = !enabled;
+            });
+            document.querySelectorAll('#ficha-products-container input, #ficha-products-container button').forEach(el => {
+                if (el) el.disabled = !enabled;
+            });
         }
 
         function initializeFichasLogic() {
@@ -2170,6 +2260,7 @@
         // Adiciona uma nova linha de serviço ao formulário de ficha
         function addFichaServiceRow() {
             const container = document.getElementById('ficha-services-container');
+            if (!container) return; // Added null check
             const newServiceDiv = document.createElement('div');
             newServiceDiv.className = 'flex items-center gap-2 mb-2 ficha-service-row';
             newServiceDiv.innerHTML = `
@@ -2188,6 +2279,7 @@
         // Adiciona uma nova linha de produto ao formulário de ficha
         function addFichaProductRow() {
             const container = document.getElementById('ficha-products-container');
+            if (!container) return; // Added null check
             const newProductDiv = document.createElement('div');
             newProductDiv.className = 'flex items-center gap-2 mb-2 ficha-product-row';
             newProductDiv.innerHTML = `
@@ -2205,7 +2297,8 @@
 
         // Remove uma linha de serviço ou produto da ficha
         function removeFichaRow(button, type) {
-            button.closest('.flex').remove();
+            const row = button.closest('.flex');
+            if (row) row.remove(); // Added null check
             calculateFichaTotals();
         }
 
@@ -2225,34 +2318,47 @@
             document.querySelectorAll('#ficha-services-container .ficha-service-value').forEach(input => {
                 totalServices += parseFloat(input.value) || 0;
             });
-            document.getElementById('ficha-total-services').textContent = `R$ ${totalServices.toFixed(2).replace('.', ',')}`;
+            const totalServicesEl = document.getElementById('ficha-total-services');
+            if (totalServicesEl) totalServicesEl.textContent = `R$ ${totalServices.toFixed(2).replace('.', ',')}`; // Added null check
 
             let totalProducts = 0;
             document.querySelectorAll('#ficha-products-container .ficha-product-value').forEach(input => {
                 totalProducts += parseFloat(input.value) || 0;
             });
-            document.getElementById('ficha-total-products').textContent = `R$ ${totalProducts.toFixed(2).replace('.', ',')}`;
+            const totalProductsEl = document.getElementById('ficha-total-products');
+            if (totalProductsEl) totalProductsEl.textContent = `R$ ${totalProducts.toFixed(2).replace('.', ',')}`; // Added null check
 
             const totalGeneral = totalServices + totalProducts;
-            document.getElementById('ficha-total-general').textContent = `R$ ${totalGeneral.toFixed(2).replace('.', ',')}`;
+            const totalGeneralEl = document.getElementById('ficha-total-general');
+            if (totalGeneralEl) totalGeneralEl.textContent = `R$ ${totalGeneral.toFixed(2).replace('.', ',')}`; // Added null check
         }
 
         // Limpa o formulário de ficha
         function clearFichaForm() {
-            document.getElementById('ficha-collaborator-name').value = '';
-            document.getElementById('ficha-client-name').value = '';
-            document.getElementById('ficha-date').value = '';
-            document.getElementById('ficha-notes').value = '';
-            document.getElementById('ficha-services-container').innerHTML = '';
-            document.getElementById('ficha-products-container').innerHTML = '';
+            const collaboratorNameEl = document.getElementById('ficha-collaborator-name');
+            const clientNameEl = document.getElementById('ficha-client-name');
+            const dateEl = document.getElementById('ficha-date');
+            const notesEl = document.getElementById('ficha-notes');
+            const servicesContainer = document.getElementById('ficha-services-container');
+            const productsContainer = document.getElementById('ficha-products-container');
+            const addFichaBtn = document.getElementById('ficha-addFichaBtn');
+            const updateFichaBtn = document.getElementById('ficha-updateFichaBtn');
+            const cancelEditBtn = document.getElementById('ficha-cancelEditBtn');
+
+            if (collaboratorNameEl) collaboratorNameEl.value = '';
+            if (clientNameEl) clientNameEl.value = '';
+            if (dateEl) dateEl.value = '';
+            if (notesEl) notesEl.value = '';
+            if (servicesContainer) servicesContainer.innerHTML = '';
+            if (productsContainer) productsContainer.innerHTML = '';
             addFichaServiceRow(); // Adiciona uma linha vazia padrão
             addFichaProductRow(); // Adiciona uma linha vazia padrão
             calculateFichaTotals();
 
             editingFichaId = null;
-            document.getElementById('ficha-addFichaBtn').classList.remove('hidden');
-            document.getElementById('ficha-updateFichaBtn').classList.add('hidden');
-            document.getElementById('ficha-cancelEditBtn').classList.add('hidden');
+            if (addFichaBtn) addFichaBtn.classList.remove('hidden');
+            if (updateFichaBtn) updateFichaBtn.classList.add('hidden');
+            if (cancelEditBtn) cancelEditBtn.classList.add('hidden');
         }
 
         // Adiciona uma nova ficha ao Firestore
@@ -2262,15 +2368,22 @@
                 return;
             }
 
-            const collaboratorName = document.getElementById('ficha-collaborator-name').value.trim();
-            const clientName = document.getElementById('ficha-client-name').value.trim();
-            const date = document.getElementById('ficha-date').value;
-            const notes = document.getElementById('ficha-notes').value.trim();
+            const collaboratorNameEl = document.getElementById('ficha-collaborator-name');
+            const clientNameEl = document.getElementById('ficha-client-name');
+            const dateEl = document.getElementById('ficha-date');
+            const notesEl = document.getElementById('ficha-notes');
+
+            const collaboratorName = collaboratorNameEl ? collaboratorNameEl.value.trim() : '';
+            const clientName = clientNameEl ? clientNameEl.value.trim() : '';
+            const date = dateEl ? dateEl.value : '';
+            const notes = notesEl ? notesEl.value.trim() : '';
 
             const services = [];
             document.querySelectorAll('#ficha-services-container .ficha-service-row').forEach(row => {
-                const description = row.querySelector('.ficha-service-description').value.trim();
-                const value = parseFloat(row.querySelector('.ficha-service-value').value) || 0;
+                const descriptionInput = row.querySelector('.ficha-service-description');
+                const valueInput = row.querySelector('.ficha-service-value');
+                const description = descriptionInput ? descriptionInput.value.trim() : '';
+                const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
                 if (description || value > 0) { // Só adiciona se tiver descrição ou valor
                     services.push({ description, value });
                 }
@@ -2278,8 +2391,10 @@
 
             const productsSold = [];
             document.querySelectorAll('#ficha-products-container .ficha-product-row').forEach(row => {
-                const name = row.querySelector('.ficha-product-name').value.trim();
-                const value = parseFloat(row.querySelector('.ficha-product-value').value) || 0;
+                const nameInput = row.querySelector('.ficha-product-name');
+                const valueInput = row.querySelector('.ficha-product-value');
+                const name = nameInput ? nameInput.value.trim() : '';
+                const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
                 if (name || value > 0) { // Só adiciona se tiver nome ou valor
                     productsSold.push({ name, value });
                 }
@@ -2320,13 +2435,23 @@
         function editFicha(fichaId) {
             const fichaToEdit = fichas.find(f => f.id === fichaId);
             if (fichaToEdit) {
-                document.getElementById('ficha-collaborator-name').value = fichaToEdit.collaboratorName;
-                document.getElementById('ficha-client-name').value = fichaToEdit.clientName;
-                document.getElementById('ficha-date').value = fichaToEdit.date;
-                document.getElementById('ficha-notes').value = fichaToEdit.notes;
+                const collaboratorNameEl = document.getElementById('ficha-collaborator-name');
+                const clientNameEl = document.getElementById('ficha-client-name');
+                const dateEl = document.getElementById('ficha-date');
+                const notesEl = document.getElementById('ficha-notes');
+                const servicesContainer = document.getElementById('ficha-services-container');
+                const productsContainer = document.getElementById('ficha-products-container');
+                const addFichaBtn = document.getElementById('ficha-addFichaBtn');
+                const updateFichaBtn = document.getElementById('ficha-updateFichaBtn');
+                const cancelEditBtn = document.getElementById('ficha-cancelEditBtn');
+
+                if (collaboratorNameEl) collaboratorNameEl.value = fichaToEdit.collaboratorName;
+                if (clientNameEl) clientNameEl.value = fichaToEdit.clientName;
+                if (dateEl) dateEl.value = fichaToEdit.date;
+                if (notesEl) notesEl.value = fichaToEdit.notes;
 
                 // Limpa e preenche os serviços
-                document.getElementById('ficha-services-container').innerHTML = '';
+                if (servicesContainer) servicesContainer.innerHTML = '';
                 fichaToEdit.services.forEach(service => {
                     const newServiceDiv = document.createElement('div');
                     newServiceDiv.className = 'flex items-center gap-2 mb-2 ficha-service-row';
@@ -2339,12 +2464,12 @@
                             </svg>
                         </button>
                     `;
-                    document.getElementById('ficha-services-container').appendChild(newServiceDiv);
+                    if (servicesContainer) servicesContainer.appendChild(newServiceDiv);
                 });
                 if (fichaToEdit.services.length === 0) addFichaServiceRow(); // Garante pelo menos uma linha vazia
 
                 // Limpa e preenche os produtos
-                document.getElementById('ficha-products-container').innerHTML = '';
+                if (productsContainer) productsContainer.innerHTML = '';
                 fichaToEdit.productsSold.forEach(product => {
                     const newProductDiv = document.createElement('div');
                     newProductDiv.className = 'flex items-center gap-2 mb-2 ficha-product-row';
@@ -2357,15 +2482,15 @@
                             </svg>
                         </button>
                     `;
-                    document.getElementById('ficha-products-container').appendChild(newProductDiv);
+                    if (productsContainer) productsContainer.appendChild(newProductDiv);
                 });
                 if (fichaToEdit.productsSold.length === 0) addFichaProductRow(); // Garante pelo menos uma linha vazia
 
                 calculateFichaTotals();
                 editingFichaId = fichaId;
-                document.getElementById('ficha-addFichaBtn').classList.add('hidden');
-                document.getElementById('ficha-updateFichaBtn').classList.remove('hidden');
-                document.getElementById('ficha-cancelEditBtn').classList.add('hidden');
+                if (addFichaBtn) addFichaBtn.classList.add('hidden');
+                if (updateFichaBtn) updateFichaBtn.classList.remove('hidden');
+                if (cancelEditBtn) cancelEditBtn.classList.add('hidden');
             }
         }
 
@@ -2380,15 +2505,22 @@
                 return;
             }
 
-            const collaboratorName = document.getElementById('ficha-collaborator-name').value.trim();
-            const clientName = document.getElementById('ficha-client-name').value.trim();
-            const date = document.getElementById('ficha-date').value;
-            const notes = document.getElementById('ficha-notes').value.trim();
+            const collaboratorNameEl = document.getElementById('ficha-collaborator-name');
+            const clientNameEl = document.getElementById('ficha-client-name');
+            const dateEl = document.getElementById('ficha-date');
+            const notesEl = document.getElementById('ficha-notes');
+
+            const collaboratorName = collaboratorNameEl ? collaboratorNameEl.value.trim() : '';
+            const clientName = clientNameEl ? clientNameEl.value.trim() : '';
+            const date = dateEl ? dateEl.value : '';
+            const notes = notesEl ? notesEl.value.trim() : '';
 
             const services = [];
             document.querySelectorAll('#ficha-services-container .ficha-service-row').forEach(row => {
-                const description = row.querySelector('.ficha-service-description').value.trim();
-                const value = parseFloat(row.querySelector('.ficha-service-value').value) || 0;
+                const descriptionInput = row.querySelector('.ficha-service-description');
+                const valueInput = row.querySelector('.ficha-service-value');
+                const description = descriptionInput ? descriptionInput.value.trim() : '';
+                const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
                 if (description || value > 0) {
                     services.push({ description, value });
                 }
@@ -2396,8 +2528,10 @@
 
             const productsSold = [];
             document.querySelectorAll('#ficha-products-container .ficha-product-row').forEach(row => {
-                const name = row.querySelector('.ficha-product-name').value.trim();
-                const value = parseFloat(row.querySelector('.ficha-product-value').value) || 0;
+                const nameInput = row.querySelector('.ficha-product-name');
+                const valueInput = row.querySelector('.ficha-product-value');
+                const name = nameInput ? nameInput.value.trim() : '';
+                const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
                 if (name || value > 0) {
                     productsSold.push({ name, value });
                 }
@@ -2439,14 +2573,19 @@
         function cancelFichaEdit() {
             editingFichaId = null;
             clearFichaForm();
-            document.getElementById('ficha-addFichaBtn').classList.remove('hidden');
-            document.getElementById('ficha-updateFichaBtn').classList.add('hidden');
-            document.getElementById('ficha-cancelEditBtn').classList.add('hidden');
+            const addFichaBtn = document.getElementById('ficha-addFichaBtn');
+            const updateFichaBtn = document.getElementById('ficha-updateFichaBtn');
+            const cancelEditBtn = document.getElementById('ficha-cancelEditBtn');
+
+            if (addFichaBtn) addFichaBtn.classList.remove('hidden');
+            if (updateFichaBtn) updateFichaBtn.classList.add('hidden');
+            if (cancelEditBtn) cancelEditBtn.classList.add('hidden');
         }
 
         // Renderiza a lista de fichas
         function renderFichasList() {
             const container = document.getElementById('fichas-list-container');
+            if (!container) return; // Added null check
             container.innerHTML = '';
 
             if (fichas.length === 0) {
@@ -2507,12 +2646,14 @@
 
         // Exibe o modal de confirmação para limpar todas as fichas
         function showFichaClearConfirm() {
-            document.getElementById('ficha-custom-confirm-modal').style.display = 'flex';
+            const modal = document.getElementById('ficha-custom-confirm-modal');
+            if (modal) modal.style.display = 'flex'; // Added null check
         }
 
         // Lida com a resposta do modal de confirmação para limpar todas as fichas
         function handleFichaClearConfirm(confirmed) {
-            document.getElementById('ficha-custom-confirm-modal').style.display = 'none';
+            const modal = document.getElementById('ficha-custom-confirm-modal');
+            if (modal) modal.style.display = 'none'; // Added null check
             if (confirmed) {
                 clearAllFichas();
             } else {
@@ -2635,6 +2776,11 @@
 
             showMessage('Buscando fichas salvas...', 'info');
             const reportsListDiv = document.getElementById('ficha-saved-reports-list');
+            if (!reportsListDiv) { // Added null check
+                console.error("Element 'ficha-saved-reports-list' not found.");
+                showMessage('Erro: Elemento de lista de fichas não encontrado.', 'error');
+                return;
+            }
             reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Carregando...</p>';
             editingFichaId = null; // Reinicia a seleção para o modal
 
@@ -2671,7 +2817,8 @@
                     reportsListDiv.appendChild(reportItem);
                 });
 
-                document.getElementById('ficha-saved-reports-modal').style.display = 'flex';
+                const modal = document.getElementById('ficha-saved-reports-modal');
+                if (modal) modal.style.display = 'flex'; // Added null check
                 showMessage('Fichas salvas carregadas!', 'success');
 
             } catch (error) {
@@ -2682,7 +2829,8 @@
 
         // Fecha o modal de fichas salvas
         function closeFichaSavedReportsModal() {
-            document.getElementById('ficha-saved-reports-modal').style.display = 'none';
+            const modal = document.getElementById('ficha-saved-reports-modal');
+            if (modal) modal.style.display = 'none'; // Added null check
         }
 
         // Seleciona uma ficha no modal
