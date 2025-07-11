@@ -580,7 +580,7 @@
             try {
                 // Salva os dados em uma nova subcoleção 'manualWeeklySaves'
                 // addDoc gera um ID automático para o documento, permitindo múltiplos salvamentos
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`);
+                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
                 await window.addDoc(collectionRef, dataToSave);
                 showMessage('Dados do fechamento semanal salvos no Firestore!', 'success');
                 console.log("Dados do fechamento semanal salvos no Firestore:", dataToSave);
@@ -604,7 +604,7 @@
             selectedReportId = null; // Reinicia a seleção
 
             try {
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`);
+                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
                 const querySnapshot = await window.getDocs(collectionRef);
                 
                 savedReports = [];
@@ -700,7 +700,7 @@
 
             if (confirm('Tem certeza que deseja excluir este relatório salvo?')) { // Usando confirm temporariamente para exclusão
                 try {
-                    const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`, reportId);
+                    const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`, reportId);
                     await window.deleteDoc(docRef);
                     showMessage('Relatório excluído com sucesso!', 'success');
                     openSavedReportsModal(); // Recarrega a lista após exclusão
@@ -724,7 +724,7 @@
             showMessage('Carregando dados das fichas do Firestore...', 'info');
             try {
                 // O caminho da coleção agora usa o userId do usuário autenticado
-                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
                 const docSnap = await window.getDoc(docRef);
 
                 if (docSnap.exists()) {
@@ -786,17 +786,17 @@
                 products.push({ clientName: '', value: 0 });
 
                 // Limpar todos os documentos da subcoleção 'manualWeeklySaves'
-                const manualSavesCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`);
+                const manualSavesCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
                 const manualSavesSnapshot = await window.getDocs(manualSavesCollectionRef);
                 const deleteManualSavesPromises = [];
                 manualSavesSnapshot.forEach((doc) => {
-                    deleteManualSavesPromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`, doc.id)));
+                    deleteManualSavesPromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`, doc.id)));
                 });
                 await Promise.all(deleteManualSavesPromises);
 
 
                 // Limpar dados no Firestore (documento de fechamento semanal agregado das fichas)
-                const currentWeekDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
+                const currentWeekDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
                 await window.deleteDoc(currentWeekDocRef);
 
                 // Opcional: Limpar todas as fichas individuais do Firestore também
