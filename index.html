@@ -51,11 +51,13 @@
                         // Usuário autenticado (pode ser anónimo ou Google)
                         window.userId = user.uid;
                         const authMethod = user.isAnonymous ? 'Anónimo' : 'Google';
-                        document.getElementById('user-id-display').textContent = `ID do Usuário: ${window.userId} (${authMethod})`;
+                        // Exibe o nome de exibição (displayName) se disponível, caso contrário, o UID
+                        const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${window.userId} (${authMethod})`;
+                        document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Sair</button>
                         `;
-                        console.log("Usuário autenticado:", window.userId, "Método:", authMethod); // Debug log
+                        console.log("Usuário autenticado:", window.userId, "Método:", authMethod, "Nome:", user.displayName); // Debug log
                         if (window.db) {
                             initializeAppLogic(); // Carregar dados iniciais após autenticação
                         } else {
@@ -65,7 +67,7 @@
                     } else {
                         // Usuário não autenticado
                         window.userId = 'Não autenticado';
-                        document.getElementById('user-id-display').textContent = `ID do Usuário: ${window.userId}`;
+                        document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Entrar com Google</button>
                         `;
@@ -245,7 +247,7 @@
 
         <!-- ID do Usuário e Botões de Autenticação -->
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
-            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">ID do Usuário: Carregando...</p>
+            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">Usuário: Carregando...</p>
             <div id="auth-buttons" class="flex gap-2">
                 <!-- Botões de autenticação serão injetados aqui pelo JavaScript -->
             </div>
