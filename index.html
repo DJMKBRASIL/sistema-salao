@@ -13,7 +13,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Adicionado addDoc
 
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -73,7 +73,7 @@
                         document.getElementById('loadDataFromFichasSystemBtn').disabled = true;
                         document.getElementById('clearAllDataBtn').disabled = true;
                         document.getElementById('saveToFirestoreBtn').disabled = true;
-                        document.getElementById('loadFromFirestoreBtn').disabled = true; // Desabilita o novo botão
+                        document.getElementById('loadFromFirestoreBtn').disabled = true;
                     }
                 });
 
@@ -104,7 +104,6 @@
                 collaborators = [];
                 products = [];
                 // salonName = ""; // Campo removido
-                // document.getElementById('salonName').value = ''; // Campo removido
                 document.getElementById('day').value = '';
                 document.getElementById('month').value = '';
                 document.getElementById('year').value = '';
@@ -130,6 +129,7 @@
         window.query = query;
         window.where = where;
         window.getDocs = getDocs;
+        window.addDoc = addDoc; // Adicionado para adicionar novos documentos
         // Expondo funções de autenticação para o HTML
         window.signInWithGoogle = signInWithGoogle;
         window.signOutUser = signOutUser;
@@ -205,6 +205,37 @@
         .modal-button.cancel:hover {
             background-color: #9ca3af; /* gray-400 */
         }
+
+        /* Estilo para o modal de relatórios salvos */
+        #saved-reports-modal .modal-content {
+            max-width: 600px;
+            text-align: left;
+        }
+        #saved-reports-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb; /* gray-200 */
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        #saved-reports-list div {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #saved-reports-list div:last-child {
+            border-bottom: none;
+        }
+        #saved-reports-list div.selected {
+            background-color: #e0e7ff; /* indigo-100 */
+            font-weight: 600;
+        }
+        #saved-reports-list div:hover {
+            background-color: #f3f4f6; /* gray-100 */
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -272,7 +303,7 @@
                     <button id="saveToFirestoreBtn" onclick="saveWeeklyClosingToFirestore()" class="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                         Salvar no Firestore
                     </button>
-                    <button id="loadFromFirestoreBtn" onclick="loadWeeklyClosingFromFirestore()" class="flex-1 bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
+                    <button id="loadFromFirestoreBtn" onclick="openSavedReportsModal()" class="flex-1 bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
                         Carregar do Firestore
                     </button>
                     <button id="loadDataFromFichasSystemBtn" onclick="loadDataFromFichasSystem()" class="flex-1 bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
@@ -350,11 +381,27 @@
         </div>
     </div>
 
+    <!-- Novo Modal para Relatórios Salvos -->
+    <div id="saved-reports-modal" class="modal">
+        <div class="modal-content">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Escolha um Fechamento Salvo</h2>
+            <div id="saved-reports-list" class="mb-4">
+                <!-- Lista de relatórios salvos será carregada aqui -->
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-button cancel" onclick="closeSavedReportsModal()">Fechar</button>
+                <button class="modal-button confirm bg-blue-500 hover:bg-blue-600" onclick="loadSelectedReport()">Carregar Selecionado</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Variáveis globais para armazenar os dados do sistema
         let collaborators = []; // Array de objetos { name, clients: [{name, value}], discountPercentage }
         let products = [];      // Array de objetos { clientName, value }
         let salonName = "Salão de Beleza"; // Valor padrão, já que o campo foi removido
+        let savedReports = []; // Armazena os relatórios carregados do Firestore para o modal
+        let selectedReportId = null; // Armazena o ID do relatório selecionado no modal
 
         // --- Funções de Feedback e Confirmação ---
         function showMessage(message, type = 'success') {
@@ -506,6 +553,15 @@
                 return;
             }
 
+            const day = document.getElementById('day').value;
+            const month = document.getElementById('month').value;
+            const year = document.getElementById('year').value;
+
+            if (!day || !month || !year) {
+                showMessage('Por favor, preencha o dia, mês e ano para salvar o fechamento.', 'error');
+                return;
+            }
+
             showMessage('Salvando dados do fechamento semanal no Firestore...', 'info');
 
             const dataToSave = {
@@ -513,18 +569,19 @@
                 collaborators: collaborators,
                 products: products,
                 date: {
-                    day: document.getElementById('day').value,
-                    month: document.getElementById('month').value,
-                    year: document.getElementById('year').value
+                    day: day,
+                    month: month,
+                    year: year
                 },
                 notes: "", // Observações gerais removidas
                 lastSaved: new Date().toISOString() // Adiciona um timestamp de quando foi salvo
             };
 
             try {
-                // Salva os dados em um documento específico para o fechamento semanal manual
-                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSave`);
-                await window.setDoc(docRef, dataToSave);
+                // Salva os dados em uma nova subcoleção 'manualWeeklySaves'
+                // addDoc gera um ID automático para o documento, permitindo múltiplos salvamentos
+                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`);
+                await window.addDoc(collectionRef, dataToSave);
                 showMessage('Dados do fechamento semanal salvos no Firestore!', 'success');
                 console.log("Dados do fechamento semanal salvos no Firestore:", dataToSave);
             } catch (e) {
@@ -534,48 +591,131 @@
         }
         // --- Fim da Função de Salvar no Firestore ---
 
-        // --- Função para Carregar Dados do Fechamento Semanal do Firestore ---
-        async function loadWeeklyClosingFromFirestore() {
+        // --- Funções do Modal de Carregar do Firestore ---
+        async function openSavedReportsModal() {
             if (!window.db || !window.userId || window.userId === 'Não autenticado') {
                 showMessage('Por favor, faça login para carregar dados do Firestore.', 'error');
                 return;
             }
 
-            showMessage('Carregando dados do fechamento semanal do Firestore...', 'info');
+            showMessage('Buscando relatórios salvos...', 'info');
+            const reportsListDiv = document.getElementById('saved-reports-list');
+            reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Carregando...</p>';
+            selectedReportId = null; // Reinicia a seleção
+
             try {
-                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSave`);
-                const docSnap = await window.getDoc(docRef);
-
-                if (docSnap.exists()) {
-                    const loadedData = docSnap.data();
-                    
-                    collaborators = loadedData.collaborators || [];
-                    products = loadedData.products || [];
-                    salonName = loadedData.salonName || 'Salão de Beleza'; // Carrega ou usa o padrão
-
-                    document.getElementById('day').value = loadedData.date?.day || '';
-                    document.getElementById('month').value = loadedData.date?.month || '';
-                    document.getElementById('year').value = loadedData.date?.year || '';
-                    // generalNotes não é mais carregado pois o campo foi removido
-
-                    renderAllUI();
-                    showMessage('Dados do fechamento semanal carregados do Firestore com sucesso!', 'success');
-                    console.log("Dados do fechamento semanal carregados do Firestore:", loadedData);
-                } else {
-                    showMessage('Nenhum dado de fechamento semanal salvo no Firestore para carregar.', 'info');
-                    console.log("Nenhum documento 'manualSave' encontrado.");
+                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`);
+                const querySnapshot = await window.getDocs(collectionRef);
+                
+                savedReports = [];
+                if (querySnapshot.empty) {
+                    reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Nenhum fechamento semanal salvo.</p>';
+                    showMessage('Nenhum fechamento semanal salvo para carregar.', 'info');
+                    return;
                 }
+
+                reportsListDiv.innerHTML = ''; // Limpa o "Carregando..."
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    savedReports.push({ id: doc.id, ...data });
+
+                    const reportItem = document.createElement('div');
+                    const date = data.date;
+                    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+                    const formattedDate = date.day && date.month && date.year ? 
+                                          `${date.day} de ${monthNames[parseInt(date.month) - 1]} de ${date.year}` : 
+                                          'Data Indefinida';
+                    
+                    const savedDate = data.lastSaved ? new Date(data.lastSaved).toLocaleDateString('pt-BR') : 'Desconhecida';
+                    const savedTime = data.lastSaved ? new Date(data.lastSaved).toLocaleTimeString('pt-BR') : '';
+
+                    reportItem.innerHTML = `
+                        <div>
+                            <p class="font-medium">Fechamento: ${formattedDate}</p>
+                            <p class="text-xs text-gray-500">Salvo em: ${savedDate} às ${savedTime}</p>
+                        </div>
+                        <button class="text-red-500 hover:text-red-700 text-sm" onclick="event.stopPropagation(); deleteSavedReport('${doc.id}')">Excluir</button>
+                    `;
+                    reportItem.onclick = () => selectReport(doc.id);
+                    reportsListDiv.appendChild(reportItem);
+                });
+
+                document.getElementById('saved-reports-modal').style.display = 'flex';
+                showMessage('Relatórios salvos carregados!', 'success');
+
             } catch (error) {
-                showMessage('Erro ao carregar dados do Firestore: ' + error.message, 'error');
-                console.error('Erro ao carregar dados do Firestore:', error);
+                console.error('Erro ao carregar relatórios salvos do Firestore:', error);
+                showMessage('Erro ao carregar relatórios salvos: ' + error.message, 'error');
             }
         }
-        // --- Fim da Função de Carregar do Firestore ---
+
+        function closeSavedReportsModal() {
+            document.getElementById('saved-reports-modal').style.display = 'none';
+        }
+
+        function selectReport(reportId) {
+            // Remove a classe 'selected' de todos os itens
+            document.querySelectorAll('#saved-reports-list div').forEach(item => {
+                item.classList.remove('selected');
+            });
+            // Adiciona a classe 'selected' ao item clicado
+            const selectedItem = document.querySelector(`#saved-reports-list div[onclick*="${reportId}"]`);
+            if (selectedItem) {
+                selectedItem.classList.add('selected');
+            }
+            selectedReportId = reportId;
+        }
+
+        async function loadSelectedReport() {
+            if (!selectedReportId) {
+                showMessage('Por favor, selecione um fechamento para carregar.', 'info');
+                return;
+            }
+
+            showMessage('Carregando fechamento selecionado...', 'info');
+            const reportToLoad = savedReports.find(report => report.id === selectedReportId);
+
+            if (reportToLoad) {
+                collaborators = reportToLoad.collaborators || [];
+                products = reportToLoad.products || [];
+                salonName = reportToLoad.salonName || 'Salão de Beleza';
+
+                document.getElementById('day').value = reportToLoad.date?.day || '';
+                document.getElementById('month').value = reportToLoad.date?.month || '';
+                document.getElementById('year').value = reportToLoad.date?.year || '';
+                
+                renderAllUI();
+                closeSavedReportsModal();
+                showMessage('Fechamento carregado com sucesso!', 'success');
+            } else {
+                showMessage('Erro: Fechamento selecionado não encontrado.', 'error');
+            }
+        }
+
+        async function deleteSavedReport(reportId) {
+            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
+                showMessage('Por favor, faça login para excluir relatórios.', 'error');
+                return;
+            }
+
+            if (confirm('Tem certeza que deseja excluir este relatório salvo?')) { // Usando confirm temporariamente para exclusão
+                try {
+                    const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`, reportId);
+                    await window.deleteDoc(docRef);
+                    showMessage('Relatório excluído com sucesso!', 'success');
+                    openSavedReportsModal(); // Recarrega a lista após exclusão
+                } catch (error) {
+                    console.error('Erro ao excluir relatório salvo:', error);
+                    showMessage('Erro ao excluir relatório: ' + error.message, 'error');
+                }
+            }
+        }
+        // --- Fim das Funções do Modal de Carregar do Firestore ---
 
 
         // --- Função para Importar Dados do Sistema de Fichas (AGORA DO FIRESTORE) ---
         async function loadDataFromFichasSystem() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') { // Acessar diretamente window.db e window.userId
+            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
                 console.error("Debug: window.db is", window.db, "window.userId is", window.userId); // Debug log
                 showMessage('Por favor, faça login para importar dados das fichas.', 'error');
                 return;
@@ -636,7 +776,6 @@
                 collaborators = [];
                 products = [];
                 // salonName = ""; // Campo removido
-                // document.getElementById('salonName').value = ''; // Campo removido
                 document.getElementById('day').value = '';
                 document.getElementById('month').value = '';
                 document.getElementById('year').value = '';
@@ -646,9 +785,15 @@
                 collaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
                 products.push({ clientName: '', value: 0 });
 
-                // Limpar dados no Firestore (documento de fechamento semanal manual)
-                const manualSaveDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSave`);
-                await window.deleteDoc(manualSaveDocRef);
+                // Limpar todos os documentos da subcoleção 'manualWeeklySaves'
+                const manualSavesCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`);
+                const manualSavesSnapshot = await window.getDocs(manualSavesCollectionRef);
+                const deleteManualSavesPromises = [];
+                manualSavesSnapshot.forEach((doc) => {
+                    deleteManualSavesPromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/manualSaves`, doc.id)));
+                });
+                await Promise.all(deleteManualSavesPromises);
+
 
                 // Limpar dados no Firestore (documento de fechamento semanal agregado das fichas)
                 const currentWeekDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
@@ -657,11 +802,11 @@
                 // Opcional: Limpar todas as fichas individuais do Firestore também
                 const fichasCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
                 const querySnapshot = await window.getDocs(fichasCollectionRef);
-                const deletePromises = [];
+                const deleteFichasPromises = [];
                 querySnapshot.forEach((doc) => {
-                    deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, doc.id)));
+                    deleteFichasPromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, doc.id)));
                 });
-                await Promise.all(deletePromises);
+                await Promise.all(deleteFichasPromises);
 
 
                 renderAllUI(); // Renderiza a UI com os novos dados padrão
