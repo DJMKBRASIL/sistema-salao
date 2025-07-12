@@ -17,7 +17,7 @@
     <script type="module">
         // Importações do Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signInWithCustomToken, signInAnonymously, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signInWithCustomToken, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Configuração do Firebase (será preenchida pelo ambiente Canvas)
@@ -55,8 +55,6 @@
         window.signInWithCustomToken = signInWithCustomToken;
         window.signInAnonymously = signInAnonymously;
         window.signOut = signOut;
-        window.setPersistence = setPersistence;
-        window.browserLocalPersistence = browserLocalPersistence;
     </script>
 
     <style>
@@ -115,7 +113,7 @@
 
         <!-- Autenticação -->
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
-            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">Utilizador: A carregar...</p>
+            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">Utilizador: A conectar...</p>
             <div id="auth-buttons" class="flex gap-2"></div>
         </div>
 
@@ -234,6 +232,7 @@
             if (type === 'success') msgDiv.classList.add('bg-green-100', 'text-green-800');
             else if (type === 'error') msgDiv.classList.add('bg-red-100', 'text-red-800');
             else msgDiv.classList.add('bg-blue-100', 'text-blue-800');
+            msgDiv.classList.remove('hidden');
             setTimeout(() => { msgDiv.classList.add('hidden'); }, 5000);
         }
 
@@ -263,7 +262,8 @@
         // LÓGICA DE AUTENTICAÇÃO E INICIALIZAÇÃO
         // =================================================================================
 
-        async function initializeAuth() {
+        async function initializeAndSignIn() {
+            // Se o Firebase não inicializou, entra em modo offline.
             if (!window.auth) {
                 document.getElementById('user-id-display').textContent = 'Utilizador: Offline';
                 document.getElementById('auth-buttons').innerHTML = `<span class="text-sm text-red-500 font-semibold">Funcionalidades da nuvem indisponíveis</span>`;
@@ -273,55 +273,47 @@
                 return;
             }
 
-            // Ouve as mudanças de estado de autenticação
+            // Ouve as mudanças de estado de autenticação para atualizar a UI.
             window.onAuthStateChanged(window.auth, (user) => {
                 if (user) {
+                    // Utilizador está autenticado
                     userId = user.uid;
                     const authMethod = user.isAnonymous ? 'Anónimo' : 'Autenticado';
-                    const displayInfo = `ID: ${userId.substring(0, 10)}... (${authMethod})`;
-                    document.getElementById('user-id-display').textContent = `Utilizador: ${displayInfo}`;
+                    document.getElementById('user-id-display').textContent = `Utilizador ID: ${userId.substring(0, 12)}...`;
                     document.getElementById('auth-buttons').innerHTML = `<button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition shadow-md">Sair</button>`;
                     enableAppButtons(true);
-                    initializeAppLogic();
+                    initializeAppLogic(); // Inicia a lógica principal da aplicação
                 } else {
+                    // Utilizador está desconectado
                     userId = null;
                     document.getElementById('user-id-display').textContent = `Utilizador: Desconectado`;
-                    document.getElementById('auth-buttons').innerHTML = `<button onclick="performSignIn()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition shadow-md">Conectar</button>`;
+                    document.getElementById('auth-buttons').innerHTML = ''; // Botão de login não é necessário, é automático
                     enableAppButtons(false);
-                    clearAllData(false);
+                    clearAllData(false); // Limpa dados locais da UI
                 }
             });
 
-            // Tenta fazer o login inicial
-            await performSignIn();
-        }
-        
-        // **NOVO**: Função central de login
-        window.performSignIn = async function() {
-             if (!window.auth) {
-                showMessage("Funcionalidade indisponível em modo offline.", "error");
-                return;
-            }
+            // Tenta fazer o login automático ao carregar a página.
             try {
                 const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
                 if (token) {
+                    // Método principal: usa o token do ambiente.
                     await window.signInWithCustomToken(window.auth, token);
                 } else {
-                    // Fallback para ambiente de desenvolvimento sem token
+                    // Fallback: se não houver token, entra como anónimo para poder usar a app.
                     await window.signInAnonymously(window.auth);
                 }
             } catch (error) {
-                 console.error("Erro na autenticação:", error);
-                 showMessage('Erro ao conectar: ' + error.message, 'error');
+                 console.error("Erro na autenticação automática:", error);
+                 showMessage('Falha ao conectar à nuvem: ' + error.message, 'error');
             }
         }
-
 
         window.signOutUser = async function() {
             if (!window.auth) return;
             try {
                 await window.signOut(window.auth);
-                showMessage('Sessão encerrada.', 'info');
+                showMessage('Sessão encerrada com sucesso.', 'info');
             } catch (error) {
                 console.error("Erro ao sair:", error);
                 showMessage('Erro ao sair: ' + error.message, 'error');
@@ -335,12 +327,18 @@
             document.getElementById('clearAllDataBtn').disabled = !enabled;
         }
         
+        // Flag para garantir que a lógica de inicialização só corre uma vez
+        let isAppInitialized = false;
         function initializeAppLogic() {
+            if (isAppInitialized) return;
+            isAppInitialized = true;
+
             if (collaborators.length === 0 && products.length === 0) {
                 addCollaborator();
                 addProductRow();
+            } else {
+                renderAllUI();
             }
-            renderAllUI();
         }
 
         // =================================================================================
@@ -594,7 +592,8 @@
             document.getElementById('year').value = '';
             
             if (!clearFirestore || !userId) {
-                renderAllUI();
+                addCollaborator();
+                addProductRow();
                 if (clearFirestore && !userId) {
                     showMessage('Faça login para limpar os dados na nuvem.', 'error');
                 }
@@ -608,11 +607,14 @@
                 const deletePromises = snapshot.docs.map(d => window.deleteDoc(d.ref));
                 await Promise.all(deletePromises);
                 
-                renderAllUI();
+                addCollaborator();
+                addProductRow();
                 showMessage('Todos os dados na nuvem foram limpos.', 'success');
             } catch (error) {
                 showMessage('Erro ao limpar dados na nuvem: ' + error.message, 'error');
                 console.error('Erro ao limpar dados no Firestore:', error);
+                addCollaborator();
+                addProductRow();
             }
         }
 
@@ -841,7 +843,7 @@
 
 
         // Inicializa a aplicação
-        document.addEventListener('DOMContentLoaded', initializeAuth);
+        document.addEventListener('DOMContentLoaded', initializeAndSignIn);
 
     </script>
 </body>
