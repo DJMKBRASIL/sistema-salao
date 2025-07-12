@@ -22,16 +22,25 @@
 
         // Configuração do Firebase (será preenchida pelo ambiente Canvas)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "...", authDomain: "...", projectId: "...", storageBucket: "...", messagingSenderId: "...", appId: "..." };
+        const firebaseConfigString = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
 
         // Inicialização do Firebase
-        try {
-            window.app = initializeApp(window.firebaseConfig);
-            window.db = getFirestore(window.app);
-            window.auth = getAuth(window.app);
-        } catch (e) {
-            console.error("Erro a inicializar o Firebase. Verifique a sua configuração.", e);
-            alert("Não foi possível conectar à base de dados. Verifique a consola para mais detalhes.");
+        if (firebaseConfigString && firebaseConfigString !== '{"apiKey":"..."}') {
+            try {
+                const firebaseConfig = JSON.parse(firebaseConfigString);
+                window.app = initializeApp(firebaseConfig);
+                window.db = getFirestore(window.app);
+                window.auth = getAuth(window.app);
+            } catch (e) {
+                console.error("Erro a inicializar o Firebase. Verifique a sua configuração.", e);
+                alert("Não foi possível conectar à base de dados. A configuração parece ser inválida.");
+                window.db = null;
+                window.auth = null;
+            }
+        } else {
+            console.warn("Configuração do Firebase não encontrada. A aplicação funcionará em modo offline.");
+            window.db = null;
+            window.auth = null;
         }
         
         // Expondo funções e objetos do Firebase para o escopo global
@@ -256,6 +265,14 @@
         // =================================================================================
 
         async function initializeAuth() {
+            if (!window.auth) {
+                document.getElementById('user-id-display').textContent = 'Utilizador: Offline';
+                document.getElementById('auth-buttons').innerHTML = `<span class="text-red-500 font-semibold">Erro de Conexão</span>`;
+                enableAppButtons(false);
+                initializeAppLogic(); // Inicia a app em modo offline
+                showMessage("Não foi possível conectar. Funcionalidades de nuvem desativadas.", "error");
+                return;
+            }
             try {
                 await window.setPersistence(window.auth, window.browserLocalPersistence);
                 window.onAuthStateChanged(window.auth, (user) => {
@@ -282,7 +299,10 @@
         }
 
         window.signInWithGoogle = async function() {
-            if (!window.auth) return;
+            if (!window.auth) {
+                showMessage("Funcionalidade indisponível em modo offline.", "error");
+                return;
+            }
             const provider = new window.GoogleAuthProvider();
             try {
                 await window.signInWithPopup(window.auth, provider);
@@ -313,7 +333,6 @@
         
         function initializeAppLogic() {
             if (collaborators.length === 0 && products.length === 0) {
-                 // Apenas adiciona se estiver tudo vazio, para não duplicar ao re-autenticar
                 addCollaborator();
                 addProductRow();
             }
@@ -570,13 +589,11 @@
             document.getElementById('month').value = '';
             document.getElementById('year').value = '';
             
-            if (!clearFirestore) {
+            if (!clearFirestore || !userId) {
                 renderAllUI();
-                return;
-            }
-
-            if (!userId) {
-                showMessage('Faça login para limpar os dados na nuvem.', 'error');
+                if (clearFirestore && !userId) {
+                    showMessage('Faça login para limpar os dados na nuvem.', 'error');
+                }
                 return;
             }
 
@@ -642,7 +659,6 @@
                 const snapshot = await window.getDocs(collectionRef);
                 
                 savedReports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                // Ordenar por data (mais recente primeiro)
                 savedReports.sort((a, b) => new Date(b.lastSaved) - new Date(a.lastSaved));
 
                 if (savedReports.length === 0) {
@@ -771,38 +787,45 @@
             doc.text(`Comissão (${(collab.discountPercentage * 100).toFixed(0)}%): R$ ${discount.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' }); y += 7;
             doc.setFontSize(14);
             doc.text(`Total Líquido: R$ ${netTotal.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' });
-            doc.save(`fechamento_${collab.name}.pdf`);
+            doc.save(`fechamento_${(collab.name || 'colaboradora').replace(/\s/g, '_')}.pdf`);
         }
 
         window.generatePDF = function() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             let y = 20;
-            // ... (A lógica completa do PDF geral pode ser inserida aqui, similar à original)
+            
             doc.setFontSize(22);
             doc.text("Fechamento Semanal Completo", 105, y, { align: 'center' }); y += 10;
             doc.setFontSize(12);
             doc.text(document.getElementById('dateDisplay').textContent, 105, y, { align: 'center' }); y += 15;
 
             // Colaboradoras
-            doc.setFontSize(16);
-            doc.text("Colaboradoras", 15, y); y += 10;
-            collaborators.forEach(collab => {
-                doc.setFontSize(12);
-                doc.text(collab.name || 'N/A', 15, y); y += 7;
-                const total = collab.clients.reduce((sum, c) => sum + (c.value || 0), 0);
-                doc.setFontSize(10);
-                doc.text(`Total Bruto: R$ ${total.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' }); y += 10;
-            });
+            if (collaborators.length > 0) {
+                doc.setFontSize(16);
+                doc.text("Colaboradoras", 15, y); y += 10;
+                collaborators.forEach(collab => {
+                    if (y > 270) { doc.addPage(); y = 20; }
+                    doc.setFontSize(12);
+                    doc.text(collab.name || 'N/A', 15, y); y += 7;
+                    const total = collab.clients.reduce((sum, c) => sum + (c.value || 0), 0);
+                    doc.setFontSize(10);
+                    doc.text(`Total Bruto: R$ ${total.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' }); y += 10;
+                });
+            }
 
             // Produtos
-            doc.setFontSize(16);
-            doc.text("Produtos", 15, y); y += 10;
-            const productsTotal = products.reduce((sum, p) => sum + (p.value || 0), 0);
-            doc.setFontSize(12);
-            doc.text(`Total Produtos: R$ ${productsTotal.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' }); y += 15;
+            if (products.length > 0) {
+                if (y > 260) { doc.addPage(); y = 20; }
+                doc.setFontSize(16);
+                doc.text("Produtos", 15, y); y += 10;
+                const productsTotal = products.reduce((sum, p) => sum + (p.value || 0), 0);
+                doc.setFontSize(12);
+                doc.text(`Total Produtos: R$ ${productsTotal.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' }); y += 15;
+            }
 
             // Resumo
+            if (y > 250) { doc.addPage(); y = 20; }
             doc.setFontSize(16);
             doc.text("Resumo Geral", 15, y); y += 10;
             doc.setFontSize(12);
