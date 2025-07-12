@@ -11,7 +11,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Added orderBy
 
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -1178,7 +1178,7 @@
         // --- End Firestore Functions ---
 
         // --- Dynamic Input Row Management ---
-        function addServiceRow(serviceName = '', serviceValue = '', paymentMethod = 'pix') { // Added paymentMethod parameter
+        function addServiceRow(serviceName = '', serviceValue = '0.00', paymentMethod = 'pix') { // Changed default serviceValue to '0.00'
             const container = document.getElementById('services-container');
             const newServiceDiv = document.createElement('div');
             newServiceDiv.className = 'flex items-center gap-2 mb-2 client-row'; // Using client-row for styling
@@ -1200,7 +1200,7 @@
             container.appendChild(newServiceDiv);
         }
 
-        function addProductSoldRow(productName = '', productValue = '', paymentMethod = 'pix') { // Added paymentMethod parameter
+        function addProductSoldRow(productName = '', productValue = '0.00', paymentMethod = 'pix') { // Changed default productValue to '0.00'
             const container = document.getElementById('products-sold-container');
             const newProductDiv = document.createElement('div');
             newProductDiv.className = 'flex items-center gap-2 mb-2 product-row'; // Using product-row for styling
@@ -1536,5 +1536,6 @@
     </script>
 </body>
 </html>
+
 
 
