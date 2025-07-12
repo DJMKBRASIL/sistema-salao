@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fechamento Semanal do Salão (Corrigido)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jsPDF CDN for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuração do Firebase (será preenchida pelo ambiente Canvas)
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "...", authDomain: "...", projectId: "...", storageBucket: "...", messagingSenderId: "...", appId: "..." };
+
+        // Inicialização do Firebase
+        try {
+            window.app = initializeApp(window.firebaseConfig);
+            window.db = getFirestore(window.app);
+            window.auth = getAuth(window.app);
+        } catch (e) {
+            console.error("Erro a inicializar o Firebase. Verifique a sua configuração.", e);
+            alert("Não foi possível conectar à base de dados. Verifique a consola para mais detalhes.");
+        }
+        
+        // Expondo funções e objetos do Firebase para o escopo global
+        window.doc = doc;
+        window.getDoc = getDoc;
+        window.setDoc = setDoc;
+        window.deleteDoc = deleteDoc;
+        window.collection = collection;
+        window.query = query;
+        window.getDocs = getDocs;
+        window.addDoc = addDoc;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.GoogleAuthProvider = GoogleAuthProvider;
+        window.signInWithPopup = signInWithPopup;
+        window.signOut = signOut;
+        window.setPersistence = setPersistence;
+        window.browserLocalPersistence = browserLocalPersistence;
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            width: 90%;
+            max-width: 450px;
+            text-align: center;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 1.5rem;
+            gap: 1rem;
+        }
+        #saved-reports-list div.selected {
+            background-color: #e0e7ff; /* indigo-100 */
+            font-weight: 600;
+        }
+        #saved-reports-list div:hover {
+            background-color: #f3f4f6; /* gray-100 */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- Contêiner Principal -->
+    <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-gray-200">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Fechamento Semanal do Salão</h1>
+
+        <!-- Autenticação -->
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
+            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">Utilizador: A carregar...</p>
+            <div id="auth-buttons" class="flex gap-2"></div>
+        </div>
+
+        <!-- Mensagens de Feedback -->
+        <div id="app-message" class="hidden mb-4 p-3 rounded-lg text-center font-medium transition-opacity duration-300"></div>
+
+        <!-- Seção de Data e Ações -->
+        <div class="mb-8 p-4 bg-purple-50 rounded-lg border border-purple-200">
+            <h2 class="text-xl font-semibold text-purple-700 mb-4">Informações do Fechamento</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="day" class="block text-sm font-medium text-gray-700 mb-1">Dia</label>
+                    <input type="number" id="day" min="1" max="31" placeholder="Dia" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateDateDisplay()">
+                </div>
+                <div>
+                    <label for="month" class="block text-sm font-medium text-gray-700 mb-1">Mês</label>
+                    <select id="month" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateDateDisplay()">
+                        <option value="">Selecione</option>
+                        <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="year" class="block text-sm font-medium text-gray-700 mb-1">Ano</label>
+                    <input type="number" id="year" min="2000" max="2100" placeholder="Ano" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm" onchange="updateDateDisplay()">
+                </div>
+            </div>
+            <p id="dateDisplay" class="text-center text-lg font-medium text-gray-800 mt-4 h-6"></p>
+
+            <div class="mt-6 border-t pt-4 border-purple-200">
+                <h3 class="text-lg font-semibold text-purple-700 mb-3">Opções de Dados</h3>
+                <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    <button onclick="saveWeeklyClosingToFirestore()" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed" id="saveToFirestoreBtn" disabled>Guardar na Nuvem</button>
+                    <button onclick="openSavedReportsModal()" class="bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed" id="loadFromFirestoreBtn" disabled>Carregar da Nuvem</button>
+                    <button onclick="loadDataFromFichasSystem()" class="bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed" id="loadDataFromFichasSystemBtn" disabled>Importar Fichas</button>
+                    <button onclick="exportDataToFile()" class="bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 transition shadow-md">Exportar Ficheiro</button>
+                    <button onclick="importDataFromFile()" class="bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 transition shadow-md">Importar Ficheiro</button>
+                    <button onclick="confirmClearAllData()" class="bg-gray-300 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-400 focus:ring-2 focus:ring-gray-300 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed" id="clearAllDataBtn" disabled>Limpar Tudo</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seções de Colaboradoras, Produtos e Resumo -->
+        <div id="collaborators-section" class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h2 class="text-xl font-semibold text-blue-700 mb-4">Colaboradoras</h2>
+            <div id="collaborators-container"></div>
+            <button onclick="addCollaborator()" class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 transition shadow-md mt-4">Adicionar Colaboradora</button>
+        </div>
+
+        <div id="products-section" class="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
+            <h2 class="text-xl font-semibold text-green-700 mb-4">Produtos Vendidos</h2>
+            <div id="products-container"></div>
+            <button onclick="addProductRow()" class="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 transition shadow-md mt-4">Adicionar Produto</button>
+            <div class="mt-4 text-right">
+                <p class="text-lg font-bold text-gray-800">Total Produtos: <span id="products-total">R$ 0,00</span></p>
+            </div>
+        </div>
+
+        <div class="mb-8 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <h2 class="text-xl font-semibold text-yellow-700 mb-4">Resumo Geral</h2>
+            <div class="text-right space-y-2">
+                <p class="text-lg font-bold text-gray-800">Total Bruto Geral: <span id="overall-gross-total">R$ 0,00</span></p>
+                <p class="text-lg font-bold text-gray-800">Total Líquido Geral (c/ comissão): <span id="overall-net-total">R$ 0,00</span></p>
+            </div>
+            <div class="mt-4 pt-4 border-t border-yellow-200">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Detalhes da Contribuição:</h3>
+                <div id="detailed-contribution" class="text-gray-700"></div>
+            </div>
+        </div>
+
+        <button onclick="generatePDF()" class="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 transition shadow-xl text-lg font-bold">Gerar PDF do Fechamento</button>
+    </div>
+
+    <!-- Modal de Confirmação Genérico -->
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content">
+            <p id="confirm-modal-text" class="text-lg font-semibold text-gray-800 mb-4"></p>
+            <p id="confirm-modal-desc" class="text-sm text-gray-600"></p>
+            <div class="modal-buttons">
+                <button id="confirm-modal-cancel" class="flex-1 py-2 px-4 rounded-md bg-gray-300 hover:bg-gray-400 transition">Cancelar</button>
+                <button id="confirm-modal-confirm" class="flex-1 py-2 px-4 rounded-md bg-red-500 text-white hover:bg-red-600 transition">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Relatórios Salvos -->
+    <div id="saved-reports-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px; text-align: left;">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Escolha um Fechamento Guardado</h2>
+            <div id="saved-reports-list" class="mb-4 max-h-60 overflow-y-auto border border-gray-200 rounded-md"></div>
+            <div class="modal-buttons">
+                <button onclick="closeSavedReportsModal()" class="flex-1 py-2 px-4 rounded-md bg-gray-300 hover:bg-gray-400 transition">Fechar</button>
+                <button onclick="loadSelectedReport()" class="flex-1 py-2 px-4 rounded-md bg-blue-500 text-white hover:bg-blue-600 transition">Carregar Selecionado</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // =================================================================================
+        // ESTADO DA APLICAÇÃO
+        // =================================================================================
+        let collaborators = [];
+        let products = [];
+        let salonName = "Salão de Beleza";
+        let savedReports = [];
+        let selectedReportId = null;
+        let userId = null;
+
+        // =================================================================================
+        // FUNÇÕES DE UTILIDADE E FEEDBACK (MENSAGENS, MODAIS)
+        // =================================================================================
+
+        function showMessage(message, type = 'success') {
+            const msgDiv = document.getElementById('app-message');
+            msgDiv.textContent = message;
+            msgDiv.className = 'mb-4 p-3 rounded-lg text-center font-medium'; // Reset classes
+            if (type === 'success') msgDiv.classList.add('bg-green-100', 'text-green-800');
+            else if (type === 'error') msgDiv.classList.add('bg-red-100', 'text-red-800');
+            else msgDiv.classList.add('bg-blue-100', 'text-blue-800');
+            setTimeout(() => { msgDiv.classList.add('hidden'); }, 5000);
+        }
+
+        function showConfirmModal({ title, description, onConfirm }) {
+            document.getElementById('confirm-modal-text').textContent = title;
+            document.getElementById('confirm-modal-desc').textContent = description;
+            const confirmBtn = document.getElementById('confirm-modal-confirm');
+            const cancelBtn = document.getElementById('confirm-modal-cancel');
+            const modal = document.getElementById('confirm-modal');
+
+            const confirmHandler = () => {
+                onConfirm();
+                close();
+            };
+            const close = () => {
+                modal.style.display = 'none';
+                confirmBtn.removeEventListener('click', confirmHandler);
+                cancelBtn.removeEventListener('click', close);
+            };
+
+            confirmBtn.addEventListener('click', confirmHandler);
+            cancelBtn.addEventListener('click', close);
+            modal.style.display = 'flex';
+        }
+
+        // =================================================================================
+        // LÓGICA DE AUTENTICAÇÃO E INICIALIZAÇÃO
+        // =================================================================================
+
+        async function initializeAuth() {
+            try {
+                await window.setPersistence(window.auth, window.browserLocalPersistence);
+                window.onAuthStateChanged(window.auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        const authMethod = user.isAnonymous ? 'Anónimo' : 'Google';
+                        const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${userId.substring(0, 10)}... (${authMethod})`;
+                        document.getElementById('user-id-display').textContent = `Utilizador: ${displayInfo}`;
+                        document.getElementById('auth-buttons').innerHTML = `<button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition shadow-md">Sair</button>`;
+                        enableAppButtons(true);
+                        initializeAppLogic();
+                    } else {
+                        userId = null;
+                        document.getElementById('user-id-display').textContent = `Utilizador: Não autenticado`;
+                        document.getElementById('auth-buttons').innerHTML = `<button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition shadow-md">Entrar com Google</button>`;
+                        enableAppButtons(false);
+                        clearAllData(false); // Limpa os dados locais ao deslogar
+                    }
+                });
+            } catch (error) {
+                console.error("Erro na inicialização da autenticação:", error);
+                showMessage('Erro ao inicializar autenticação.', 'error');
+            }
+        }
+
+        window.signInWithGoogle = async function() {
+            if (!window.auth) return;
+            const provider = new window.GoogleAuthProvider();
+            try {
+                await window.signInWithPopup(window.auth, provider);
+                showMessage('Autenticado com Google!', 'success');
+            } catch (error) {
+                console.error("Erro ao autenticar com Google:", error);
+                showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
+            }
+        }
+
+        window.signOutUser = async function() {
+            if (!window.auth) return;
+            try {
+                await window.signOut(window.auth);
+                showMessage('Sessão encerrada.', 'info');
+            } catch (error) {
+                console.error("Erro ao sair:", error);
+                showMessage('Erro ao sair: ' + error.message, 'error');
+            }
+        }
+        
+        function enableAppButtons(enabled) {
+            document.getElementById('saveToFirestoreBtn').disabled = !enabled;
+            document.getElementById('loadFromFirestoreBtn').disabled = !enabled;
+            document.getElementById('loadDataFromFichasSystemBtn').disabled = !enabled;
+            document.getElementById('clearAllDataBtn').disabled = !enabled;
+        }
+        
+        function initializeAppLogic() {
+            if (collaborators.length === 0 && products.length === 0) {
+                 // Apenas adiciona se estiver tudo vazio, para não duplicar ao re-autenticar
+                addCollaborator();
+                addProductRow();
+            }
+            renderAllUI();
+        }
+
+        // =================================================================================
+        // RENDERIZAÇÃO DA UI
+        // =================================================================================
+        
+        function renderAllUI() {
+            document.getElementById('collaborators-container').innerHTML = '';
+            document.getElementById('products-container').innerHTML = '';
+            collaborators.forEach((collab, index) => renderCollaborator(index));
+            products.forEach((prod, index) => renderProduct(index));
+            updateDateDisplay();
+            calculateAllTotals();
+        }
+
+        function renderCollaborator(index) {
+            const collab = collaborators[index];
+            const container = document.getElementById('collaborators-container');
+            const collabDiv = document.createElement('div');
+            collabDiv.className = 'collaborator-block p-4 bg-white rounded-lg shadow-md mb-6 border border-gray-200';
+            collabDiv.setAttribute('data-collab-index', index);
+            collabDiv.innerHTML = `
+                <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
+                    <input type="text" placeholder="Nome da Colaboradora" value="${collab.name}" class="collaborator-name flex-grow text-lg font-semibold p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" oninput="updateCollaboratorData(${index}, 'name', this.value)">
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-medium">Comissão (%):</label>
+                        <input type="number" min="0" max="100" value="${(collab.discountPercentage * 100).toFixed(0)}" class="w-20 p-1 border rounded-md text-right" oninput="updateCollaboratorData(${index}, 'discountPercentage', this.value)">
+                    </div>
+                    <button onclick="removeCollaborator(${index})" class="ml-auto bg-red-500 text-white p-2 rounded-md hover:bg-red-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" /></svg></button>
+                </div>
+                <h3 class="text-md font-medium text-gray-700 mb-2">Clientes</h3>
+                <div class="clients-container"></div>
+                <button onclick="addClientRow(${index})" class="w-full bg-blue-400 text-white py-2 px-4 rounded-lg hover:bg-blue-500 mt-4">Adicionar Cliente</button>
+                <div class="mt-4 text-right space-y-1">
+                    <p class="text-sm">Total: <span id="collab-total-display-${index}">R$ 0,00</span></p>
+                    <p class="text-sm">-<span id="collab-discount-percentage-display-${index}">${(collab.discountPercentage * 100).toFixed(0)}</span>%: <span id="collab-discount-value-${index}">R$ 0,00</span></p>
+                    <p class="text-md font-bold">Total Líquido: <span id="collab-net-total-display-${index}">R$ 0,00</span></p>
+                </div>
+                <button onclick="generateCollaboratorPDF(${index})" class="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 mt-4">Gerar PDF da Colaboradora</button>
+            `;
+            container.appendChild(collabDiv);
+            const clientsContainer = collabDiv.querySelector('.clients-container');
+            collab.clients.forEach((client, clientIndex) => renderClient(index, clientIndex));
+        }
+        
+        function renderClient(collabIndex, clientIndex) {
+            const client = collaborators[collabIndex].clients[clientIndex];
+            const container = document.querySelector(`[data-collab-index='${collabIndex}'] .clients-container`);
+            const clientDiv = document.createElement('div');
+            clientDiv.className = 'flex items-center gap-2 mb-2 client-row';
+            clientDiv.setAttribute('data-client-index', clientIndex);
+            clientDiv.innerHTML = `
+                <input type="text" placeholder="Nome do Cliente" value="${client.name}" class="client-name flex-grow p-2 border rounded-md" oninput="updateClientData(${collabIndex}, ${clientIndex}, 'name', this.value)">
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${client.value}" class="client-value w-28 p-2 border rounded-md text-right" oninput="updateClientData(${collabIndex}, ${clientIndex}, 'value', this.value)">
+                <button onclick="removeClientRow(${collabIndex}, ${clientIndex})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" /></svg></button>
+            `;
+            container.appendChild(clientDiv);
+        }
+
+        function renderProduct(index) {
+            const product = products[index];
+            const container = document.getElementById('products-container');
+            const productDiv = document.createElement('div');
+            productDiv.className = 'flex items-center gap-2 mb-2 product-row';
+            productDiv.setAttribute('data-product-index', index);
+            productDiv.innerHTML = `
+                <input type="text" placeholder="Nome da Cliente" value="${product.clientName}" class="product-client-name flex-grow p-2 border rounded-md" oninput="updateProductData(${index}, 'clientName', this.value)">
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${product.value}" class="product-value w-28 p-2 border rounded-md text-right" oninput="updateProductData(${index}, 'value', this.value)">
+                <button onclick="removeProductRow(${index})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" /></svg></button>
+            `;
+            container.appendChild(productDiv);
+        }
+
+        // =================================================================================
+        // MANIPULAÇÃO DE DADOS
+        // =================================================================================
+
+        window.updateCollaboratorData = function(index, field, value) {
+            if (!collaborators[index]) return;
+            if (field === 'discountPercentage') {
+                const percentage = parseFloat(value) / 100;
+                collaborators[index][field] = (isNaN(percentage) || percentage < 0 || percentage > 1) ? 0.30 : percentage;
+                document.querySelector(`[data-collab-index='${index}'] input[type='number']`).value = (collaborators[index].discountPercentage * 100).toFixed(0);
+            } else {
+                collaborators[index][field] = value;
+            }
+            calculateCollaboratorTotal(index);
+        }
+
+        window.updateClientData = function(collabIndex, clientIndex, field, value) {
+            if (!collaborators[collabIndex]?.clients[clientIndex]) return;
+            const parsedValue = field === 'value' ? parseFloat(value) || 0 : value;
+            collaborators[collabIndex].clients[clientIndex][field] = parsedValue;
+            calculateCollaboratorTotal(collabIndex);
+        }
+
+        window.updateProductData = function(index, field, value) {
+            if (!products[index]) return;
+            const parsedValue = field === 'value' ? parseFloat(value) || 0 : value;
+            products[index][field] = parsedValue;
+            calculateAllTotals();
+        }
+
+        window.addCollaborator = function() {
+            collaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
+            renderAllUI();
+        }
+        window.removeCollaborator = function(index) {
+            collaborators.splice(index, 1);
+            renderAllUI();
+        }
+        window.addClientRow = function(collabIndex) {
+            collaborators[collabIndex].clients.push({ name: '', value: 0 });
+            renderAllUI();
+        }
+        window.removeClientRow = function(collabIndex, clientIndex) {
+            collaborators[collabIndex].clients.splice(clientIndex, 1);
+            renderAllUI();
+        }
+        window.addProductRow = function() {
+            products.push({ clientName: '', value: 0 });
+            renderAllUI();
+        }
+        window.removeProductRow = function(index) {
+            products.splice(index, 1);
+            renderAllUI();
+        }
+
+        // =================================================================================
+        // CÁLCULOS E ATUALIZAÇÕES DE TOTAIS
+        // =================================================================================
+
+        function calculateCollaboratorTotal(index) {
+            const collab = collaborators[index];
+            if (!collab) return;
+            const total = collab.clients.reduce((sum, client) => sum + (client.value || 0), 0);
+            const discount = total * collab.discountPercentage;
+            const netTotal = total - discount;
+
+            document.getElementById(`collab-total-display-${index}`).textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+            document.getElementById(`collab-discount-percentage-display-${index}`).textContent = (collab.discountPercentage * 100).toFixed(0);
+            document.getElementById(`collab-discount-value-${index}`).textContent = `R$ ${discount.toFixed(2).replace('.', ',')}`;
+            document.getElementById(`collab-net-total-display-${index}`).textContent = `R$ ${netTotal.toFixed(2).replace('.', ',')}`;
+            
+            calculateAllTotals();
+        }
+
+        function calculateAllTotals() {
+            let grossServicesTotal = collaborators.reduce((sum, collab) => sum + collab.clients.reduce((s, c) => s + (c.value || 0), 0), 0);
+            let netServicesTotal = collaborators.reduce((sum, collab) => sum + (collab.clients.reduce((s, c) => s + (c.value || 0), 0) * (1 - collab.discountPercentage)), 0);
+            let productsTotal = products.reduce((sum, product) => sum + (product.value || 0), 0);
+
+            let overallGrossTotal = grossServicesTotal + productsTotal;
+            let overallNetTotal = netServicesTotal + productsTotal;
+
+            document.getElementById('products-total').textContent = `R$ ${productsTotal.toFixed(2).replace('.', ',')}`;
+            document.getElementById('overall-gross-total').textContent = `R$ ${overallGrossTotal.toFixed(2).replace('.', ',')}`;
+            document.getElementById('overall-net-total').textContent = `R$ ${overallNetTotal.toFixed(2).replace('.', ',')}`;
+            updateDetailedContribution(grossServicesTotal, productsTotal);
+        }
+        
+        window.updateDateDisplay = function() {
+            const day = document.getElementById('day').value;
+            const month = document.getElementById('month').value;
+            const year = document.getElementById('year').value;
+            const monthName = document.getElementById('month').options[document.getElementById('month').selectedIndex]?.text || '';
+            const dateDisplay = document.getElementById('dateDisplay');
+            if (day && month && year) {
+                dateDisplay.textContent = `Fechamento semana do dia ${day} de ${monthName} de ${year}`;
+            } else {
+                dateDisplay.textContent = 'Preencha a data para exibir.';
+            }
+        }
+
+        function updateDetailedContribution(grossServicesTotal, productsTotal) {
+            const detailedContributionDiv = document.getElementById('detailed-contribution');
+            let content = '';
+            if (collaborators.length > 0) {
+                content += '<p class="font-bold">Serviços por Colaboradora (Bruto):</p>';
+                collaborators.forEach(collab => {
+                    const collabGrossTotal = collab.clients.reduce((sum, client) => sum + (client.value || 0), 0);
+                    const percentage = grossServicesTotal > 0 ? (collabGrossTotal / grossServicesTotal) * 100 : 0;
+                    content += `<p class="ml-4">${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')} (${percentage.toFixed(1)}% dos serviços)</p>`;
+                });
+            }
+            content += `<p class="font-bold mt-2">Venda de Produtos:</p><p class="ml-4">Total de Produtos: R$ ${productsTotal.toFixed(2).replace('.', ',')}</p>`;
+            detailedContributionDiv.innerHTML = content;
+        }
+
+        // =================================================================================
+        // FUNÇÕES DE DADOS (IMPORTAR/EXPORTAR/LIMPAR)
+        // =================================================================================
+
+        window.exportDataToFile = function() {
+            const dataToSave = {
+                salonName, collaborators, products,
+                date: {
+                    day: document.getElementById('day').value,
+                    month: document.getElementById('month').value,
+                    year: document.getElementById('year').value
+                }
+            };
+            const blob = new Blob([JSON.stringify(dataToSave, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fechamento_salao_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            a.remove();
+            showMessage('Dados exportados com sucesso!', 'success');
+        }
+
+        window.importDataFromFile = function() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        if (data.collaborators && data.products && data.date) {
+                            collaborators = data.collaborators.map(c => ({...c, discountPercentage: c.discountPercentage ?? 0.30}));
+                            products = data.products;
+                            document.getElementById('day').value = data.date.day || '';
+                            document.getElementById('month').value = data.date.month || '';
+                            document.getElementById('year').value = data.date.year || '';
+                            renderAllUI();
+                            showMessage('Dados importados com sucesso!', 'success');
+                        } else {
+                            showMessage('Formato de ficheiro inválido.', 'error');
+                        }
+                    } catch (err) {
+                        showMessage('Erro ao ler o ficheiro.', 'error');
+                        console.error(err);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        window.clearAllData = async function(clearFirestore = true) {
+            collaborators = [];
+            products = [];
+            document.getElementById('day').value = '';
+            document.getElementById('month').value = '';
+            document.getElementById('year').value = '';
+            
+            if (!clearFirestore) {
+                renderAllUI();
+                return;
+            }
+
+            if (!userId) {
+                showMessage('Faça login para limpar os dados na nuvem.', 'error');
+                return;
+            }
+
+            showMessage('A limpar todos os dados...', 'info');
+            try {
+                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${userId}/manualWeeklySaves`);
+                const snapshot = await window.getDocs(collectionRef);
+                const deletePromises = snapshot.docs.map(d => window.deleteDoc(d.ref));
+                await Promise.all(deletePromises);
+                
+                renderAllUI();
+                showMessage('Todos os dados na nuvem foram limpos.', 'success');
+            } catch (error) {
+                showMessage('Erro ao limpar dados na nuvem: ' + error.message, 'error');
+                console.error('Erro ao limpar dados no Firestore:', error);
+            }
+        }
+
+        window.confirmClearAllData = function() {
+            showConfirmModal({
+                title: 'Limpar Todos os Dados?',
+                description: 'Esta ação removerá todos os dados guardados na nuvem e não pode ser desfeita.',
+                onConfirm: () => clearAllData(true)
+            });
+        }
+
+        // =================================================================================
+        // FUNÇÕES DO FIRESTORE
+        // =================================================================================
+
+        window.saveWeeklyClosingToFirestore = async function() {
+            if (!userId) { showMessage('Faça login para guardar dados.', 'error'); return; }
+            const day = document.getElementById('day').value;
+            const month = document.getElementById('month').value;
+            const year = document.getElementById('year').value;
+            if (!day || !month || !year) { showMessage('Preencha a data completa para guardar.', 'error'); return; }
+
+            showMessage('A guardar na nuvem...', 'info');
+            const dataToSave = {
+                salonName, collaborators, products,
+                date: { day, month, year },
+                lastSaved: new Date().toISOString()
+            };
+            try {
+                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${userId}/manualWeeklySaves`);
+                await window.addDoc(collectionRef, dataToSave);
+                showMessage('Dados guardados na nuvem com sucesso!', 'success');
+            } catch (e) {
+                showMessage('Erro ao guardar dados: ' + e.message, 'error');
+                console.error("Erro ao guardar no Firestore: ", e);
+            }
+        }
+
+        window.openSavedReportsModal = async function() {
+            if (!userId) { showMessage('Faça login para carregar dados.', 'error'); return; }
+            showMessage('A procurar relatórios...', 'info');
+            const listDiv = document.getElementById('saved-reports-list');
+            listDiv.innerHTML = '<p class="text-center p-4">A carregar...</p>';
+            selectedReportId = null;
+
+            try {
+                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${userId}/manualWeeklySaves`);
+                const snapshot = await window.getDocs(collectionRef);
+                
+                savedReports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Ordenar por data (mais recente primeiro)
+                savedReports.sort((a, b) => new Date(b.lastSaved) - new Date(a.lastSaved));
+
+                if (savedReports.length === 0) {
+                    listDiv.innerHTML = '<p class="text-center p-4">Nenhum relatório encontrado.</p>';
+                    return;
+                }
+
+                listDiv.innerHTML = '';
+                savedReports.forEach(report => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 border-b border-gray-200 cursor-pointer flex justify-between items-center';
+                    item.onclick = () => selectReport(item, report.id);
+                    const d = report.date;
+                    const dateStr = d.day && d.month && d.year ? `${d.day}/${d.month}/${d.year}` : 'Data indefinida';
+                    const savedStr = new Date(report.lastSaved).toLocaleString('pt-BR');
+                    item.innerHTML = `
+                        <div>
+                            <p class="font-medium">Fechamento: ${dateStr}</p>
+                            <p class="text-xs text-gray-500">Guardado em: ${savedStr}</p>
+                        </div>
+                        <button class="text-red-500 hover:text-red-700 text-sm p-1" onclick="event.stopPropagation(); confirmDeleteSavedReport('${report.id}')">Excluir</button>
+                    `;
+                    listDiv.appendChild(item);
+                });
+                document.getElementById('saved-reports-modal').style.display = 'flex';
+            } catch (error) {
+                showMessage('Erro ao carregar relatórios: ' + error.message, 'error');
+                console.error('Erro ao carregar do Firestore:', error);
+            }
+        }
+
+        window.closeSavedReportsModal = function() {
+            document.getElementById('saved-reports-modal').style.display = 'none';
+        }
+
+        function selectReport(element, reportId) {
+            document.querySelectorAll('#saved-reports-list div').forEach(item => item.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedReportId = reportId;
+        }
+
+        window.loadSelectedReport = function() {
+            if (!selectedReportId) { showMessage('Selecione um relatório para carregar.', 'info'); return; }
+            const report = savedReports.find(r => r.id === selectedReportId);
+            if (report) {
+                collaborators = report.collaborators || [];
+                products = report.products || [];
+                document.getElementById('day').value = report.date?.day || '';
+                document.getElementById('month').value = report.date?.month || '';
+                document.getElementById('year').value = report.date?.year || '';
+                renderAllUI();
+                closeSavedReportsModal();
+                showMessage('Relatório carregado com sucesso!', 'success');
+            } else {
+                showMessage('Erro: Relatório não encontrado.', 'error');
+            }
+        }
+
+        window.confirmDeleteSavedReport = function(reportId) {
+            showConfirmModal({
+                title: 'Excluir Relatório?',
+                description: 'Esta ação não pode ser desfeita.',
+                onConfirm: () => deleteSavedReport(reportId)
+            });
+        }
+        
+        async function deleteSavedReport(reportId) {
+            if (!userId) { showMessage('Faça login para excluir.', 'error'); return; }
+            try {
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${userId}/manualWeeklySaves`, reportId);
+                await window.deleteDoc(docRef);
+                showMessage('Relatório excluído com sucesso!', 'success');
+                openSavedReportsModal(); // Recarrega a lista
+            } catch (error) {
+                showMessage('Erro ao excluir relatório: ' + error.message, 'error');
+            }
+        }
+
+        window.loadDataFromFichasSystem = async function() {
+            if (!userId) { showMessage('Faça login para importar.', 'error'); return; }
+            showMessage('A importar dados das fichas...', 'info');
+            try {
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${userId}/weeklyReportsAggregated/currentWeek`);
+                const docSnap = await window.getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    collaborators = data.collaborators.map(c => ({...c, discountPercentage: c.discountPercentage ?? 0.30})) || [];
+                    products = data.products || [];
+                    renderAllUI();
+                    showMessage('Dados das fichas importados com sucesso!', 'success');
+                } else {
+                    showMessage('Nenhum dado de fichas encontrado para importar.', 'info');
+                }
+            } catch (error) {
+                showMessage('Erro ao importar dados das fichas: ' + error.message, 'error');
+            }
+        }
+
+        // =================================================================================
+        // FUNÇÕES DE GERAÇÃO DE PDF
+        // =================================================================================
+        
+        window.generateCollaboratorPDF = function(index) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const collab = collaborators[index];
+            if (!collab) return;
+
+            doc.setFontSize(22);
+            doc.text(salonName, 105, 20, { align: 'center' });
+            doc.setFontSize(16);
+            doc.text(`Fechamento: ${collab.name || 'N/A'}`, 105, 30, { align: 'center' });
+            let y = 40;
+            collab.clients.forEach(client => {
+                doc.setFontSize(10);
+                doc.text(`${client.name || 'Cliente'}: R$ ${(client.value || 0).toFixed(2).replace('.', ',')}`, 20, y);
+                y += 7;
+                if (y > 280) { doc.addPage(); y = 20; }
+            });
+            const total = collab.clients.reduce((sum, c) => sum + (c.value || 0), 0);
+            const discount = total * collab.discountPercentage;
+            const netTotal = total - discount;
+            y += 5;
+            doc.setFontSize(12);
+            doc.text(`Total Bruto: R$ ${total.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' }); y += 7;
+            doc.text(`Comissão (${(collab.discountPercentage * 100).toFixed(0)}%): R$ ${discount.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' }); y += 7;
+            doc.setFontSize(14);
+            doc.text(`Total Líquido: R$ ${netTotal.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' });
+            doc.save(`fechamento_${collab.name}.pdf`);
+        }
+
+        window.generatePDF = function() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let y = 20;
+            // ... (A lógica completa do PDF geral pode ser inserida aqui, similar à original)
+            doc.setFontSize(22);
+            doc.text("Fechamento Semanal Completo", 105, y, { align: 'center' }); y += 10;
+            doc.setFontSize(12);
+            doc.text(document.getElementById('dateDisplay').textContent, 105, y, { align: 'center' }); y += 15;
+
+            // Colaboradoras
+            doc.setFontSize(16);
+            doc.text("Colaboradoras", 15, y); y += 10;
+            collaborators.forEach(collab => {
+                doc.setFontSize(12);
+                doc.text(collab.name || 'N/A', 15, y); y += 7;
+                const total = collab.clients.reduce((sum, c) => sum + (c.value || 0), 0);
+                doc.setFontSize(10);
+                doc.text(`Total Bruto: R$ ${total.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' }); y += 10;
+            });
+
+            // Produtos
+            doc.setFontSize(16);
+            doc.text("Produtos", 15, y); y += 10;
+            const productsTotal = products.reduce((sum, p) => sum + (p.value || 0), 0);
+            doc.setFontSize(12);
+            doc.text(`Total Produtos: R$ ${productsTotal.toFixed(2).replace('.', ',')}`, 190, y, { align: 'right' }); y += 15;
+
+            // Resumo
+            doc.setFontSize(16);
+            doc.text("Resumo Geral", 15, y); y += 10;
+            doc.setFontSize(12);
+            doc.text(`Total Bruto Geral: ${document.getElementById('overall-gross-total').textContent}`, 190, y, { align: 'right' }); y += 7;
+            doc.text(`Total Líquido Geral: ${document.getElementById('overall-net-total').textContent}`, 190, y, { align: 'right' });
+
+            doc.save("fechamento_semanal_completo.pdf");
+        }
+
+
+        // Inicializa a aplicação
+        document.addEventListener('DOMContentLoaded', initializeAuth);
+
+    </script>
+</body>
+</html>
