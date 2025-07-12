@@ -529,15 +529,7 @@
             color: var(--gray-800);
         }
 
-        .client-row {
-            background: var(--gray-50);
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            margin-bottom: 0.5rem;
-            border: 1px solid var(--gray-200);
-        }
-
-        .product-row {
+        .service-row, .product-sold-row { /* Combined for consistent styling */
             background: var(--gray-50);
             padding: 0.75rem;
             border-radius: 0.5rem;
@@ -979,7 +971,7 @@
             try {
                 const docRef = await window.addDoc(window.fichasCollectionRef, fichaData);
                 console.log("Ficha salva com ID:", docRef.id);
-                showMessage('Ficha registrada e salva na nuvem!', 'success');
+                // showMessage('Ficha registrada e salva na nuvem!', 'success'); // Moved to addFicha for better UX
                 return docRef.id;
             } catch (e) {
                 console.error("Erro ao adicionar ficha ao Firestore: ", e);
@@ -1178,14 +1170,13 @@
         // --- End Firestore Functions ---
 
         // --- Dynamic Input Row Management ---
-        function addServiceRow(serviceName = '', serviceValue = '0', paymentMethod = 'pix') { // Changed default serviceValue to '0'
+        function addServiceRow(serviceName = '', serviceValue = '0', paymentMethod = 'pix') { 
             const container = document.getElementById('services-container');
             const newServiceDiv = document.createElement('div');
-            // Corrected class name from 'client-row' to 'service-row'
             newServiceDiv.className = 'flex items-center gap-2 mb-2 service-row'; 
             newServiceDiv.innerHTML = `
                 <input type="text" placeholder="Nome do Serviço" value="${serviceName}" class="service-name form-input flex-grow min-w-[100px]">
-                <input type="text" placeholder="Valor" value="${serviceValue}" class="service-value form-input w-28 text-right" oninput="formatCurrency(this)">
+                <input type="text" placeholder="Valor" value="${serviceValue}" class="service-value form-input w-28 text-right" onfocus="clearZero(this)" onblur="formatCurrency(this)" oninput="formatCurrencyLive(this)">
                 <select class="form-input w-24" onchange="updateServicePaymentMethod(this)">
                     <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
                     <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
@@ -1201,14 +1192,13 @@
             container.appendChild(newServiceDiv);
         }
 
-        function addProductSoldRow(productName = '', productValue = '0', paymentMethod = 'pix') { // Changed default productValue to '0'
+        function addProductSoldRow(productName = '', productValue = '0', paymentMethod = 'pix') { 
             const container = document.getElementById('products-sold-container');
             const newProductDiv = document.createElement('div');
-            // Corrected class name from 'product-row' to 'product-sold-row'
             newProductDiv.className = 'flex items-center gap-2 mb-2 product-sold-row'; 
             newProductDiv.innerHTML = `
                 <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name form-input flex-grow min-w-[100px]">
-                <input type="text" placeholder="Valor" value="${productValue}" class="product-sold-value form-input w-28 text-right" oninput="formatCurrency(this)">
+                <input type="text" placeholder="Valor" value="${productValue}" class="product-sold-value form-input w-28 text-right" onfocus="clearZero(this)" onblur="formatCurrency(this)" oninput="formatCurrencyLive(this)">
                 <select class="form-input w-24" onchange="updateProductSoldPaymentMethod(this)">
                     <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
                     <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
@@ -1224,8 +1214,29 @@
             container.appendChild(newProductDiv);
         }
 
-        // Function to format currency input
+        // Function to clear "0" or "0,00" on focus
+        function clearZero(input) {
+            if (input.value === '0' || input.value === '0,00') {
+                input.value = '';
+            }
+        }
+
+        // Function to format currency input on blur
         function formatCurrency(input) {
+            let value = input.value.replace(/\D/g, ''); // Remove non-digits
+            if (value.length === 0) {
+                input.value = '0,00';
+                return;
+            }
+            if (value.length < 3) {
+                value = '0'.repeat(3 - value.length) + value; // Pad with leading zeros if less than 3 digits
+            }
+            value = value.replace(/(\d)(\d{2})$/, '$1,$2'); // Add comma for cents
+            input.value = value;
+        }
+
+        // Function to format currency input live as user types
+        function formatCurrencyLive(input) {
             let value = input.value.replace(/\D/g, ''); // Remove non-digits
             if (value.length > 2) {
                 value = value.replace(/(\d)(\d{2})$/, '$1,$2'); // Add comma for cents
@@ -1233,8 +1244,8 @@
                 value = '0,' + value;
             } else if (value.length === 1) {
                 value = '0,0' + value;
-            } else if (value.length === 0) { // Handle empty input
-                value = '0,00';
+            } else {
+                value = '0'; // Keep it simple during live typing if empty
             }
             input.value = value;
         }
@@ -1322,11 +1333,21 @@
                 timestamp: new Date().toISOString() // Para ordenação e ID único
             };
 
+            // Add to local array first for immediate display
+            fichas.push(newFicha); 
+            renderFichasTable();
+            clearInputFields();
+            showMessage('Ficha registrada com sucesso!', 'success');
+
+            // Then save to Firestore in the background
             const fichaId = await saveFichaToFirestore(newFicha);
             if (fichaId) {
-                fichas.push({ id: fichaId, ...newFicha }); // Adiciona ao array local apenas após salvar no Firestore
-                renderFichasTable();
-                clearInputFields();
+                // Update the local ficha with the Firestore ID if needed for future operations
+                const index = fichas.findIndex(f => f.timestamp === newFicha.timestamp && !f.id);
+                if (index !== -1) {
+                    fichas[index].id = fichaId;
+                }
+                showMessage('Ficha salva na nuvem!', 'info'); // More subtle message for cloud save
             }
         }
 
@@ -1376,7 +1397,7 @@
             }
 
             fichas.forEach((ficha, index) => {
-                const row = tableBody.insertCell();
+                const row = tableBody.insertRow();
                 row.className = 'border-b border-gray-200 hover:bg-gray-100';
 
                 // Client Name
@@ -1559,6 +1580,7 @@
     </script>
 </body>
 </html>
+
 
 
 
