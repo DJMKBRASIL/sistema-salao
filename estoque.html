@@ -411,7 +411,8 @@
             }
             try {
                 // Salva os dados agregados em um documento específico para o fechamento semanal
-                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
+                // O caminho foi ajustado para corresponder ao que o sistema de fechamento semanal espera
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
                 await window.setDoc(docRef, data);
                 console.log("Dados agregados para fechamento semanal salvos no Firestore com sucesso!");
                 showMessage('Dados agregados para fechamento semanal salvos no Firestore!', 'success');
