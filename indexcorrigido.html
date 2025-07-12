@@ -17,7 +17,7 @@
     <script type="module">
         // Importações do Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signInWithCustomToken, signInAnonymously, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Configuração do Firebase (será preenchida pelo ambiente Canvas)
@@ -25,7 +25,7 @@
         const firebaseConfigString = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
 
         // Inicialização do Firebase
-        if (firebaseConfigString && firebaseConfigString !== '{"apiKey":"..."}') {
+        if (firebaseConfigString) {
             try {
                 const firebaseConfig = JSON.parse(firebaseConfigString);
                 window.app = initializeApp(firebaseConfig);
@@ -33,7 +33,6 @@
                 window.auth = getAuth(window.app);
             } catch (e) {
                 console.error("Erro a inicializar o Firebase. Verifique a sua configuração.", e);
-                alert("Não foi possível conectar à base de dados. A configuração parece ser inválida.");
                 window.db = null;
                 window.auth = null;
             }
@@ -53,8 +52,8 @@
         window.getDocs = getDocs;
         window.addDoc = addDoc;
         window.onAuthStateChanged = onAuthStateChanged;
-        window.GoogleAuthProvider = GoogleAuthProvider;
-        window.signInWithPopup = signInWithPopup;
+        window.signInWithCustomToken = signInWithCustomToken;
+        window.signInAnonymously = signInAnonymously;
         window.signOut = signOut;
         window.setPersistence = setPersistence;
         window.browserLocalPersistence = browserLocalPersistence;
@@ -267,51 +266,56 @@
         async function initializeAuth() {
             if (!window.auth) {
                 document.getElementById('user-id-display').textContent = 'Utilizador: Offline';
-                document.getElementById('auth-buttons').innerHTML = `<span class="text-red-500 font-semibold">Erro de Conexão</span>`;
+                document.getElementById('auth-buttons').innerHTML = `<span class="text-sm text-red-500 font-semibold">Funcionalidades da nuvem indisponíveis</span>`;
                 enableAppButtons(false);
-                initializeAppLogic(); // Inicia a app em modo offline
-                showMessage("Não foi possível conectar. Funcionalidades de nuvem desativadas.", "error");
+                initializeAppLogic();
+                showMessage("Não foi possível conectar. A aplicação está em modo offline.", "error");
                 return;
             }
-            try {
-                await window.setPersistence(window.auth, window.browserLocalPersistence);
-                window.onAuthStateChanged(window.auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        const authMethod = user.isAnonymous ? 'Anónimo' : 'Google';
-                        const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${userId.substring(0, 10)}... (${authMethod})`;
-                        document.getElementById('user-id-display').textContent = `Utilizador: ${displayInfo}`;
-                        document.getElementById('auth-buttons').innerHTML = `<button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition shadow-md">Sair</button>`;
-                        enableAppButtons(true);
-                        initializeAppLogic();
-                    } else {
-                        userId = null;
-                        document.getElementById('user-id-display').textContent = `Utilizador: Não autenticado`;
-                        document.getElementById('auth-buttons').innerHTML = `<button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition shadow-md">Entrar com Google</button>`;
-                        enableAppButtons(false);
-                        clearAllData(false); // Limpa os dados locais ao deslogar
-                    }
-                });
-            } catch (error) {
-                console.error("Erro na inicialização da autenticação:", error);
-                showMessage('Erro ao inicializar autenticação.', 'error');
-            }
-        }
 
-        window.signInWithGoogle = async function() {
-            if (!window.auth) {
+            // Ouve as mudanças de estado de autenticação
+            window.onAuthStateChanged(window.auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    const authMethod = user.isAnonymous ? 'Anónimo' : 'Autenticado';
+                    const displayInfo = `ID: ${userId.substring(0, 10)}... (${authMethod})`;
+                    document.getElementById('user-id-display').textContent = `Utilizador: ${displayInfo}`;
+                    document.getElementById('auth-buttons').innerHTML = `<button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition shadow-md">Sair</button>`;
+                    enableAppButtons(true);
+                    initializeAppLogic();
+                } else {
+                    userId = null;
+                    document.getElementById('user-id-display').textContent = `Utilizador: Desconectado`;
+                    document.getElementById('auth-buttons').innerHTML = `<button onclick="performSignIn()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition shadow-md">Conectar</button>`;
+                    enableAppButtons(false);
+                    clearAllData(false);
+                }
+            });
+
+            // Tenta fazer o login inicial
+            await performSignIn();
+        }
+        
+        // **NOVO**: Função central de login
+        window.performSignIn = async function() {
+             if (!window.auth) {
                 showMessage("Funcionalidade indisponível em modo offline.", "error");
                 return;
             }
-            const provider = new window.GoogleAuthProvider();
             try {
-                await window.signInWithPopup(window.auth, provider);
-                showMessage('Autenticado com Google!', 'success');
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (token) {
+                    await window.signInWithCustomToken(window.auth, token);
+                } else {
+                    // Fallback para ambiente de desenvolvimento sem token
+                    await window.signInAnonymously(window.auth);
+                }
             } catch (error) {
-                console.error("Erro ao autenticar com Google:", error);
-                showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
+                 console.error("Erro na autenticação:", error);
+                 showMessage('Erro ao conectar: ' + error.message, 'error');
             }
         }
+
 
         window.signOutUser = async function() {
             if (!window.auth) return;
