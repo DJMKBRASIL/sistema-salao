@@ -1178,10 +1178,11 @@
         // --- End Firestore Functions ---
 
         // --- Dynamic Input Row Management ---
-        function addServiceRow(serviceName = '', serviceValue = '0,00', paymentMethod = 'pix') { // Changed default serviceValue to '0,00'
+        function addServiceRow(serviceName = '', serviceValue = '0', paymentMethod = 'pix') { // Changed default serviceValue to '0'
             const container = document.getElementById('services-container');
             const newServiceDiv = document.createElement('div');
-            newServiceDiv.className = 'flex items-center gap-2 mb-2 client-row'; // Using client-row for styling
+            // Corrected class name from 'client-row' to 'service-row'
+            newServiceDiv.className = 'flex items-center gap-2 mb-2 service-row'; 
             newServiceDiv.innerHTML = `
                 <input type="text" placeholder="Nome do Serviço" value="${serviceName}" class="service-name form-input flex-grow min-w-[100px]">
                 <input type="text" placeholder="Valor" value="${serviceValue}" class="service-value form-input w-28 text-right" oninput="formatCurrency(this)">
@@ -1200,10 +1201,11 @@
             container.appendChild(newServiceDiv);
         }
 
-        function addProductSoldRow(productName = '', productValue = '0,00', paymentMethod = 'pix') { // Changed default productValue to '0,00'
+        function addProductSoldRow(productName = '', productValue = '0', paymentMethod = 'pix') { // Changed default productValue to '0'
             const container = document.getElementById('products-sold-container');
             const newProductDiv = document.createElement('div');
-            newProductDiv.className = 'flex items-center gap-2 mb-2 product-row'; // Using product-row for styling
+            // Corrected class name from 'product-row' to 'product-sold-row'
+            newProductDiv.className = 'flex items-center gap-2 mb-2 product-sold-row'; 
             newProductDiv.innerHTML = `
                 <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name form-input flex-grow min-w-[100px]">
                 <input type="text" placeholder="Valor" value="${productValue}" class="product-sold-value form-input w-28 text-right" oninput="formatCurrency(this)">
@@ -1231,7 +1233,7 @@
                 value = '0,' + value;
             } else if (value.length === 1) {
                 value = '0,0' + value;
-            } else {
+            } else if (value.length === 0) { // Handle empty input
                 value = '0,00';
             }
             input.value = value;
@@ -1285,7 +1287,8 @@
                 const valueString = row.querySelector('.service-value').value.replace(',', '.');
                 const value = parseFloat(valueString) || 0;
                 const paymentMethod = row.querySelector('select').value; // Get payment method
-                if (name && value > 0) {
+                // Only add if name is not empty. Value can be 0.
+                if (name) { 
                     services.push({ name, value, paymentMethod });
                 }
             });
@@ -1297,7 +1300,8 @@
                 const valueString = row.querySelector('.product-sold-value').value.replace(',', '.');
                 const value = parseFloat(valueString) || 0;
                 const paymentMethod = row.querySelector('select').value; // Get payment method
-                if (name && value > 0) {
+                // Only add if name is not empty. Value can be 0.
+                if (name) {
                     productsSold.push({ name, value, paymentMethod });
                 }
             });
@@ -1372,7 +1376,7 @@
             }
 
             fichas.forEach((ficha, index) => {
-                const row = tableBody.insertRow();
+                const row = tableBody.insertCell();
                 row.className = 'border-b border-gray-200 hover:bg-gray-100';
 
                 // Client Name
@@ -1555,6 +1559,7 @@
     </script>
 </body>
 </html>
+
 
 
 
