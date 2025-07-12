@@ -12,22 +12,31 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebase/auth"; // Updated import path for auth
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc, onSnapshot } from "https://www.gstatic.com/firebase/firestore"; // Updated import path for firestore
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebase/auth";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc, onSnapshot } from "https://www.gstatic.com/firebase/firestore";
 
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // ATENÇÃO: SUBSTITUA ESTAS CREDENCIAIS PELAS SUAS REAIS DO PROJETO FIREBASE!
-        // Você pode encontrá-las na sua consola Firebase -> Configurações do Projeto -> Seus aplicativos
+        // ATENÇÃO CRÍTICA: SUBSTITUA ESTAS CREDENCIAIS PELAS SUAS REAIS DO PROJETO FIREBASE!
+        // Você pode encontrá-las na sua consola Firebase -> Configurações do Projeto -> Seus aplicativos -> Seus aplicativos
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", // <--- SUBSTITUA PELA SUA API KEY
-            authDomain: "sistema-do-salao.firebaseapp.com", // <--- SUBSTITUA PELO SEU AUTH DOMAIN
-            projectId: "sistema-do-salao", // <--- SUBSTITUA PELO SEU PROJECT ID
-            storageBucket: "sistema-do-salao.firebasestorage.app", // <--- SUBSTITUA PELO SEU STORAGE BUCKET
-            messagingSenderId: "395887083088", // <--- SUBSTITUA PELO SEU MESSAGING SENDER ID
-            appId: "1:395887083088:web:3a41fd836cc59a976ddb55", // <--- SUBSTITUA PELO SEU APP ID
-            measurementId: "G-1D996M5FKZ" // <--- SUBSTITUA PELO SEU MEASUREMENT ID (se usar Analytics)
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", // <--- SUBSTITUA PELA SUA API KEY REAL
+            authDomain: "sistema-do-salao.firebaseapp.com", // <--- SUBSTITUA PELO SEU AUTH DOMAIN REAL
+            projectId: "sistema-do-salao", // <--- SUBSTITUA PELO SEU PROJECT ID REAL
+            storageBucket: "sistema-do-salao.firebasestorage.app", // <--- SUBSTITUA PELO SEU STORAGE BUCKET REAL
+            messagingSenderId: "395887083088", // <--- SUBSTITUA PELO SEU MESSAGING SENDER ID REAL
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55", // <--- SUBSTITUA PELO SEU APP ID REAL
+            measurementId: "G-1D996M5FKZ" // <--- SUBSTITUA PELO SEU MEASUREMENT ID REAL (se usar Analytics)
         };
+        
+        // --- ADIÇÃO: Verificação de credenciais padrão e aviso ---
+        if (window.firebaseConfig.apiKey === "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w" || 
+            window.firebaseConfig.authDomain === "sistema-do-salao.firebaseapp.com") { // Verifica também o authDomain como um indicador de credenciais padrão
+            console.warn("ATENÇÃO: Você está usando credenciais Firebase padrão/de exemplo. Por favor, substitua-as pelas suas credenciais reais do Firebase para que a aplicação funcione corretamente.");
+            // showMessage('ATENÇÃO: Credenciais Firebase padrão. Por favor, atualize o código com as suas credenciais reais.', 'error'); // Descomente para mostrar na UI
+        }
+        // --- FIM DA ADIÇÃO ---
+
         window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Variáveis do Firebase agora como propriedades de window para acessibilidade global
@@ -57,7 +66,7 @@
         let currentConfirmCallback = null;
 
         // --- Variáveis para controle de acesso por senha ---
-        window.privilegedPassword = "admin123"; // SENHA PARA ACESSO RESTRITO - ALTERE AQUI!
+        window.privilegedPassword = "100Dolar#"; // SENHA PARA ACESSO RESTRITO - ALTERE AQUI!
                                               // ATENÇÃO: Esta senha está no código-fonte e não é segura para ambientes de produção.
         let privilegedAccessGranted = false; // Indica se o acesso privilegiado foi concedido para a sessão atual
 
@@ -73,17 +82,18 @@
                 await setPersistence(window.auth, browserLocalPersistence);
                 console.log("Firebase initialized and persistence set to LOCAL.");
 
-                // Tenta fazer login com o token personalizado se fornecido, caso contrário, faz login anonimamente
-                if (window.initialAuthToken) {
-                    console.log("Attempting signInWithCustomToken...");
-                    await signInWithCustomToken(window.auth, window.initialAuthToken);
-                } else {
-                    console.log("Attempting signInAnonymously...");
-                    await signInAnonymously(window.auth);
-                }
+                // Use a flag to ensure onAuthStateChanged logic runs only once after initial auth
+                let initialAuthCheckCompleted = false;
 
                 // Listener para mudanças no estado de autenticação
                 onAuthStateChanged(window.auth, async (user) => {
+                    // Evita re-executar a lógica de inicialização da UI em cada pequena mudança de estado de autenticação
+                    if (initialAuthCheckCompleted && ((user && window.userId !== 'Não autenticado' && user.uid === window.userId) || (!user && window.userId === 'Não autenticado'))) {
+                        console.log("Minor auth state change (e.g., token refresh). Skipping full UI re-initialization.");
+                        return; 
+                    }
+                    initialAuthCheckCompleted = true; // Marca a verificação inicial como concluída
+
                     console.log("onAuthStateChanged fired. User:", user ? user.uid : 'null');
                     if (user) {
                         // Usuário autenticado
@@ -136,15 +146,26 @@
                     }
                 });
 
+                // Tenta fazer login com o token personalizado se fornecido, caso contrário, faz login anonimamente
+                // É crucial que estas chamadas sejam aguardadas para que o onAuthStateChanged receba o estado inicial
+                if (window.initialAuthToken) {
+                    console.log("Attempting signInWithCustomToken...");
+                    await signInWithCustomToken(window.auth, window.initialAuthToken);
+                } else {
+                    console.log("Attempting signInAnonymously...");
+                    await signInAnonymously(window.auth);
+                }
+
             } catch (error) {
                 // Captura erros críticos durante a inicialização do Firebase
                 console.error("Erro crítico ao inicializar Firebase:", error);
                 document.getElementById('user-id-display').textContent = `Erro de Inicialização!`;
                 showMessage('Erro crítico ao inicializar o Firebase. Verifique a configuração da sua conta Firebase e a chave API. Erro: ' + error.message, 'error');
-                // Desabilita todos os elementos da UI se a inicialização falhar
+                // Desabilita todos os elementos da UI e mostra a aba padrão se a inicialização falhar
                 toggleWeeklyClosingUIEnabled(false);
                 toggleInventoryUIEnabled(false);
                 toggleFichasUIEnabled(false);
+                showSection('fichas-section'); // Garante que algo seja exibido
             }
         }
 
@@ -421,13 +442,13 @@
 
         <!-- Abas de Navegação -->
         <div class="flex justify-center mb-6 border-b border-gray-200">
-            <button id="tab-weekly-closing" class="tab-button active" onclick="showSection('weekly-closing-section')">Fechamento Semanal</button>
+            <button id="tab-weekly-closing" class="tab-button" onclick="showSection('weekly-closing-section')">Fechamento Semanal</button>
             <button id="tab-inventory" class="tab-button" onclick="showSection('inventory-section')">Gestão de Estoque</button>
-            <button id="tab-fichas" class="tab-button" onclick="showSection('fichas-section')">Fichas de Atendimento</button>
+            <button id="tab-fichas" class="tab-button active" onclick="showSection('fichas-section')">Fichas de Atendimento</button>
         </div>
 
         <!-- Seção de Fechamento Semanal -->
-        <div id="weekly-closing-section" class="content-section active">
+        <div id="weekly-closing-section" class="content-section">
             <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Fechamento Semanal</h2>
 
             <!-- Seção de Entrada de Data e Opções de Salvamento/Carregamento -->
@@ -612,7 +633,7 @@
         </div>
 
         <!-- Seção de Fichas de Atendimento -->
-        <div id="fichas-section" class="content-section">
+        <div id="fichas-section" class="content-section active">
             <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Fichas de Atendimento</h2>
 
             <!-- Formulário para Adicionar/Editar Ficha -->
