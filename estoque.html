@@ -32,6 +32,8 @@
         window.auth = null;
         window.userId = 'loading...'; // Será atualizado após a autenticação
         window.fichasCollectionRef = null; // Referência à coleção de fichas no Firestore
+        window.fichasSavedSnapshots = []; // Array para armazenar snapshots de fichas salvas
+        window.selectedFichaSnapshotId = null; // ID do snapshot selecionado no modal
 
         // Função de inicialização do Firebase e autenticação
         async function initializeFirebase() {
@@ -88,6 +90,10 @@
                         document.getElementById('addFichaBtn').disabled = true;
                         document.getElementById('clearAllFichasBtn').disabled = true;
                         document.getElementById('exportWeeklyDataBtn').disabled = true;
+                        document.getElementById('exportFichasToFileBtn').disabled = true;
+                        document.getElementById('importFichasFromFileBtn').disabled = true;
+                        document.getElementById('saveFichasToCloudBtn').disabled = true;
+                        document.getElementById('loadFichasFromCloudBtn').disabled = true;
                     }
                 });
 
@@ -624,6 +630,37 @@
             margin-top: 1.5rem;
         }
 
+        .saved-reports-list { /* Reusing style for saved ficha snapshots */
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .report-item { /* Reusing style for saved ficha snapshots */
+            padding: 1rem;
+            border-bottom: 1px solid var(--gray-200);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition);
+        }
+
+        .report-item:last-child {
+            border-bottom: none;
+        }
+
+        .report-item:hover {
+            background-color: var(--gray-50);
+        }
+
+        .report-item.selected {
+            background-color: #e0e7ff;
+            font-weight: 600;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             body {
@@ -848,6 +885,30 @@
                         </svg>
                         Exportar Dados para Fechamento Semanal
                     </button>
+                    <button id="exportFichasToFileBtn" onclick="exportFichasToFile()" class="btn btn-secondary btn-full" disabled>
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Exportar Fichas para Arquivo
+                    </button>
+                    <button id="importFichasFromFileBtn" onclick="importFichasFromFile()" class="btn btn-secondary btn-full" disabled>
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                        </svg>
+                        Importar Fichas de Arquivo
+                    </button>
+                    <button id="saveFichasToCloudBtn" onclick="saveFichasSnapshotToFirestore()" class="btn btn-success btn-full" disabled>
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        Salvar Fichas na Nuvem
+                    </button>
+                    <button id="loadFichasFromCloudBtn" onclick="openSavedFichasModal()" class="btn btn-warning btn-full" disabled>
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                        </svg>
+                        Carregar Fichas da Nuvem
+                    </button>
                 </div>
             </div>
         </main>
@@ -862,6 +923,20 @@
             <div class="modal-buttons">
                 <button class="btn btn-gray" onclick="handleClearAllFichasConfirm(false)">Cancelar</button>
                 <button class="btn btn-danger" onclick="handleClearAllFichasConfirm(true)">Limpar Tudo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Novo Modal para Snapshots de Fichas Salvas -->
+    <div id="saved-fichas-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">Escolha um Snapshot de Fichas Salvas</h3>
+            <div id="saved-fichas-list" class="saved-reports-list">
+                <!-- Lista de snapshots de fichas salvas será carregada aqui -->
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-gray" onclick="closeSavedFichasModal()">Fechar</button>
+                <button class="btn btn-primary" onclick="loadSelectedFichaSnapshot()">Carregar Selecionado</button>
             </div>
         </div>
     </div>
@@ -965,6 +1040,139 @@
             } catch (e) {
                 console.error("Erro ao salvar dados agregados no Firestore: ", e);
                 showMessage('Erro ao salvar dados agregados na nuvem: ' + e.message, 'error');
+            }
+        }
+
+        async function saveFichasSnapshotToFirestore() {
+            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
+                showMessage('Por favor, faça login para salvar fichas na nuvem.', 'error');
+                return;
+            }
+
+            if (fichas.length === 0) {
+                showMessage('Não há fichas para salvar.', 'info');
+                return;
+            }
+
+            showMessage('Salvando snapshot de fichas na nuvem...', 'info');
+
+            const snapshotData = {
+                fichas: fichas,
+                savedAt: new Date().toISOString()
+            };
+
+            try {
+                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichasSnapshots`);
+                await window.addDoc(collectionRef, snapshotData);
+                showMessage('Snapshot de fichas salvo na nuvem com sucesso!', 'success');
+            } catch (e) {
+                console.error("Erro ao salvar snapshot de fichas no Firestore: ", e);
+                showMessage('Erro ao salvar snapshot de fichas na nuvem: ' + e.message, 'error');
+            }
+        }
+
+        async function openSavedFichasModal() {
+            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
+                showMessage('Por favor, faça login para carregar fichas da nuvem.', 'error');
+                return;
+            }
+
+            showMessage('Buscando snapshots de fichas salvos...', 'info');
+            const fichasListDiv = document.getElementById('saved-fichas-list');
+            fichasListDiv.innerHTML = '<p class="text-center text-gray-500 p-4">Carregando...</p>';
+            window.selectedFichaSnapshotId = null;
+
+            try {
+                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichasSnapshots`);
+                const querySnapshot = await window.getDocs(collectionRef);
+                
+                window.fichasSavedSnapshots = [];
+                if (querySnapshot.empty) {
+                    fichasListDiv.innerHTML = '<p class="text-center text-gray-500 p-4">Nenhum snapshot de fichas salvo.</p>';
+                    showMessage('Nenhum snapshot de fichas salvo para carregar.', 'info');
+                    return;
+                }
+
+                fichasListDiv.innerHTML = '';
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    window.fichasSavedSnapshots.push({ id: doc.id, ...data });
+
+                    const reportItem = document.createElement('div');
+                    reportItem.className = 'report-item';
+                    reportItem.setAttribute('data-report-id', doc.id);
+                    
+                    const savedDate = data.savedAt ? new Date(data.savedAt).toLocaleDateString('pt-BR') : 'Desconhecida';
+                    const savedTime = data.savedAt ? new Date(data.savedAt).toLocaleTimeString('pt-BR') : '';
+
+                    reportItem.innerHTML = `
+                        <div>
+                            <p class="font-medium">Snapshot salvo em: ${savedDate} às ${savedTime}</p>
+                            <p class="text-xs text-gray-500">Total de fichas: ${data.fichas ? data.fichas.length : 0}</p>
+                        </div>
+                        <button class="btn btn-danger text-sm" onclick="event.stopPropagation(); deleteSavedFichaSnapshot('${doc.id}')">Excluir</button>
+                    `;
+                    
+                    reportItem.onclick = (event) => selectFichaSnapshot(event, doc.id);
+                    fichasListDiv.appendChild(reportItem);
+                });
+
+                document.getElementById('saved-fichas-modal').style.display = 'flex';
+                showMessage('Snapshots de fichas carregados!', 'success');
+
+            } catch (error) {
+                console.error('Erro ao carregar snapshots de fichas salvos do Firestore:', error);
+                showMessage('Erro ao carregar snapshots de fichas salvos: ' + error.message, 'error');
+            }
+        }
+
+        function closeSavedFichasModal() {
+            document.getElementById('saved-fichas-modal').style.display = 'none';
+        }
+
+        function selectFichaSnapshot(event, snapshotId) {
+            document.querySelectorAll('#saved-fichas-list .report-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+            window.selectedFichaSnapshotId = snapshotId;
+        }
+
+        async function loadSelectedFichaSnapshot() {
+            if (!window.selectedFichaSnapshotId) {
+                showMessage('Por favor, selecione um snapshot para carregar.', 'info');
+                return;
+            }
+
+            showMessage('Carregando snapshot de fichas selecionado...', 'info');
+            const snapshotToLoad = window.fichasSavedSnapshots.find(snapshot => snapshot.id === window.selectedFichaSnapshotId);
+
+            if (snapshotToLoad && snapshotToLoad.fichas) {
+                fichas = snapshotToLoad.fichas;
+                renderFichasTable();
+                closeSavedFichasModal();
+                showMessage('Snapshot de fichas carregado com sucesso!', 'success');
+            } else {
+                showMessage('Erro: Snapshot de fichas selecionado não encontrado ou vazio.', 'error');
+            }
+        }
+
+        async function deleteSavedFichaSnapshot(snapshotId) {
+            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
+                showMessage('Por favor, faça login para excluir snapshots.', 'error');
+                return;
+            }
+
+            if (confirm('Tem certeza que deseja excluir este snapshot de fichas salvo?')) {
+                try {
+                    const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichasSnapshots`, snapshotId);
+                    await window.deleteDoc(docRef);
+                    showMessage('Snapshot de fichas excluído com sucesso!', 'success');
+                    openSavedFichasModal(); // Recarrega a lista após a exclusão
+                } catch (error) {
+                    console.error('Erro ao excluir snapshot de fichas salvo:', error);
+                    showMessage('Erro ao excluir snapshot: ' + error.message, 'error');
+                }
             }
         }
         // --- End Firestore Functions ---
@@ -1173,6 +1381,60 @@
         }
         // --- End Ficha Management Functions ---
 
+        // --- File Operations ---
+        function exportFichasToFile() {
+            const dataToSave = fichas;
+            const jsonString = JSON.stringify(dataToSave, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fichas_clientes_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showMessage('Fichas exportadas para arquivo JSON!', 'success');
+        }
+
+        function importFichasFromFile() {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.json';
+
+            fileInput.onchange = (event) => {
+                const file = event.target.files[0];
+                if (!file) {
+                    showMessage('Nenhum arquivo selecionado.', 'info');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+
+                        if (Array.isArray(importedData) && importedData.every(item => typeof item === 'object' && item !== null && 'clientName' in item && 'professionalName' in item)) {
+                            fichas = importedData;
+                            renderFichasTable();
+                            showMessage('Fichas importadas com sucesso!', 'success');
+                        } else {
+                            showMessage('Formato de arquivo JSON inválido para fichas. Verifique o conteúdo.', 'error');
+                        }
+                    } catch (parseError) {
+                        showMessage('Erro ao ler o arquivo: Não é um JSON válido.', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            fileInput.click();
+        }
+        // --- End File Operations ---
+
+
         // --- Integration with Weekly Closing System (Firestore) ---
         async function generateAndExportWeeklyData() {
             if (!window.db || !window.userId || !window.fichasCollectionRef) {
@@ -1247,8 +1509,13 @@
             document.getElementById('addFichaBtn').disabled = false;
             document.getElementById('clearAllFichasBtn').disabled = false;
             document.getElementById('exportWeeklyDataBtn').disabled = false;
+            document.getElementById('exportFichasToFileBtn').disabled = false;
+            document.getElementById('importFichasFromFileBtn').disabled = false;
+            document.getElementById('saveFichasToCloudBtn').disabled = false;
+            document.getElementById('loadFichasFromCloudBtn').disabled = false;
             console.log("Buttons enabled."); // Debug log
         }
     </script>
 </body>
 </html>
+
