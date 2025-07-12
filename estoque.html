@@ -53,7 +53,12 @@
                         const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${window.userId} (${authMethod})`;
                         document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
                         document.getElementById('auth-buttons').innerHTML = `
-                            <button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Sair</button>
+                            <button onclick="signOutUser()" class="btn btn-danger">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                                Sair
+                            </button>
                         `;
                         // Definir fichasCollectionRef aqui, após db e userId estarem disponíveis
                         window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
@@ -69,21 +74,16 @@
                         window.userId = 'Não autenticado';
                         document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
                         document.getElementById('auth-buttons').innerHTML = `
-                            <button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Entrar com Google</button>
+                            <button onclick="signInWithGoogle()" class="btn btn-primary">
+                                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                </svg>
+                                Entrar com Google
+                            </button>
                         `;
-                        // Tentar autenticação anónima ou com token inicial se não houver usuário logado
-                        try {
-                            if (window.initialAuthToken) {
-                                await signInWithCustomToken(window.auth, window.initialAuthToken);
-                                console.log("Tentativa de autenticação com token personalizado.");
-                            } else {
-                                await signInAnonymously(window.auth);
-                                console.log("Tentativa de autenticação anónima.");
-                            }
-                        } catch (error) {
-                            console.error("Erro na autenticação inicial:", error);
-                            showMessage('Erro na autenticação inicial. Tente recarregar a página.', 'error');
-                        }
                         // Desabilitar botões que dependem de autenticação completa
                         document.getElementById('addFichaBtn').disabled = true;
                         document.getElementById('clearAllFichasBtn').disabled = true;
@@ -143,173 +143,725 @@
     </script>
 
     <style>
-        /* Define a fonte Inter para todo o corpo da página */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5; /* Cor de fundo suave para a página */
+        :root {
+            --primary-color: #6366f1;
+            --primary-hover: #4f46e5;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #3b82f6;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --border-radius: 0.75rem;
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        /* Esconde as setas de incremento/decremento em campos de número no Webkit (Chrome, Safari) */
-        input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button {
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+            line-height: 1.6;
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .section {
+            background: var(--gray-50);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--gray-200);
+            transition: var(--transition);
+        }
+
+        .section:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between; /* Changed from 'between' to 'space-between' */
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin: 0;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
+            min-height: 44px; /* Touch-friendly minimum */
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #7c3aed;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #059669;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover:not(:disabled) {
+            background-color: #d97706;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background-color: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-info {
+            background-color: var(--info-color);
+            color: white;
+        }
+
+        .btn-info:hover:not(:disabled) {
+            background-color: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-gray {
+            background-color: var(--gray-300);
+            color: var(--gray-800);
+        }
+
+        .btn-gray:hover:not(:disabled) {
+            background-color: var(--gray-400);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: var(--transition);
+            background-color: white;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-input::-webkit-outer-spin-button,
+        .form-input::-webkit-inner-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
-        /* Esconde as setas de incremento/decremento em campos de número no Firefox */
-        input[type="number"] {
+
+        .form-input[type=number] {
             -moz-appearance: textfield;
         }
-        /* Estilo para o modal de confirmação */
+
+        .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: var(--transition);
+            background-color: white;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .grid-cols-1 {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+        }
+
+        .grid-cols-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .grid-cols-3 {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
+            flex-direction: column;
+        }
+
+        .flex-wrap {
+            flex-wrap: wrap;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .gap-2 {
+            gap: 0.5rem;
+        }
+
+        .gap-3 {
+            gap: 0.75rem;
+        }
+
+        .gap-4 {
+            gap: 1rem;
+        }
+
+        .mb-2 {
+            margin-bottom: 0.5rem;
+        }
+
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+
+        .mb-6 {
+            margin-bottom: 1.5rem;
+        }
+
+        .mt-4 {
+            margin-top: 1rem;
+        }
+
+        .p-4 {
+            padding: 1rem;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-sm {
+            font-size: 0.875rem;
+        }
+
+        .text-lg {
+            font-size: 1.125rem;
+        }
+
+        .text-xl {
+            font-size: 1.25rem;
+        }
+
+        .font-medium {
+            font-weight: 500;
+        }
+
+        .font-semibold {
+            font-weight: 600;
+        }
+
+        .font-bold {
+            font-weight: 700;
+        }
+
+        .text-gray-500 {
+            color: var(--gray-500);
+        }
+
+        .text-gray-600 {
+            color: var(--gray-600);
+        }
+
+        .text-gray-700 {
+            color: var(--gray-700);
+        }
+
+        .text-gray-800 {
+            color: var(--gray-800);
+        }
+
+        .client-row {
+            background: var(--gray-50);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--gray-200);
+        }
+
+        .product-row {
+            background: var(--gray-50);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--gray-200);
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            animation: slideInDown 0.3s ease-out;
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .message-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .message-info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+
         .modal {
-            display: none; /* Escondido por padrão */
-            position: fixed; /* Posição fixa na tela */
-            z-index: 1000; /* Acima de tudo */
+            display: none;
+            position: fixed;
+            z-index: 1000;
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
-            overflow: auto; /* Habilita rolagem se necessário */
-            background-color: rgba(0,0,0,0.4); /* Fundo semi-transparente */
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
             justify-content: center;
             align-items: center;
             padding: 1rem;
+            animation: fadeIn 0.3s ease-out;
         }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
         .modal-content {
-            background-color: #fefefe;
-            margin: auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 90%;
-            max-width: 400px;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            text-align: center;
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: var(--shadow-xl);
+            animation: scaleIn 0.3s ease-out;
         }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
         .modal-buttons {
             display: flex;
-            justify-content: space-around;
-            margin-top: 20px;
-            gap: 10px;
+            gap: 1rem;
+            margin-top: 1.5rem;
         }
-        .modal-button {
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.15s ease-in-out;
-            flex: 1;
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            body {
+                padding: 0.5rem;
+            }
+
+            .header {
+                padding: 1.5rem 1rem;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .content {
+                padding: 1rem;
+            }
+
+            .section {
+                padding: 1rem;
+            }
+
+            .grid-cols-3 {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+
+            .grid-cols-2 {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+
+            .flex {
+                flex-direction: column;
+            }
+
+            .flex > * {
+                width: 100%;
+            }
+
+            .btn {
+                padding: 1rem;
+                font-size: 1rem;
+            }
+
+            .modal-content {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+
+            .modal-buttons {
+                flex-direction: column;
+            }
         }
-        .modal-button.confirm {
-            background-color: #ef4444; /* red-500 */
-            color: white;
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.75rem;
+            }
+
+            .section-title {
+                font-size: 1.25rem;
+            }
+
+            .client-row,
+            .product-row {
+                padding: 0.5rem;
+            }
         }
-        .modal-button.confirm:hover {
-            background-color: #dc2626; /* red-600 */
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .main-container {
+                box-shadow: none;
+                border-radius: 0;
+            }
+
+            .header {
+                background: white !important;
+                color: black !important;
+            }
+
+            .btn,
+            .modal {
+                display: none !important;
+            }
         }
-        .modal-button.cancel {
-            background-color: #d1d5db; /* gray-300 */
-            color: #1f2937; /* gray-800 */
+
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            .section {
+                border: 2px solid var(--gray-400);
+            }
+
+            .btn {
+                border: 2px solid currentColor;
+            }
         }
-        .modal-button.cancel:hover {
-            background-color: #9ca3af; /* gray-400 */
+
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
-<body class="p-4 md:p-8">
-    <!-- Main container, centered and with max-width for larger screens -->
-    <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-gray-200">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Registro de Fichas de Cliente</h1>
+<body>
+    <div class="main-container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Espaço Fran Kokott</h1>
+            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Registro de Fichas de Cliente</p>
+        </header>
 
-        <!-- ID do Usuário e Botões de Autenticação -->
-        <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
-            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">ID do Usuário: Carregando...</p>
-            <div id="auth-buttons" class="flex gap-2">
-                <!-- Botões de autenticação serão injetados aqui pelo JavaScript -->
-            </div>
-        </div>
-
-        <!-- Area for feedback messages -->
-        <div id="app-message" class="hidden mb-4 p-3 rounded-lg text-center font-medium"></div>
-
-        <!-- Ficha Input Section -->
-        <div class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h2 class="text-xl font-semibold text-blue-700 mb-4">Nova Ficha de Atendimento</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="clientName" class="block text-sm font-medium text-gray-700 mb-1">Nome da Cliente</label>
-                    <input type="text" id="clientName" placeholder="Nome Completo da Cliente" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
-                </div>
-                <div>
-                    <label for="professionalName" class="block text-sm font-medium text-gray-700 mb-1">Nome da Profissional</label>
-                    <input type="text" id="professionalName" placeholder="Nome da Profissional" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+        <!-- Main Content -->
+        <main class="content">
+            <!-- User Authentication Section -->
+            <div class="section">
+                <div class="flex items-center justify-between mb-4">
+                    <p id="user-id-display" class="text-sm text-gray-500">Usuário: Carregando...</p>
+                    <div id="auth-buttons" class="flex gap-2">
+                        <!-- Authentication buttons will be injected here -->
+                    </div>
                 </div>
             </div>
 
-            <div class="mt-4">
-                <h3 class="text-md font-medium text-gray-700 mb-2">Serviços</h3>
-                <div id="services-container">
-                    <!-- Service rows will be added dynamically here -->
+            <!-- Message Area -->
+            <div id="app-message" class="message" style="display: none;"></div>
+
+            <!-- Ficha Input Section -->
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">Nova Ficha de Atendimento</h2>
                 </div>
-                <button onclick="addServiceRow()" class="w-full bg-blue-400 text-white py-2 px-4 rounded-lg hover:bg-blue-500 focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-2">
-                    Adicionar Serviço
-                </button>
-            </div>
-
-            <div class="mt-4">
-                <h3 class="text-md font-medium text-gray-700 mb-2">Produtos Vendidos (Opcional)</h3>
-                <div id="products-sold-container">
-                    <!-- Products sold rows will be added dynamically here -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label for="clientName" class="form-label">Nome da Cliente</label>
+                        <input type="text" id="clientName" placeholder="Nome Completo da Cliente" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="professionalName" class="form-label">Nome da Profissional</label>
+                        <input type="text" id="professionalName" placeholder="Nome da Profissional" class="form-input">
+                    </div>
                 </div>
-                <button onclick="addProductSoldRow()" class="w-full bg-green-400 text-white py-2 px-4 rounded-lg hover:bg-green-500 focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-2">
-                    Adicionar Produto
-                </button>
+
+                <div class="mt-4">
+                    <h3 class="text-md font-medium text-gray-700 mb-2">Serviços</h3>
+                    <div id="services-container">
+                        <!-- Service rows will be added dynamically here -->
+                    </div>
+                    <button onclick="addServiceRow()" class="btn btn-primary btn-full mt-4">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Adicionar Serviço
+                    </button>
+                </div>
+
+                <div class="mt-4">
+                    <h3 class="text-md font-medium text-gray-700 mb-2">Produtos Vendidos (Opcional)</h3>
+                    <div id="products-sold-container">
+                        <!-- Products sold rows will be added dynamically here -->
+                    </div>
+                    <button onclick="addProductSoldRow()" class="btn btn-success btn-full mt-4">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Adicionar Produto
+                    </button>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <button id="addFichaBtn" onclick="addFicha()" class="btn btn-primary text-lg font-bold" disabled>
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Registrar Ficha
+                    </button>
+                </div>
             </div>
 
-            <div class="mt-6 flex justify-end">
-                <button id="addFichaBtn" onclick="addFicha()" class="bg-indigo-600 text-white py-3 px-6 rounded-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md text-lg font-bold" disabled>
-                    Registrar Ficha
-                </button>
+            <!-- Recorded Fichas Section -->
+            <div class="section">
+                <div class="section-header">
+                    <h2 class="section-title">Fichas Registradas</h2>
+                </div>
+                <div id="fichas-list" class="overflow-x-auto">
+                    <table class="min-w-full bg-white rounded-lg shadow-md">
+                        <thead>
+                            <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
+                                <th class="py-3 px-6 text-left">Cliente</th>
+                                <th class="py-3 px-6 text-left">Profissional</th>
+                                <th class="py-3 px-6 text-left">Serviços</th>
+                                <th class="py-3 px-6 text-left">Produtos</th>
+                                <th class="py-3 px-6 text-center">Total Ficha</th>
+                                <th class="py-3 px-6 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-gray-600 text-sm font-light" id="fichas-table-body">
+                            <!-- Fichas will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                    <button id="clearAllFichasBtn" onclick="showClearAllFichasConfirm()" class="btn btn-danger btn-full" disabled>
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        Limpar Todas as Fichas
+                    </button>
+                    <button id="exportWeeklyDataBtn" onclick="generateAndExportWeeklyData()" class="btn btn-secondary btn-full" disabled>
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                        </svg>
+                        Exportar Dados para Fechamento Semanal
+                    </button>
+                </div>
             </div>
-        </div>
-
-        <!-- Recorded Fichas Section -->
-        <div class="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <h2 class="text-xl font-semibold text-gray-700 mb-4">Fichas Registradas</h2>
-            <div id="fichas-list" class="overflow-x-auto">
-                <table class="min-w-full bg-white rounded-lg shadow-md">
-                    <thead>
-                        <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
-                            <th class="py-3 px-6 text-left">Cliente</th>
-                            <th class="py-3 px-6 text-left">Profissional</th>
-                            <th class="py-3 px-6 text-left">Serviços</th>
-                            <th class="py-3 px-6 text-left">Produtos</th>
-                            <th class="py-3 px-6 text-center">Total Ficha</th>
-                            <th class="py-3 px-6 text-center">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody class="text-gray-600 text-sm font-light" id="fichas-table-body">
-                        <!-- Fichas will be loaded here -->
-                    </tbody>
-                </table>
-            </div>
-            <div class="mt-6 flex flex-col sm:flex-row gap-3">
-                <button id="clearAllFichasBtn" onclick="showClearAllFichasConfirm()" class="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
-                    Limpar Todas as Fichas
-                </button>
-                <button id="exportWeeklyDataBtn" onclick="generateAndExportWeeklyData()" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
-                    Exportar Dados para Fechamento Semanal
-                </button>
-            </div>
-        </div>
+        </main>
     </div>
 
     <!-- Modal de Confirmação para Limpar Tudo -->
     <div id="custom-confirm-modal" class="modal">
         <div class="modal-content">
-            <p class="text-lg font-semibold text-gray-800 mb-4">Tem certeza que deseja limpar todas as fichas?</p>
-            <p class="text-sm text-gray-600">Esta ação não pode ser desfeita.</p>
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirmar Ação</h3>
+            <p class="text-gray-600 mb-4">Tem certeza que deseja limpar todas as fichas?</p>
+            <p class="text-sm text-gray-500 mb-6">Esta ação não pode ser desfeita.</p>
             <div class="modal-buttons">
-                <button class="modal-button cancel" onclick="handleClearAllFichasConfirm(false)">Cancelar</button>
-                <button class="modal-button confirm" onclick="handleClearAllFichasConfirm(true)">Limpar Tudo</button>
+                <button class="btn btn-gray" onclick="handleClearAllFichasConfirm(false)">Cancelar</button>
+                <button class="btn btn-danger" onclick="handleClearAllFichasConfirm(true)">Limpar Tudo</button>
             </div>
         </div>
     </div>
@@ -321,17 +873,11 @@
         function showMessage(message, type = 'success') {
             const msgDiv = document.getElementById('app-message');
             msgDiv.textContent = message;
-            msgDiv.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-blue-100', 'text-blue-800');
-            if (type === 'success') {
-                msgDiv.classList.add('bg-green-100', 'text-green-800');
-            } else if (type === 'error') {
-                msgDiv.classList.add('bg-red-100', 'text-red-800');
-            } else if (type === 'info') {
-                msgDiv.classList.add('bg-blue-100', 'text-blue-800');
-            }
-            msgDiv.classList.remove('hidden');
+            msgDiv.className = `message message-${type}`; // Use new message classes
+            msgDiv.style.display = 'block';
+            
             setTimeout(() => {
-                msgDiv.classList.add('hidden');
+                msgDiv.style.display = 'none';
             }, 5000);
         }
 
@@ -427,13 +973,13 @@
         function addServiceRow(serviceName = '', serviceValue = '') {
             const container = document.getElementById('services-container');
             const newServiceDiv = document.createElement('div');
-            newServiceDiv.className = 'flex items-center gap-2 mb-2 service-row';
+            newServiceDiv.className = 'flex items-center gap-2 mb-2 client-row'; // Using client-row for styling
             newServiceDiv.innerHTML = `
-                <input type="text" placeholder="Nome do Serviço" value="${serviceName}" class="service-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 min-w-[100px]">
-                <input type="number" step="0.01" min="0" placeholder="Valor" class="service-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500">
-                <button onclick="removeRow(this)" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                <input type="text" placeholder="Nome do Serviço" value="${serviceName}" class="service-name form-input flex-grow min-w-[100px]">
+                <input type="number" step="0.01" min="0" placeholder="Valor" class="service-value form-input w-28 text-right">
+                <button onclick="removeRow(this)" class="btn btn-danger">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                     </svg>
                 </button>
             `;
@@ -448,11 +994,11 @@
         function addProductSoldRow(productName = '', productValue = '') {
             const container = document.getElementById('products-sold-container');
             const newProductDiv = document.createElement('div');
-            newProductDiv.className = 'flex items-center gap-2 mb-2 product-sold-row';
+            newProductDiv.className = 'flex items-center gap-2 mb-2 product-row'; // Using product-row for styling
             newProductDiv.innerHTML = `
-                <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 min-w-[100px]">
-                <input type="number" step="0.01" min="0" placeholder="Valor" class="product-sold-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-green-500 focus:border-green-500">
-                <button onclick="removeRow(this)" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name form-input flex-grow min-w-[100px]">
+                <input type="number" step="0.01" min="0" placeholder="Valor" class="product-sold-value form-input w-28 text-right">
+                <button onclick="removeRow(this)" class="btn btn-danger">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
                     </svg>
