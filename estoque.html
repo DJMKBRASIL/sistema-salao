@@ -3,40 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema Integrado de Gestão do Salão</title>
+    <title>Registro de Fichas de Cliente</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- jsPDF CDN for PDF generation -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebase/auth";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc, onSnapshot } from "https://www.gstatic.com/firebase/firestore";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // ATENÇÃO CRÍTICA: SUBSTITUA ESTAS CREDENCIAIS PELAS SUAS REAIS DO PROJETO FIREBASE!
-        // Você pode encontrá-las na sua consola Firebase -> Configurações do Projeto -> Seus aplicativos -> Seus aplicativos
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", // <--- SUBSTITUA PELA SUA API KEY REAL
-            authDomain: "sistema-do-salao.firebaseapp.com", // <--- SUBSTITUA PELO SEU AUTH DOMAIN REAL
-            projectId: "sistema-do-salao", // <--- SUBSTITUA PELO SEU PROJECT ID REAL
-            storageBucket: "sistema-do-salao.firebasestorage.app", // <--- SUBSTITUA PELO SEU STORAGE BUCKET REAL
-            messagingSenderId: "395887083088", // <--- SUBSTITUA PELO SEU MESSAGING SENDER ID REAL
-            appId: "1:395887083088:web:3a41fd836cc59a976ddb55", // <--- SUBSTITUA PELO SEU APP ID REAL
-            measurementId: "G-1D996M5FKZ" // <--- SUBSTITUA PELO SEU MEASUREMENT ID REAL (se usar Analytics)
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
+            authDomain: "sistema-do-salao.firebaseapp.com",
+            projectId: "sistema-do-salao",
+            storageBucket: "sistema-do-salao.firebasestorage.app",
+            messagingSenderId: "395887083088",
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
+            measurementId: "G-1D996M5FKZ"
         };
-        
-        // --- ADIÇÃO: Verificação de credenciais padrão e aviso ---
-        if (window.firebaseConfig.apiKey === "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w" || 
-            window.firebaseConfig.authDomain === "sistema-do-salao.firebaseapp.com") { // Verifica também o authDomain como um indicador de credenciais padrão
-            console.warn("ATENÇÃO: Você está usando credenciais Firebase padrão/de exemplo. Por favor, substitua-as pelas suas credenciais reais do Firebase para que a aplicação funcione corretamente.");
-            // showMessage('ATENÇÃO: Credenciais Firebase padrão. Por favor, atualize o código com as suas credenciais reais.', 'error'); // Descomente para mostrar na UI
-        }
-        // --- FIM DA ADIÇÃO ---
-
         window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Variáveis do Firebase agora como propriedades de window para acessibilidade global
@@ -44,44 +31,23 @@
         window.db = null;
         window.auth = null;
         window.userId = 'loading...'; // Será atualizado após a autenticação
-
-        // --- Variáveis Globais do Sistema de Fechamento Semanal ---
-        let weeklyCollaborators = []; // Array de objetos { name, clients: [{name, value}], discountPercentage }
-        let weeklyProducts = [];      // Array de objetos { clientName, value }
-        let weeklySalonName = "Salão de Beleza"; // Valor padrão
-        let weeklySavedReports = []; // Armazena os relatórios carregados do Firestore para o modal
-        let weeklySelectedReportId = null; // Armazena o ID do relatório selecionado no modal
-
-        // --- Variáveis Globais do Sistema de Estoque ---
-        window.productsInventory = []; // Array para armazenar os produtos do estoque
-        let inventoryEditingProductId = null; // Armazena o ID do produto que está sendo editado
-        let inventorySavedReports = []; // Armazena os inventários carregados para o modal
-
-        // --- Variáveis Globais do Sistema de Fichas ---
-        let fichas = []; // Array para armazenar os objetos de ficha
-        let editingFichaId = null; // Armazena o ID da ficha que está sendo editada
-        let savedFichas = []; // Armazena as fichas carregadas do Firestore para o modal
-
-        // Variável global para o callback do modal de confirmação genérico
-        let currentConfirmCallback = null;
+        window.fichasCollectionRef = null; // Referência à coleção de fichas no Firestore
 
         // Função de inicialização do Firebase e autenticação
         async function initializeFirebase() {
-            console.log("Initializing Firebase...");
             try {
                 window.app = initializeApp(window.firebaseConfig);
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
                 
-                // Define a persistência da autenticação para o armazenamento local do navegador
+                // Define a persistência da autenticação para armazenamento local
                 await setPersistence(window.auth, browserLocalPersistence);
-                console.log("Firebase initialized and persistence set to LOCAL.");
+                console.log("Firebase initialized and persistence set to LOCAL."); // Debug log
 
-                // Listener para mudanças no estado de autenticação
+                // Monitorar o estado de autenticação
                 onAuthStateChanged(window.auth, async (user) => {
-                    console.log("onAuthStateChanged fired. User:", user ? user.uid : 'null', "Current userId (before update):", window.userId);
-                    
                     if (user) {
+                        // Usuário autenticado (pode ser anónimo ou Google)
                         window.userId = user.uid;
                         const authMethod = user.isAnonymous ? 'Anónimo' : 'Google';
                         const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${window.userId} (${authMethod})`;
@@ -89,55 +55,45 @@
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="signOutUser()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Sair</button>
                         `;
-                        console.log("Usuário autenticado:", window.userId, "Método:", authMethod, "Nome:", user.displayName);
-                        
+                        // Definir fichasCollectionRef aqui, após db e userId estarem disponíveis
+                        window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
+                        console.log("Usuário autenticado:", window.userId, "Método:", authMethod); // Debug log
                         if (window.db) {
-                            initializeWeeklyClosingLogic();
-                            initializeInventoryLogic();
-                            initializeFichasLogic();
-                            toggleWeeklyClosingUIEnabled(true);
-                            toggleInventoryUIEnabled(true);
-                            toggleFichasUIEnabled(true);
+                            initializeAppLogic(); // Carregar dados iniciais após autenticação
                         } else {
-                            console.error("Erro: Banco de dados (Firestore) não disponível após autenticação.");
+                            console.error("Firebase DB not available after authentication. (Inside onAuthStateChanged)"); // Debug log
                             showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
-                            toggleWeeklyClosingUIEnabled(false);
-                            toggleInventoryUIEnabled(false);
-                            toggleFichasUIEnabled(false);
                         }
                     } else {
-                        // User logged out or initial unauthenticated state
+                        // Usuário não autenticado
                         window.userId = 'Não autenticado';
                         document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Entrar com Google</button>
                         `;
-                        toggleWeeklyClosingUIEnabled(false);
-                        toggleInventoryUIEnabled(false);
-                        toggleFichasUIEnabled(false);
-                        showMessage('Por favor, faça login para usar todas as funcionalidades.', 'info');
+                        // Tentar autenticação anónima ou com token inicial se não houver usuário logado
+                        try {
+                            if (window.initialAuthToken) {
+                                await signInWithCustomToken(window.auth, window.initialAuthToken);
+                                console.log("Tentativa de autenticação com token personalizado.");
+                            } else {
+                                await signInAnonymously(window.auth);
+                                console.log("Tentativa de autenticação anónima.");
+                            }
+                        } catch (error) {
+                            console.error("Erro na autenticação inicial:", error);
+                            showMessage('Erro na autenticação inicial. Tente recarregar a página.', 'error');
+                        }
+                        // Desabilitar botões que dependem de autenticação completa
+                        document.getElementById('addFichaBtn').disabled = true;
+                        document.getElementById('clearAllFichasBtn').disabled = true;
+                        document.getElementById('exportWeeklyDataBtn').disabled = true;
                     }
                 });
 
-                // The initial sign-in attempt should happen here, outside onAuthStateChanged
-                // because onAuthStateChanged will be triggered by this.
-                if (window.initialAuthToken) {
-                    console.log("Attempting signInWithCustomToken...");
-                    await signInWithCustomToken(window.auth, window.initialAuthToken);
-                } else {
-                    console.log("Attempting signInAnonymously...");
-                    await signInAnonymously(window.auth);
-                }
-
             } catch (error) {
-                // Captura erros críticos durante a inicialização do Firebase
-                console.error("Erro crítico ao inicializar Firebase:", error);
-                document.getElementById('user-id-display').textContent = `Erro de Inicialização!`;
-                showMessage('Erro crítico ao inicializar o Firebase. Verifique a configuração da sua conta Firebase e a chave API. Erro: ' + error.message, 'error');
-                // Desabilita todos os elementos da UI e mostra a aba padrão se a inicialização falhar
-                toggleWeeklyClosingUIEnabled(false);
-                toggleInventoryUIEnabled(false);
-                toggleFichasUIEnabled(false);
+                console.error("Erro ao inicializar Firebase:", error);
+                showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
             }
         }
 
@@ -159,47 +115,19 @@
                 await signOut(window.auth);
                 showMessage('Sessão encerrada.', 'info');
                 // Limpar dados locais ao sair
-                weeklyCollaborators = [];
-                weeklyProducts = [];
-                window.productsInventory = [];
                 fichas = [];
-                renderWeeklyClosingUI();
-                renderInventoryProductsList();
-                renderFichasList();
-                updateWeeklyDateDisplay();
-                calculateWeeklyAllTotals();
-                // Re-desabilitar a UI após o logout
-                toggleWeeklyClosingUIEnabled(false);
-                toggleInventoryUIEnabled(false);
-                toggleFichasUIEnabled(false);
+                renderFichasTable();
+                clearInputFields();
             } catch (error) {
                 console.error("Erro ao sair:", error);
                 showMessage('Erro ao sair: ' + error.message, 'error');
             }
         }
 
-        // Função para forçar o logout e recarregar a página
-        function forceSignOutAndReload() {
-            console.log("Attempting force signOut and reload...");
-            if (window.auth && window.auth.currentUser) {
-                signOut(window.auth).then(() => {
-                    console.log("Firebase signOut successful. Reloading page.");
-                    location.reload();
-                }).catch((error) => {
-                    console.error("Error during Firebase signOut:", error);
-                    showMessage('Erro ao tentar sair: ' + error.message + '. Recarregando a página...', 'error');
-                    location.reload(); // Still force reload even if signOut fails
-                });
-            } else {
-                console.log("No active Firebase user to sign out. Forcing page reload.");
-                location.reload();
-            }
-        }
-
         // Chamar a inicialização do Firebase quando o DOM estiver pronto
         document.addEventListener('DOMContentLoaded', initializeFirebase);
 
-        // Expondo as funções do Firestore SDK diretamente
+        // Expondo as funções do Firestore SDK diretamente, se necessário
         window.doc = doc;
         window.getDoc = getDoc;
         window.setDoc = setDoc;
@@ -208,36 +136,39 @@
         window.query = query;
         window.where = where;
         window.getDocs = getDocs;
-        window.addDoc = addDoc;
-        window.onSnapshot = onSnapshot;
+        window.addDoc = addDoc; // Adicionado para adicionar novos documentos
+        // Expondo funções de autenticação para o HTML
         window.signInWithGoogle = signInWithGoogle;
         window.signOutUser = signOutUser;
-        window.forceSignOutAndReload = forceSignOutAndReload; // Expor a nova função
     </script>
 
     <style>
+        /* Define a fonte Inter para todo o corpo da página */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
+            background-color: #f0f2f5; /* Cor de fundo suave para a página */
         }
+        /* Esconde as setas de incremento/decremento em campos de número no Webkit (Chrome, Safari) */
         input[type="number"]::-webkit-inner-spin-button,
         input[type="number"]::-webkit-outer-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
+        /* Esconde as setas de incremento/decremento em campos de número no Firefox */
         input[type="number"] {
             -moz-appearance: textfield;
         }
+        /* Estilo para o modal de confirmação */
         .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
+            display: none; /* Escondido por padrão */
+            position: fixed; /* Posição fixa na tela */
+            z-index: 1000; /* Acima de tudo */
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4);
+            overflow: auto; /* Habilita rolagem se necessário */
+            background-color: rgba(0,0,0,0.4); /* Fundo semi-transparente */
             justify-content: center;
             align-items: center;
             padding: 1rem;
@@ -268,514 +199,125 @@
             flex: 1;
         }
         .modal-button.confirm {
-            background-color: #ef4444;
+            background-color: #ef4444; /* red-500 */
             color: white;
         }
         .modal-button.confirm:hover {
-            background-color: #dc2626;
+            background-color: #dc2626; /* red-600 */
         }
         .modal-button.cancel {
-            background-color: #d1d5db;
-            color: #1f2937;
+            background-color: #d1d5db; /* gray-300 */
+            color: #1f2937; /* gray-800 */
         }
         .modal-button.cancel:hover {
-            background-color: #9ca3af;
-        }
-        /* Estilos específicos para o modal de relatórios salvos (Fechamento Semanal) */
-        #weekly-saved-reports-modal .modal-content {
-            max-width: 600px;
-            text-align: left;
-        }
-        #weekly-saved-reports-list {
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        #weekly-saved-reports-list div {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #e5e7eb;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        #weekly-saved-reports-list div:last-child {
-            border-bottom: none;
-        }
-        #weekly-saved-reports-list div.selected {
-            background-color: #a78bfa; /* purple-300 */
-            color: white; /* Make text white for better contrast */
-            font-weight: 600;
-            border: 2px solid #6d28d9; /* purple-700 */
-        }
-        #weekly-saved-reports-list div:hover {
-            background-color: #f3f4f6;
-        }
-
-        /* Estilos específicos para o modal de inventários salvos (Estoque) */
-        #inventory-saved-reports-modal .modal-content {
-            max-width: 600px;
-            text-align: left;
-        }
-        #inventory-saved-reports-list {
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        #inventory-saved-reports-list div {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #e5e7eb;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        #inventory-saved-reports-list div:last-child {
-            border-bottom: none;
-        }
-        #inventory-saved-reports-list div.selected {
-            background-color: #a78bfa; /* purple-300 */
-            color: white; /* Make text white for better contrast */
-            font-weight: 600;
-            border: 2px solid #6d28d9; /* purple-700 */
-        }
-        #inventory-saved-reports-list div:hover {
-            background-color: #f3f4f6;
-        }
-
-        /* Estilos específicos para o modal de fichas salvas */
-        #ficha-saved-reports-modal .modal-content {
-            max-width: 600px;
-            text-align: left;
-        }
-        #ficha-saved-reports-list {
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        #ficha-saved-reports-list div {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #e5e7eb;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        #ficha-saved-reports-list div:last-child {
-            border-bottom: none;
-        }
-        #ficha-saved-reports-list div.selected {
-            background-color: #a78bfa; /* purple-300 */
-            color: white; /* Make text white for better contrast */
-            font-weight: 600;
-            border: 2px solid #6d28d9; /* purple-700 */
-        }
-        #ficha-saved-reports-list div:hover {
-            background-color: #f3f4f6;
-        }
-
-        /* Estilo para baixo estoque */
-        .low-stock {
-            background-color: #fee2e2; /* red-100 */
-            border-left: 4px solid #ef4444; /* red-500 */
+            background-color: #9ca3af; /* gray-400 */
         }
     </style>
 </head>
 <body class="p-4 md:p-8">
+    <!-- Main container, centered and with max-width for larger screens -->
     <div class="max-w-4xl mx-auto bg-white p-6 md:p-8 rounded-xl shadow-lg border border-gray-200">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Sistema Integrado de Gestão do Salão</h1>
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Registro de Fichas de Cliente</h1>
 
         <!-- ID do Usuário e Botões de Autenticação -->
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
-            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">Usuário: Carregando...</p>
+            <p id="user-id-display" class="text-sm text-gray-500 text-center sm:text-left">ID do Usuário: Carregando...</p>
             <div id="auth-buttons" class="flex gap-2">
                 <!-- Botões de autenticação serão injetados aqui pelo JavaScript -->
             </div>
-            <button onclick="forceSignOutAndReload()" class="bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 focus:ring-2 focus:ring-gray-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                Forçar Sair
-            </button>
         </div>
 
-        <!-- Área para mensagens de feedback -->
+        <!-- Area for feedback messages -->
         <div id="app-message" class="hidden mb-4 p-3 rounded-lg text-center font-medium"></div>
 
-        <!-- Seção de Fichas de Atendimento (Primeira por padrão) -->
-        <div id="fichas-section" class="mb-12">
-            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Fichas de Atendimento</h2>
-
-            <!-- Formulário para Adicionar/Editar Ficha -->
-            <div class="mb-8 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <h3 class="text-xl font-semibold text-purple-700 mb-4">Adicionar/Editar Ficha</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label for="ficha-collaborator-name" class="block text-sm font-medium text-gray-700 mb-1">Nome da Colaboradora</label>
-                        <input type="text" id="ficha-collaborator-name" placeholder="Nome da Colaboradora" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label for="ficha-client-name" class="block text-sm font-medium text-gray-700 mb-1">Nome da Cliente</label>
-                        <input type="text" id="ficha-client-name" placeholder="Nome da Cliente" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label for="ficha-date" class="block text-sm font-medium text-gray-700 mb-1">Data do Atendimento</label>
-                        <input type="date" id="ficha-date" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-                    </div>
+        <!-- Ficha Input Section -->
+        <div class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h2 class="text-xl font-semibold text-blue-700 mb-4">Nova Ficha de Atendimento</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="clientName" class="block text-sm font-medium text-gray-700 mb-1">Nome da Cliente</label>
+                    <input type="text" id="clientName" placeholder="Nome Completo da Cliente" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
                 </div>
-
-                <h4 class="text-lg font-semibold text-purple-700 mt-6 mb-3">Serviços Prestados</h4>
-                <div id="ficha-services-container" class="space-y-2">
-                    <!-- Linhas de serviço serão adicionadas aqui -->
+                <div>
+                    <label for="professionalName" class="block text-sm font-medium text-gray-700 mb-1">Nome da Profissional</label>
+                    <input type="text" id="professionalName" placeholder="Nome da Profissional" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
                 </div>
-                <button onclick="addFichaServiceRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
+            </div>
+
+            <div class="mt-4">
+                <h3 class="text-md font-medium text-gray-700 mb-2">Serviços</h3>
+                <div id="services-container">
+                    <!-- Service rows will be added dynamically here -->
+                </div>
+                <button onclick="addServiceRow()" class="w-full bg-blue-400 text-white py-2 px-4 rounded-lg hover:bg-blue-500 focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-2">
                     Adicionar Serviço
                 </button>
-                <div class="mt-4 text-right">
-                    <p class="text-md font-bold text-gray-800">Total Serviços: <span id="ficha-total-services">R$ 0,00</span></p>
-                </div>
+            </div>
 
-                <h4 class="text-lg font-semibold text-purple-700 mt-6 mb-3">Produtos Vendidos</h4>
-                <div id="ficha-products-container" class="space-y-2">
-                    <!-- Linhas de produto serão adicionadas aqui -->
+            <div class="mt-4">
+                <h3 class="text-md font-medium text-gray-700 mb-2">Produtos Vendidos (Opcional)</h3>
+                <div id="products-sold-container">
+                    <!-- Products sold rows will be added dynamically here -->
                 </div>
-                <button onclick="addFichaProductRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
+                <button onclick="addProductSoldRow()" class="w-full bg-green-400 text-white py-2 px-4 rounded-lg hover:bg-green-500 focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-2">
                     Adicionar Produto
                 </button>
-                <div class="mt-4 text-right">
-                    <p class="text-md font-bold text-gray-800">Total Produtos: <span id="ficha-total-products">R$ 0,00</span></p>
-                </div>
-
-                <div class="mt-6">
-                    <label for="ficha-notes" class="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-                    <textarea id="ficha-notes" rows="3" placeholder="Notas sobre o atendimento..." class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm"></textarea>
-                </div>
-
-                <div class="mt-4 text-right">
-                    <p class="text-lg font-bold text-gray-800">Total Geral da Ficha: <span id="ficha-total-general">R$ 0,00</span></p>
-                </div>
-
-                <div class="flex flex-col sm:flex-row gap-3 mt-6">
-                    <button id="ficha-addFichaBtn" onclick="addFicha()" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Adicionar Ficha
-                    </button>
-                    <button id="ficha-updateFichaBtn" onclick="updateFicha()" class="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
-                        Atualizar Ficha
-                    </button>
-                    <button id="ficha-cancelEditBtn" onclick="cancelFichaEdit()" class="flex-1 bg-gray-400 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
-                        Cancelar Edição
-                    </button>
-                </div>
             </div>
 
-            <!-- Lista de Fichas -->
-            <div class="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
-                <h3 class="text-xl font-semibold text-green-700 mb-4">Fichas Registradas</h3>
-                <div id="fichas-list-container" class="space-y-3">
-                    <!-- Fichas serão listadas aqui -->
-                    <p class="text-center text-gray-500">Nenhuma ficha registrada. Adicione uma acima.</p>
-                </div>
-                <div class="mt-6 text-center flex flex-col sm:flex-row gap-3 justify-center">
-                    <button id="ficha-exportFichasBtn" onclick="exportFichasToFile()" class="bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Exportar Fichas para Arquivo
-                    </button>
-                    <button id="ficha-importFichasFromFileBtn" onclick="importFichasFromFile()" class="bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Importar Fichas de Arquivo
-                    </button>
-                    <button id="ficha-saveToFirestoreBtn" onclick="saveFichasToFirestore()" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Salvar no Firestore
-                    </button>
-                    <button id="ficha-loadFromFirestoreBtn" onclick="openFichaSavedReportsModal()" class="bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Carregar do Firestore
-                    </button>
-                    <button id="ficha-clearAllFichasBtn" onclick="showFichaClearConfirm()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Limpar Todas as Fichas
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Seção de Fechamento Semanal -->
-        <div id="weekly-closing-section" class="mb-12">
-            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Fechamento Semanal</h2>
-
-            <!-- Seção de Entrada de Data e Opções de Salvamento/Carregamento -->
-            <div class="mb-8 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <h3 class="text-xl font-semibold text-purple-700 mb-4">Informações do Fechamento</h3>
-                
-                <h4 class="text-lg font-semibold text-purple-700 mb-4">Data do Fechamento Semanal</h4>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label for="weekly-day" class="block text-sm font-medium text-gray-700 mb-1">Dia</label>
-                        <input type="number" id="weekly-day" min="1" max="31" placeholder="Dia" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label for="weekly-month" class="block text-sm font-medium text-gray-700 mb-1">Mês</label>
-                        <select id="weekly-month" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-                            <option value="">Selecione o Mês</option>
-                            <option value="1">Janeiro</option>
-                            <option value="2">Fevereiro</option>
-                            <option value="3">Março</option>
-                            <option value="4">Abril</option>
-                            <option value="5">Maio</option>
-                            <option value="6">Junho</option>
-                            <option value="7">Julho</option>
-                            <option value="8">Agosto</option>
-                            <option value="9">Setembro</option>
-                            <option value="10">Outubro</option>
-                            <option value="11">Novembro</option>
-                            <option value="12">Dezembro</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="weekly-year" class="block text-sm font-medium text-gray-700 mb-1">Ano</label>
-                        <input type="number" id="weekly-year" min="2000" max="2100" placeholder="Ano" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-                    </div>
-                </div>
-                <p id="weekly-dateDisplay" class="text-center text-lg font-medium text-gray-800 mt-4"></p>
-
-                <div class="mt-6 border-t pt-4 border-purple-200">
-                    <h4 class="text-lg font-semibold text-purple-700 mb-3">Opções de Dados</h4>
-                    <div class="flex flex-col sm:flex-row gap-3">
-                        <button id="weekly-exportDataToFileBtn" onclick="exportWeeklyDataToFile()" class="flex-1 bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                            Exportar Dados para Arquivo
-                        </button>
-                        <button id="weekly-importDataFromFileBtn" onclick="importWeeklyDataFromFile()" class="flex-1 bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                            Importar Dados de Arquivo
-                        </button>
-                        <button id="weekly-saveToFirestoreBtn" onclick="saveWeeklyClosingToFirestore()" class="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                            Salvar no Firestore
-                        </button>
-                        <button id="weekly-loadFromFirestoreBtn" onclick="openWeeklySavedReportsModal()" class="flex-1 bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                            Carregar do Firestore
-                        </button>
-                        <button id="weekly-loadDataFromFichasSystemBtn" onclick="loadWeeklyDataFromFichasSystem()" class="flex-1 bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                            Importar Dados das Fichas
-                        </button>
-                        <button id="weekly-clearAllDataBtn" onclick="showWeeklyClearConfirm()" class="flex-1 bg-gray-300 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-400 focus:ring-2 focus://ring-gray-300 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                            Limpar Tudo
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Seção de Colaboradoras -->
-            <div id="weekly-collaborators-section" class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold text-blue-700">Colaboradoras</h3>
-                </div>
-                <div id="weekly-collaborators-container">
-                    <!-- As seções das colaboradoras serão adicionadas dinamicamente aqui -->
-                </div>
-                <button onclick="addWeeklyCollaborator()" class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                    Adicionar Colaboradora
+            <div class="mt-6 flex justify-end">
+                <button id="addFichaBtn" onclick="addFicha()" class="bg-indigo-600 text-white py-3 px-6 rounded-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md text-lg font-bold" disabled>
+                    Registrar Ficha
                 </button>
             </div>
+        </div>
 
-            <!-- Seção de Produtos Vendidos -->
-            <div id="weekly-products-section" class="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
-                <h3 class="text-xl font-semibold text-green-700 mb-4">Produtos Vendidos</h3>
-                <div id="weekly-products-container">
-                    <!-- As linhas de produto serão adicionadas dinamicamente aqui -->
-                </div>
-                <button onclick="addWeeklyProductRow()" class="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md mt-4">
-                    Adicionar Produto
+        <!-- Recorded Fichas Section -->
+        <div class="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Fichas Registradas</h2>
+            <div id="fichas-list" class="overflow-x-auto">
+                <table class="min-w-full bg-white rounded-lg shadow-md">
+                    <thead>
+                        <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
+                            <th class="py-3 px-6 text-left">Cliente</th>
+                            <th class="py-3 px-6 text-left">Profissional</th>
+                            <th class="py-3 px-6 text-left">Serviços</th>
+                            <th class="py-3 px-6 text-left">Produtos</th>
+                            <th class="py-3 px-6 text-center">Total Ficha</th>
+                            <th class="py-3 px-6 text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-600 text-sm font-light" id="fichas-table-body">
+                        <!-- Fichas will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                <button id="clearAllFichasBtn" onclick="showClearAllFichasConfirm()" class="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
+                    Limpar Todas as Fichas
                 </button>
-                <div class="mt-4 text-right">
-                    <p class="text-lg font-bold text-gray-800">Total Produtos: <span id="weekly-products-total">R$ 0,00</span></p>
-                </div>
-            </div>
-
-            <!-- Seção de Resumo Geral -->
-            <div class="mb-8 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                <h3 class="text-xl font-semibold text-yellow-700 mb-4">Resumo Geral</h3>
-                <div class="text-right space-y-2">
-                    <p class="text-lg font-bold text-gray-800">Total Bruto Geral: <span id="weekly-overall-gross-total">R$ 0,00</span></p>
-                    <p class="text-lg font-bold text-gray-800">Total Líquido Geral (c/ desconto): <span id="weekly-overall-net-total">R$ 0,00</span></p>
-                </div>
-                <!-- Visualização de Resumo Aprimorada (textual) -->
-                <div class="mt-4 pt-4 border-t border-yellow-200">
-                    <h4 class="text-lg font-semibold text-gray-800 mb-2">Detalhes da Contribuição:</h4>
-                    <div id="weekly-detailed-contribution" class="text-gray-700">
-                        <!-- Detalhes da contribuição serão preenchidos aqui -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Botão de Exportar PDF Global -->
-            <button id="weekly-generatePdfBtn" onclick="generateWeeklyPDF()" class="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-xl text-lg font-bold">
-                Gerar PDF do Fechamento
-            </button>
-        </div>
-
-        <!-- Seção de Gestão de Estoque -->
-        <div id="inventory-section" class="mb-12">
-            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Gestão de Estoque de Produtos</h2>
-
-            <!-- Formulário para Adicionar/Editar Produto -->
-            <div class="mb-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h3 class="text-xl font-semibold text-blue-700 mb-4">Adicionar/Editar Produto</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label for="inventory-product-name" class="block text-sm font-medium text-gray-700 mb-1">Nome do Produto</label>
-                        <input type="text" id="inventory-product-name" placeholder="Ex: Shampoo Hidratante" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label for="inventory-product-category" class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-                        <input type="text" id="inventory-product-category" placeholder="Ex: Cuidado Capilar, Coloração" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label for="inventory-product-stock" class="block text-sm font-medium text-gray-700 mb-1">Estoque Atual</label>
-                        <input type="number" id="inventory-product-stock" min="0" value="0" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label for="inventory-product-min-stock" class="block text-sm font-medium text-gray-700 mb-1">Nível Mínimo de Estoque</label>
-                        <input type="number" id="inventory-product-min-stock" min="0" value="0" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label for="inventory-product-unit" class="block text-sm font-medium text-gray-700 mb-1">Unidade</label>
-                        <input type="text" id="inventory-product-unit" placeholder="Ex: litro, tubo, rolo" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm">
-                    </div>
-                </div>
-                <div class="flex flex-col sm:flex-row gap-3 mt-4">
-                    <button id="inventory-addProductBtn" onclick="addInventoryProduct()" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Adicionar Produto
-                    </button>
-                    <button id="inventory-updateProductBtn" onclick="updateInventoryProduct()" class="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
-                        Atualizar Produto
-                    </button>
-                    <button id="inventory-cancelEditBtn" onclick="cancelInventoryEdit()" class="flex-1 bg-gray-400 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
-                        Cancelar Edição
-                    </button>
-                </div>
-            </div>
-
-            <!-- Lista de Produtos em Estoque -->
-            <div class="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
-                <h3 class="text-xl font-semibold text-green-700 mb-4">Produtos em Estoque</h3>
-                <div id="inventory-products-list-container" class="space-y-3">
-                    <!-- Produtos serão listados aqui -->
-                    <p class="text-center text-gray-500">Nenhum produto em estoque. Adicione um acima.</p>
-                </div>
-                <div class="mt-6 text-center flex flex-col sm:flex-row gap-3 justify-center">
-                    <button id="inventory-exportInventoryBtn" onclick="exportInventoryToFile()" class="bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Exportar Estoque para Arquivo
-                    </button>
-                    <button id="inventory-importInventoryFromFileBtn" onclick="importInventoryFromFile()" class="flex-1 bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Importar Estoque de Arquivo
-                    </button>
-                    <button id="inventory-saveToFirestoreBtn" onclick="saveInventoryToFirestore()" class="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Salvar no Firestore
-                    </button>
-                    <button id="inventory-loadFromFirestoreBtn" onclick="openInventorySavedReportsModal()" class="flex-1 bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Carregar do Firestore
-                    </button>
-                    <button id="inventory-generatePdfBtn" onclick="generateInventoryPDF()" class="flex-1 bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Gerar PDF do Estoque
-                    </button>
-                    <button id="inventory-clearAllProductsBtn" onclick="showInventoryClearConfirm()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Limpar Todo o Estoque
-                    </button>
-                </div>
+                <button id="exportWeeklyDataBtn" onclick="generateAndExportWeeklyData()" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md" disabled>
+                    Exportar Dados para Fechamento Semanal
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Modal de Confirmação para Limpar Tudo (Fechamento Semanal) -->
-    <div id="weekly-custom-confirm-modal" class="modal">
+    <!-- Modal de Confirmação para Limpar Tudo -->
+    <div id="custom-confirm-modal" class="modal">
         <div class="modal-content">
-            <p class="text-lg font-semibold text-gray-800 mb-4">Tem certeza que deseja limpar todos os dados do fechamento semanal?</p>
+            <p class="text-lg font-semibold text-gray-800 mb-4">Tem certeza que deseja limpar todas as fichas?</p>
             <p class="text-sm text-gray-600">Esta ação não pode ser desfeita.</p>
             <div class="modal-buttons">
-                <button class="modal-button cancel" onclick="handleWeeklyClearConfirm(false)">Cancelar</button>
-                <button class="modal-button confirm" onclick="handleWeeklyClearConfirm(true)">Limpar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Novo Modal para Relatórios Salvos (Fechamento Semanal) -->
-    <div id="weekly-saved-reports-modal" class="modal">
-        <div class="modal-content">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Escolha um Fechamento Salvo</h2>
-            <div id="weekly-saved-reports-list" class="mb-4">
-                <!-- Lista de relatórios salvos será carregada aqui -->
-            </div>
-            <div class="modal-buttons">
-                <button class="modal-button cancel" onclick="closeWeeklySavedReportsModal()">Fechar</button>
-                <button class="modal-button confirm bg-blue-500 hover:bg-blue-600" onclick="loadWeeklySelectedReport()">Carregar Selecionado</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal de Confirmação para Limpar Tudo (Estoque) -->
-    <div id="inventory-custom-confirm-modal" class="modal">
-        <div class="modal-content">
-            <p class="text-lg font-semibold text-gray-800 mb-4">Tem certeza que deseja limpar todo o estoque de produtos?</p>
-            <p class="text-sm text-gray-600">Esta ação não pode ser desfeita.</p>
-            <div class="modal-buttons">
-                <button class="modal-button cancel" onclick="handleInventoryClearConfirm(false)">Cancelar</button>
-                <button class="modal-button confirm" onclick="handleInventoryClearConfirm(true)">Limpar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Novo Modal para Inventários Salvos (Estoque) -->
-    <div id="inventory-saved-reports-modal" class="modal">
-        <div class="modal-content">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Escolha um Inventário Salvo</h2>
-            <div id="inventory-saved-reports-list" class="mb-4">
-                <!-- Lista de inventários salvos será carregada aqui -->
-            </div>
-            <div class="modal-buttons">
-                <button class="modal-button cancel" onclick="closeInventorySavedReportsModal()">Fechar</button>
-                <button class="modal-button confirm bg-blue-500 hover:bg-blue-600" onclick="loadInventorySelectedReport()">Carregar Selecionado</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal de Confirmação para Limpar Tudo (Fichas) -->
-    <div id="ficha-custom-confirm-modal" class="modal">
-        <div class="modal-content">
-            <p class="text-lg font-semibold text-gray-800 mb-4">Tem certeza que deseja limpar todas as fichas de atendimento?</p>
-            <p class="text-sm text-gray-600">Esta ação não pode ser desfeita.</p>
-            <div class="modal-buttons">
-                <button class="modal-button cancel" onclick="handleFichaClearConfirm(false)">Cancelar</button>
-                <button class="modal-button confirm" onclick="handleFichaClearConfirm(true)">Limpar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Novo Modal para Fichas Salvas -->
-    <div id="ficha-saved-reports-modal" class="modal">
-        <div class="modal-content">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Escolha uma Ficha Salva</h2>
-            <div id="ficha-saved-reports-list" class="mb-4">
-                <!-- Lista de fichas salvas será carregada aqui -->
-            </div>
-            <div class="modal-buttons">
-                <button class="modal-button cancel" onclick="closeFichaSavedReportsModal()">Fechar</button>
-                <button class="modal-button confirm bg-blue-500 hover:bg-blue-600" onclick="loadFichaSelectedReport()">Carregar Selecionado</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Generic Custom Confirmation Modal -->
-    <div id="generic-custom-confirm-modal" class="modal">
-        <div class="modal-content">
-            <p id="generic-confirm-message" class="text-lg font-semibold text-gray-800 mb-4"></p>
-            <p id="generic-confirm-submessage" class="text-sm text-gray-600"></p>
-            <div class="modal-buttons">
-                <button class="modal-button cancel" onclick="genericConfirmCallback(false)">Cancelar</button>
-                <button class="modal-button confirm" onclick="genericConfirmCallback(true)">Confirmar</button>
+                <button class="modal-button cancel" onclick="handleClearAllFichasConfirm(false)">Cancelar</button>
+                <button class="modal-button confirm" onclick="handleClearAllFichasConfirm(true)">Limpar Tudo</button>
             </div>
         </div>
     </div>
 
     <script>
-        // --- Funções de Feedback e Confirmação (Genéricas) ---
+        let fichas = []; // Array local para armazenar os objetos de ficha (para renderização e agregação)
+
+        // --- Helper Functions for Messages and Modals ---
         function showMessage(message, type = 'success') {
             const msgDiv = document.getElementById('app-message');
             msgDiv.textContent = message;
@@ -793,2271 +335,372 @@
             }, 5000);
         }
 
-        // --- Funções do Modal de Confirmação Genérico ---
-        let currentConfirmCallback = null; // Já declarado globalmente no início do script
-
-        function showGenericConfirm(message, subMessage, callback) {
-            const modal = document.getElementById('generic-custom-confirm-modal');
-            const msgEl = document.getElementById('generic-confirm-message');
-            const subMsgEl = document.getElementById('generic-confirm-submessage');
-
-            if (modal && msgEl && subMsgEl) {
-                msgEl.textContent = message;
-                subMsgEl.textContent = subMessage;
-                currentConfirmCallback = callback;
-                modal.style.display = 'flex';
-            } else {
-                console.error("Erro: Elementos do modal de confirmação genérico não encontrados. Usando confirm() nativo como fallback.");
-                // Fallback para confirm() nativo se os elementos do modal não forem encontrados
-                if (window.confirm(message + "\n" + subMessage)) {
-                    callback(true);
-                } else {
-                    callback(false);
-                }
-            }
-        }
-
-        function genericConfirmCallback(confirmed) {
-            const modal = document.getElementById('generic-custom-confirm-modal');
-            if (modal) modal.style.display = 'none';
-            if (currentConfirmCallback) {
-                currentConfirmCallback(confirmed);
-                currentConfirmCallback = null; // Reset callback
-            }
-        }
-
-        // --- Funções do Sistema de Fechamento Semanal ---
-
-        // Função para habilitar/desabilitar botões e campos após autenticação (Fechamento Semanal)
-        function toggleWeeklyClosingUIEnabled(enabled) {
-            console.log(`toggleWeeklyClosingUIEnabled called with enabled: ${enabled}`);
-            const section = document.getElementById('weekly-closing-section');
-            if (!section) return;
-
-            section.querySelectorAll('input, select, button, textarea').forEach(el => {
-                // Excluir os botões de autenticação do toggle, pois eles são gerenciados separadamente
-                if (el.id === 'signInWithGoogleBtn' || el.id === 'signOutUserBtn' || el.id === 'forceSignOutAndReloadBtn') {
-                    return;
-                }
-                el.disabled = !enabled;
-            });
-        }
-
-        // Função de inicialização da lógica da aplicação (chamada após autenticação Firebase)
-        function initializeWeeklyClosingLogic() {
-            console.log("initializeWeeklyClosingLogic called. window.db:", window.db, "window.userId:", window.userId);
-            if (weeklyCollaborators.length === 0) {
-                weeklyCollaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
-            }
-            if (weeklyProducts.length === 0) {
-                weeklyProducts.push({ clientName: '', value: 0 });
-            }
-            
-            renderWeeklyClosingUI(); 
-            updateWeeklyDateDisplay();
-            calculateWeeklyAllTotals();
-        }
-
-        function updateWeeklyDateDisplay() {
-            const day = document.getElementById('weekly-day');
-            const month = document.getElementById('weekly-month');
-            const year = document.getElementById('weekly-year');
-            const monthName = month && month.options[month.selectedIndex] ? month.options[month.selectedIndex].text : '';
-
-            const dateDisplay = document.getElementById('weekly-dateDisplay');
-            if (dateDisplay) { // Added null check
-                if (day && month && year && day.value && month.value && year.value) {
-                    dateDisplay.textContent = `Fechamento semana do dia ${day.value} de ${monthName} de ${year.value}`;
-                } else {
-                    dateDisplay.textContent = 'Preencha a data para exibir.';
-                }
-            }
-        }
-
-        function exportWeeklyDataToFile() {
-            const dataToSave = {
-                salonName: weeklySalonName,
-                collaborators: weeklyCollaborators,
-                products: weeklyProducts,
-                date: {
-                    day: document.getElementById('weekly-day').value,
-                    month: document.getElementById('weekly-month').value,
-                    year: document.getElementById('weekly-year').value
-                },
-                notes: ""
-            };
-
-            const jsonString = JSON.stringify(dataToSave, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `fechamento_salao_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showMessage('Dados exportados para "fechamento_salao.json"!', 'success');
-        }
-
-        function importWeeklyDataFromFile() {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.json';
-
-            fileInput.onchange = (event) => {
-                const file = event.target.files[0];
-                if (!file) {
-                    showMessage('Nenhum arquivo selecionado.', 'info');
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const importedData = JSON.parse(e.target.result);
-
-                        if (importedData.collaborators && Array.isArray(importedData.collaborators) &&
-                            importedData.products && Array.isArray(importedData.products) &&
-                            importedData.date && typeof importedData.date === 'object') {
-
-                            weeklyCollaborators = importedData.collaborators;
-                            weeklyProducts = importedData.products;
-                            weeklySalonName = importedData.salonName || 'Salão de Beleza';
-
-                            weeklyCollaborators.forEach(collab => {
-                                if (collab.discountPercentage === undefined) {
-                                    collab.discountPercentage = 0.30;
-                                }
-                            });
-
-                            const weeklyDayEl = document.getElementById('weekly-day');
-                            const weeklyMonthEl = document.getElementById('weekly-month');
-                            const weeklyYearEl = document.getElementById('weekly-year');
-
-                            if (weeklyDayEl) weeklyDayEl.value = importedData.date.day || '';
-                            if (weeklyMonthEl) weeklyMonthEl.value = importedData.date.month || '';
-                            if (weeklyYearEl) weeklyYearEl.value = importedData.date.year || '';
-                            
-                            renderWeeklyClosingUI();
-                            showMessage('Dados importados com sucesso!', 'success');
-                        } else {
-                            showMessage('Formato de arquivo JSON inválido. Verifique se é um arquivo de fechamento do salão.', 'error');
-                        }
-                    } catch (parseError) {
-                        showMessage('Erro ao ler o arquivo: Não é um JSON válido.', 'error');
-                    }
-                };
-                reader.readAsText(file);
-            };
-
-            fileInput.click();
-        }
-
-        async function saveWeeklyClosingToFirestore() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para salvar dados no Firestore.', 'error');
-                return;
-            }
-
-            const day = document.getElementById('weekly-day').value;
-            const month = document.getElementById('weekly-month').value;
-            const year = document.getElementById('weekly-year').value;
-
-            if (!day || !month || !year) {
-                showMessage('Por favor, preencha o dia, mês e ano para salvar o fechamento.', 'error');
-                return;
-            }
-
-            showMessage('Salvando dados do fechamento semanal no Firestore...', 'info');
-
-            const dataToSave = {
-                salonName: weeklySalonName,
-                collaborators: weeklyCollaborators,
-                products: weeklyProducts,
-                date: {
-                    day: day,
-                    month: month,
-                    year: year
-                },
-                notes: "",
-                lastSaved: new Date().toISOString()
-            };
-
-            try {
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
-                await window.addDoc(collectionRef, dataToSave);
-                showMessage('Dados do fechamento semanal salvos no Firestore!', 'success');
-            } catch (e) {
-                console.error("Erro ao salvar dados do fechamento semanal no Firestore: ", e);
-                showMessage('Erro ao salvar dados na nuvem: ' + e.message, 'error');
-            }
-        }
-
-        async function openWeeklySavedReportsModal() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para carregar dados do Firestore.', 'error');
-                return;
-            }
-
-            showMessage('Buscando relatórios salvos...', 'info');
-            const reportsListDiv = document.getElementById('weekly-saved-reports-list');
-            if (!reportsListDiv) { // Added null check
-                console.error("Element 'weekly-saved-reports-list' not found.");
-                showMessage('Erro: Elemento de lista de relatórios não encontrado.', 'error');
-                return;
-            }
-            reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Carregando...</p>';
-            weeklySelectedReportId = null;
-
-            try {
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
-                const querySnapshot = await window.getDocs(collectionRef);
-                
-                weeklySavedReports = [];
-                if (querySnapshot.empty) {
-                    reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Nenhum fechamento semanal salvo.</p>';
-                    showMessage('Nenhum fechamento semanal salvo para carregar.', 'info');
-                    return;
-                }
-
-                reportsListDiv.innerHTML = '';
-                querySnapshot.forEach(doc => {
-                    const data = doc.data();
-                    weeklySavedReports.push({ id: doc.id, ...data });
-
-                    const reportItem = document.createElement('div');
-                    reportItem.setAttribute('data-report-id', doc.id);
-                    const date = data.date;
-                    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-                    const formattedDate = date.day && date.month && date.year ? 
-                                          `${date.day} de ${monthNames[parseInt(date.month) - 1]} de ${date.year}` : 
-                                          'Data Indefinida';
-                    
-                    const savedDate = data.lastSaved ? new Date(data.lastSaved).toLocaleDateString('pt-BR') : 'Desconhecida';
-                    const savedTime = data.lastSaved ? new Date(data.lastSaved).toLocaleTimeString('pt-BR') : '';
-
-                    reportItem.innerHTML = `
-                        <div>
-                            <p class="font-medium">Fechamento: ${formattedDate}</p>
-                            <p class="text-xs text-gray-500">Salvo em: ${savedDate} às ${savedTime}</p>
-                        </div>
-                        <button class="text-red-500 hover:text-red-700 text-sm" onclick="event.stopPropagation(); deleteWeeklySavedReport('${doc.id}')">Excluir</button>
-                    `;
-                    reportItem.onclick = (event) => selectWeeklyReport(event, doc.id);
-                    reportsListDiv.appendChild(reportItem);
-                });
-
-                const modal = document.getElementById('weekly-saved-reports-modal');
-                if (modal) modal.style.display = 'flex'; // Added null check
-                showMessage('Relatórios salvos carregados!', 'success');
-
-            } catch (error) {
-                console.error('Erro ao carregar relatórios salvos do Firestore:', error);
-                showMessage('Erro ao carregar relatórios salvos: ' + error.message, 'error');
-            }
-        }
-
-        function closeWeeklySavedReportsModal() {
-            const modal = document.getElementById('weekly-saved-reports-modal');
-            if (modal) modal.style.display = 'none'; // Added null check
-        }
-
-        function selectWeeklyReport(event, reportId) {
-            document.querySelectorAll('#weekly-saved-reports-list div').forEach(item => {
-                item.classList.remove('selected');
-            });
-            event.currentTarget.classList.add('selected');
-            weeklySelectedReportId = reportId;
-        }
-
-        async function loadWeeklySelectedReport() {
-            if (!weeklySelectedReportId) {
-                showMessage('Por favor, selecione um fechamento para carregar.', 'info');
-                return;
-            }
-
-            showMessage('Carregando fechamento selecionado...', 'info');
-            const reportToLoad = weeklySavedReports.find(report => report.id === weeklySelectedReportId);
-
-            if (reportToLoad) {
-                weeklyCollaborators = reportToLoad.collaborators || [];
-                weeklyProducts = reportToLoad.products || [];
-                weeklySalonName = reportToLoad.salonName || 'Salão de Beleza';
-
-                const weeklyDayEl = document.getElementById('weekly-day');
-                const weeklyMonthEl = document.getElementById('weekly-month');
-                const weeklyYearEl = document.getElementById('weekly-year');
-
-                if (weeklyDayEl) weeklyDayEl.value = reportToLoad.date?.day || '';
-                if (weeklyMonthEl) weeklyMonthEl.value = reportToLoad.date?.month || '';
-                if (weeklyYearEl) weeklyYearEl.value = reportToLoad.date?.year || '';
-                
-                renderWeeklyClosingUI();
-                closeWeeklySavedReportsModal();
-                showMessage('Fechamento carregado com sucesso!', 'success');
-            } else {
-                showMessage('Erro: Fechamento selecionado não encontrado.', 'error');
-            }
-        }
-
-        async function deleteWeeklySavedReport(reportId) {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para excluir relatórios.', 'error');
-                return;
-            }
-
-            showGenericConfirm(
-                'Tem certeza que deseja excluir este relatório salvo?',
-                'Esta ação não pode ser desfeita.',
-                async (confirmed) => {
-                    if (confirmed) {
-                        try {
-                            const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`, reportId);
-                            await window.deleteDoc(docRef);
-                            showMessage('Relatório excluído com sucesso!', 'success');
-                            openWeeklySavedReportsModal(); // Recarrega a lista após exclusão
-                        } catch (error) {
-                            console.error('Erro ao excluir relatório salvo:', error);
-                            showMessage('Erro ao excluir relatório: ' + error.message, 'error');
-                        }
-                    } else {
-                        showMessage('Operação de exclusão cancelada.', 'info');
-                    }
-                }
-            );
-        }
-
-        async function loadWeeklyDataFromFichasSystem() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para importar dados das fichas.', 'error');
-                return;
-            }
-
-            showMessage('Carregando dados das fichas do Firestore...', 'info');
-            try {
-                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
-                const docSnap = await window.getDoc(docRef);
-
-                if (docSnap.exists()) {
-                    const importedData = docSnap.data();
-                    
-                    weeklyCollaborators = [];
-                    weeklyProducts = [];
-
-                    if (importedData.collaborators && Array.isArray(importedData.collaborators)) {
-                        importedData.collaborators.forEach(collab => {
-                            if (collab.discountPercentage === undefined) {
-                                collab.discountPercentage = 0.30;
-                            }
-                            weeklyCollaborators.push(collab);
-                        });
-                    }
-
-                    if (importedData.products && Array.isArray(importedData.products)) {
-                        weeklyProducts = importedData.products;
-                    }
-
-                    renderWeeklyClosingUI();
-                    showMessage('Dados importados do sistema de Fichas (Firestore) com sucesso!', 'success');
-                } else {
-                    showMessage('Nenhum dado de fechamento semanal encontrado no Firestore para importar.', 'info');
-                }
-            } catch (error) {
-                showMessage('Erro ao importar dados do Firestore: ' + error.message, 'error');
-                console.error('Erro ao importar dados do Firestore:', error);
-            }
-        }
-
-        function showWeeklyClearConfirm() {
-            const modal = document.getElementById('weekly-custom-confirm-modal');
-            if (modal) modal.style.display = 'flex'; // Added null check
-        }
-
-        function handleWeeklyClearConfirm(confirmed) {
-            const modal = document.getElementById('weekly-custom-confirm-modal');
-            if (modal) modal.style.display = 'none'; // Added null check
-            if (confirmed) {
-                clearWeeklyAllData();
-            } else {
-                showMessage('Operação de limpeza cancelada.', 'info');
-            }
-        }
-
-        async function clearWeeklyAllData() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para limpar dados no Firestore.', 'error');
-                return;
-            }
-
-            showMessage('Limpando todos os dados do fechamento semanal...', 'info');
-            try {
-                const weeklyDayEl = document.getElementById('weekly-day');
-                const weeklyMonthEl = document.getElementById('weekly-month');
-                const weeklyYearEl = document.getElementById('weekly-year');
-
-                if (weeklyDayEl) weeklyDayEl.value = '';
-                if (weeklyMonthEl) weeklyMonthEl.value = '';
-                if (weeklyYearEl) weeklyYearEl.value = '';
-
-                weeklyCollaborators = [{ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 }];
-                weeklyProducts = [{ clientName: '', value: 0 }];
-
-                const manualSavesCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
-                const manualSavesSnapshot = await window.getDocs(manualSavesCollectionRef);
-                const deleteManualSavesPromises = [];
-                manualSavesSnapshot.forEach((doc) => {
-                    deleteManualSavesPromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`, doc.id)));
-                });
-                await Promise.all(deleteManualSavesPromises);
-
-                const currentWeekDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
-                // Verifica se o documento existe antes de tentar excluí-lo
-                const currentWeekDocSnap = await window.getDoc(currentWeekDocRef);
-                if (currentWeekDocSnap.exists()) {
-                    await window.deleteDoc(currentWeekDocRef);
-                }
-                
-
-                const fichasCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
-                const querySnapshot = await window.getDocs(fichasCollectionRef);
-                const deleteFichasPromises = [];
-                querySnapshot.forEach((doc) => {
-                    deleteFichasPromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, doc.id)));
-                });
-                await Promise.all(deleteFichasPromises);
-
-                renderWeeklyClosingUI();
-                updateWeeklyDateDisplay();
-                calculateWeeklyAllTotals();
-                showMessage('Todos os dados do fechamento semanal foram limpos (local e Firestore).', 'success');
-            } catch (error) {
-                showMessage('Erro ao limpar dados do fechamento semanal no Firestore: ' + error.message, 'error');
-                console.error('Erro ao limpar dados do fechamento semanal no Firestore:', error);
-            }
-        }
-
-        function renderWeeklyClosingUI() {
-            const collaboratorsContainer = document.getElementById('weekly-collaborators-container');
-            const productsContainer = document.getElementById('weekly-products-container');
-            
-            if (collaboratorsContainer) collaboratorsContainer.innerHTML = '';
-            if (productsContainer) productsContainer.innerHTML = '';
-
-            weeklyCollaborators.forEach((collabData, index) => {
-                addWeeklyCollaboratorUI(collabData, index);
-            });
-            weeklyProducts.forEach((productData, index) => {
-                addWeeklyProductRowUI(productData, index);
-            });
-
-            updateWeeklyDateDisplay();
-            calculateWeeklyAllTotals();
-        }
-
-        function addWeeklyCollaborator() {
-            const newCollabData = { name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 };
-            weeklyCollaborators.push(newCollabData);
-            renderWeeklyClosingUI();
-        }
-
-        function addWeeklyCollaboratorUI(collabData, index) {
-            const container = document.getElementById('weekly-collaborators-container');
-            if (!container) return; // Added null check
-
-            const newCollaboratorDiv = document.createElement('div');
-            newCollaboratorDiv.className = 'collaborator-block p-4 bg-white rounded-lg shadow-md mb-6 border border-gray-200';
-            newCollaboratorDiv.setAttribute('data-index', index);
-
-            newCollaboratorDiv.innerHTML = `
-                <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
-                    <input type="text" placeholder="Nome da Colaboradora" value="${collabData.name}" class="collaborator-name flex-grow text-lg font-semibold p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 shadow-sm" oninput="updateWeeklyCollaboratorName(${index}, this.value)">
-                    <div class="flex items-center gap-2">
-                        <label for="weekly-collab-discount-${index}" class="text-sm font-medium text-gray-700">Comissão (%):</label>
-                        <input type="number" id="weekly-collab-discount-${index}" min="0" max="100" value="${(collabData.discountPercentage * 100).toFixed(0)}" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500" oninput="updateWeeklyCollaboratorDiscount(${index}, this.value)">
-                    </div>
-                    <button onclick="removeWeeklyCollaborator(this)" class="ml-auto bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            </div>
-                <h4 class="text-md font-medium text-gray-700 mb-2">Clientes</h4>
-                <div class="weekly-clients-container">
-                    <!-- Client rows will be added here dynamically -->
-                </div>
-                <button onclick="addWeeklyClientRow(${index})" class="w-full bg-blue-400 text-white py-2 px-4 rounded-lg hover:bg-blue-500 focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
-                    Adicionar Cliente
-                </button>
-                <div class="mt-4 text-right space-y-1">
-                    <p class="text-sm font-medium text-gray-700">Total: <span id="weekly-collab-total-display-${index}">R$ 0,00</span></p>
-                    <p class="text-sm font-medium text-gray-700">-<span id="weekly-collab-discount-percentage-display-${index}">${(collabData.discountPercentage * 100).toFixed(0)}</span>%: <span id="weekly-collab-discount-value-${index}">R$ 0,00</span></p>
-                    <p class="text-md font-bold text-gray-800">Total Líquido: <span id="weekly-collab-net-total-display-${index}">R$ 0,00</span></p>
-                </div>
-                <button onclick="generateWeeklyCollaboratorPDF(${index})" class="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md mt-4">
-                    Gerar PDF do Colaborador
-                </button>
-            `;
-            container.appendChild(newCollaboratorDiv);
-
-            const clientsContainer = newCollaboratorDiv.querySelector('.weekly-clients-container');
-            if (clientsContainer) { // Added null check
-                collabData.clients.forEach((clientData, clientIndex) => {
-                    addWeeklyClientRowUI(clientsContainer, index, clientData, clientIndex);
-                });
-            }
-            calculateWeeklyCollaboratorTotal(index);
-        }
-
-        function removeWeeklyCollaborator(button) {
-            const collabBlock = button.closest('.collaborator-block');
-            if (!collabBlock) return; // Added null check
-            const indexToRemove = parseInt(collabBlock.getAttribute('data-index'));
-
-            weeklyCollaborators.splice(indexToRemove, 1);
-            renderWeeklyClosingUI();
-        }
-
-        function updateWeeklyCollaboratorName(index, name) {
-            if (weeklyCollaborators[index]) {
-                weeklyCollaborators[index].name = name;
-            }
-        }
-
-        function updateWeeklyCollaboratorDiscount(index, value) {
-            let newDiscount = parseFloat(value) / 100;
-            if (isNaN(newDiscount) || newDiscount < 0 || newDiscount > 1) {
-                newDiscount = 0.30;
-                const discountEl = document.getElementById(`weekly-collab-discount-${index}`);
-                if (discountEl) discountEl.value = 30; // Added null check
-            }
-            if (weeklyCollaborators[index]) {
-                weeklyCollaborators[index].discountPercentage = newDiscount;
-                const percentageDisplay = document.getElementById(`weekly-collab-discount-percentage-display-${index}`);
-                if (percentageDisplay) percentageDisplay.textContent = (newDiscount * 100).toFixed(0); // Added null check
-                calculateWeeklyCollaboratorTotal(index);
-            }
-        }
-
-        function addWeeklyClientRowUI(container, collaboratorIndex, clientData, clientIndex) {
-            if (!container) return; // Added null check
-            const newClientDiv = document.createElement('div');
-            newClientDiv.className = 'flex items-center gap-2 mb-2 client-row';
-            newClientDiv.innerHTML = `
-                <input type="text" placeholder="Nome do Cliente" value="${clientData.name}" class="client-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 min-w-[100px]" oninput="updateWeeklyClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)">
-                <input type="number" step="0.01" min="0" placeholder="Valor" value="${clientData.value}" class="client-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500" oninput="updateWeeklyClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)">
-                <button onclick="removeWeeklyClientRow(this, ${collaboratorIndex}, ${clientIndex})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            `;
-            container.appendChild(newClientDiv);
-        }
-
-        function addWeeklyClientRow(collaboratorIndex) {
-            if (weeklyCollaborators[collaboratorIndex]) {
-                weeklyCollaborators[collaboratorIndex].clients.push({ name: '', value: 0 });
-                renderWeeklyClosingUI();
-            }
-        }
-
-        function removeWeeklyClientRow(button, collaboratorIndex, clientIndex) {
-            if (weeklyCollaborators[collaboratorIndex]) {
-                weeklyCollaborators[collaboratorIndex].clients.splice(clientIndex, 1);
-                renderWeeklyClosingUI();
-            }
-        }
-
-        function updateWeeklyClientData(collaboratorIndex, clientIndex, field, value) {
-            if (weeklyCollaborators[collaboratorIndex] && weeklyCollaborators[collaboratorIndex].clients[clientIndex]) {
-                weeklyCollaborators[collaboratorIndex].clients[clientIndex][field] = value;
-                calculateWeeklyCollaboratorTotal(collaboratorIndex);
-            }
-        }
-
-        function calculateWeeklyCollaboratorTotal(collaboratorIndex) {
-            let total = 0;
-            const collab = weeklyCollaborators[collaboratorIndex];
-            if (collab) {
-                total = collab.clients.reduce((sum, client) => sum + client.value, 0);
-                const discount = total * collab.discountPercentage;
-                const netTotal = total - discount;
-
-                const totalDisplay = document.getElementById(`weekly-collab-total-display-${collaboratorIndex}`);
-                const discountValue = document.getElementById(`weekly-collab-discount-value-${collaboratorIndex}`);
-                const netTotalDisplay = document.getElementById(`weekly-collab-net-total-display-${collaboratorIndex}`);
-
-                if (totalDisplay) totalDisplay.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
-                if (discountValue) discountValue.textContent = `R$ ${discount.toFixed(2).replace('.', ',')}`;
-                if (netTotalDisplay) netTotalDisplay.textContent = `R$ ${netTotal.toFixed(2).replace('.', ',')}`;
-            }
-
-            calculateWeeklyAllTotals();
-        }
-
-        function addWeeklyProductRow() {
-            weeklyProducts.push({ clientName: '', value: 0 });
-            renderWeeklyClosingUI();
-        }
-
-        function addWeeklyProductRowUI(productData, index) {
-            const container = document.getElementById('weekly-products-container');
-            if (!container) return; // Added null check
-
-            const newProductDiv = document.createElement('div');
-            newProductDiv.className = 'flex items-center gap-2 mb-2 product-row';
-            newProductDiv.innerHTML = `
-                <input type="text" placeholder="Nome da Cliente" value="${productData.clientName}" class="product-client-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 min-w-[120px]" oninput="updateWeeklyProductData(${index}, 'clientName', this.value)">
-                <input type="number" step="0.01" min="0" placeholder="Valor" value="${productData.value}" class="client-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-green-500 focus:border-green-500" oninput="updateWeeklyProductData(${index}, 'value', parseFloat(this.value) || 0)">
-                <button onclick="removeWeeklyProductRow(this, ${index})" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            `;
-            container.appendChild(newProductDiv);
-        }
-
-        function removeWeeklyProductRow(button, productIndex) {
-            weeklyProducts.splice(productIndex, 1);
-            renderWeeklyClosingUI();
-        }
-
-        function updateWeeklyProductData(index, field, value) {
-            if (weeklyProducts[index]) {
-                weeklyProducts[index][field] = value;
-                calculateWeeklyAllTotals();
-            }
-        }
-
-        function calculateWeeklyAllTotals() {
-            let overallGrossTotalServices = 0;
-            let overallNetTotalServices = 0;
-            let overallProductsTotal = 0;
-
-            weeklyCollaborators.forEach(collab => {
-                const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
-                overallGrossTotalServices += collabTotal;
-                overallNetTotalServices += collabTotal * (1 - collab.discountPercentage);
-            });
-
-            overallProductsTotal = weeklyProducts.reduce((sum, product) => sum + product.value, 0);
-
-            const overallGrossTotal = overallGrossTotalServices + overallProductsTotal;
-            const overallNetTotal = overallNetTotalServices + overallProductsTotal;
-
-            const productsTotalEl = document.getElementById('weekly-products-total');
-            const overallGrossTotalEl = document.getElementById('weekly-overall-gross-total');
-            const overallNetTotalEl = document.getElementById('weekly-overall-net-total');
-
-            if (productsTotalEl) productsTotalEl.textContent = `R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`;
-            if (overallGrossTotalEl) overallGrossTotalEl.textContent = `R$ ${overallGrossTotal.toFixed(2).replace('.', ',')}`;
-            if (overallNetTotalEl) overallNetTotalEl.textContent = `R$ ${overallNetTotal.toFixed(2).replace('.', ',')}`;
-
-            updateWeeklyDetailedContribution(overallGrossTotalServices, overallProductsTotal);
-        }
-
-        function updateWeeklyDetailedContribution(grossServicesTotal, productsTotal) {
-            const detailedContributionDiv = document.getElementById('weekly-detailed-contribution');
-            if (!detailedContributionDiv) return; // Added null check
-
-            let content = '';
-
-            if (weeklyCollaborators.length > 0) {
-                content += '<p class="font-bold">Serviços por Colaboradora (Bruto):</p>';
-                weeklyCollaborators.forEach(collab => {
-                    const collabGrossTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
-                    if (grossServicesTotal > 0) {
-                        const percentageOfServices = (collabGrossTotal / grossServicesTotal) * 100;
-                        content += `<p class="ml-4">${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')} (${percentageOfServices.toFixed(1)}% dos serviços)</p>`;
-                    } else {
-                         content += `<p class="ml-4">${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')}</p>`;
-                    }
-                });
-            } else {
-                content += '<p>Nenhum serviço registrado.</p>';
-            }
-
-            content += `<p class="font-bold mt-2">Venda de Produtos:</p>`;
-            content += `<p class="ml-4">Total de Produtos: R$ ${productsTotal.toFixed(2).replace('.', ',')}</p>`;
-
-            detailedContributionDiv.innerHTML = content;
-        }
-
-        function generateWeeklyCollaboratorPDF(collaboratorIndex) {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-
-            const collab = weeklyCollaborators[collaboratorIndex];
-            if (!collab) {
-                console.error("Colaboradora não encontrada para geração de PDF.");
-                return;
-            }
-
-            const currentSalonName = weeklySalonName;
-            const dateTextEl = document.getElementById('weekly-dateDisplay');
-            const dateText = dateTextEl ? dateTextEl.textContent : 'Data Indefinida'; // Added null check
-            const collabName = collab.name || 'Colaboradora sem nome';
-            const generalNotes = "";
-
-            const collabTitleY = 20; 
-
-            doc.setFontSize(24);
-            doc.text(currentSalonName, 105, collabTitleY, null, null, "center"); 
-
-            let y = collabTitleY + 20;
-
-            doc.setFontSize(20);
-            doc.text(`Fechamento Semanal: ${collabName}`, 105, y, null, null, "center");
-            y += 15;
-            doc.setFontSize(12);
-            doc.text(dateText, 105, y, null, null, "center");
-            y += 15;
-
-            doc.setFontSize(14);
-            doc.text("Serviços Prestados:", 15, y);
-            y += 10;
-
-            if (collab.clients.length === 0) {
-                doc.setFontSize(10);
-                doc.text("Nenhum cliente registrado para esta colaboradora.", 20, y);
-                y += 10;
-            } else {
-                collab.clients.forEach(client => {
-                    if (y > 270) { doc.addPage(); y = 15; }
-                    doc.setFontSize(10);
-                    doc.text(`${client.name || 'Nome do Cliente'}: R$ ${client.value.toFixed(2).replace('.', ',')}`, 25, y);
-                    y += 5;
-                });
-            }
-
-            const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
-            const collabDiscount = collabTotal * collab.discountPercentage;
-            const collabNetTotal = collabTotal - collabDiscount;
-
-            if (y > 270) { doc.addPage(); y = 15; }
-            doc.setFontSize(10);
-            doc.text(`Total Bruto Serviços: R$ ${collabTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-            y += 5;
-            doc.text(`Comissão (-${(collab.discountPercentage * 100).toFixed(0)}%): R$ ${collabDiscount.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-            y += 5;
-            doc.setFontSize(12);
-            doc.text(`Total Líquido para ${collabName}: R$ ${collabNetTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-            y += 15;
-
-            if (generalNotes) {
-                 if (y > 270) { doc.addPage(); y = 15; }
-                 doc.setFontSize(12);
-                 doc.text("Observações Gerais:", 15, y);
-                 y += 7;
-                 doc.setFontSize(10);
-                 const splitNotes = doc.splitTextToSize(generalNotes, 180);
-                 doc.text(splitNotes, 20, y);
-                 y += splitNotes.length * 5;
-             }
-
-            doc.save(`fechamento_semanal_${collabName.replace(/\s+/g, '_').toLowerCase()}.pdf`);
-        }
-
-        function generateWeeklyPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-
-            const currentSalonName = weeklySalonName;
-            const dateTextEl = document.getElementById('weekly-dateDisplay');
-            const dateText = dateTextEl ? dateTextEl.textContent : 'Data Indefinida'; // Added null check
-            const generalNotes = "";
-
-            const mainTitleY = 20; 
-
-            doc.setFontSize(24);
-            doc.text(currentSalonName, 105, mainTitleY, null, null, "center"); 
-
-            let y = mainTitleY + 20;
-
-            doc.setFontSize(22);
-            doc.text("Fechamento Semanal do Salão", 105, y, null, null, "center");
-            y += 15;
-            doc.setFontSize(14);
-            doc.text(dateText, 105, y, null, null, "center");
-            y += 15;
-
-            doc.setFontSize(16);
-            doc.text("Colaboradoras:", 15, y);
-            y += 10;
-
-            if (weeklyCollaborators.length === 0) {
-                doc.setFontSize(12);
-                doc.text("Nenhuma colaboradora adicionada.", 15, y);
-                y += 10;
-            } else {
-                weeklyCollaborators.forEach(collab => {
-                    if (y > 270) { doc.addPage(); y = 15; }
-                    doc.setFontSize(14);
-                    doc.text(`${collab.name || 'Nome da Colaboradora'}:`, 20, y);
-                    y += 7;
-
-                    if (collab.clients.length === 0) {
-                        doc.setFontSize(10);
-                        doc.text("Nenhum cliente registrado.", 25, y);
-                        y += 7;
-                    } else {
-                        collab.clients.forEach(client => {
-                            if (y > 270) { doc.addPage(); y = 15; }
-                            doc.setFontSize(10);
-                            doc.text(`${client.name || 'Nome do Cliente'}: R$ ${client.value.toFixed(2).replace('.', ',')}`, 25, y);
-                            y += 5;
-                        });
-                    }
-
-                    const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
-                    const collabDiscount = collabTotal * collab.discountPercentage;
-                    const collabNetTotal = collabTotal - collabDiscount;
-
-                    if (y > 270) { doc.addPage(); y = 15; }
-                    doc.setFontSize(10);
-                    doc.text(`Total Bruto Serviços: R$ ${collabTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-                    y += 5;
-                    doc.text(`Comissão (-${(collab.discountPercentage * 100).toFixed(0)}%): R$ ${collabDiscount.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-                    y += 5;
-                    doc.setFontSize(12);
-                    doc.text(`Total Líquido: R$ ${collabNetTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-                    y += 15;
-                });
-            }
-
-            if (y > 260) { doc.addPage(); y = 15; }
-            doc.setFontSize(16);
-            doc.text("Produtos Vendidos:", 15, y);
-            y += 10;
-
-            if (weeklyProducts.length === 0) {
-                doc.setFontSize(12);
-                doc.text("Nenhum produto vendido.", 15, y);
-                y += 10;
-            } else {
-                weeklyProducts.forEach(product => {
-                    if (y > 270) { doc.addPage(); y = 15; }
-                    doc.setFontSize(10);
-                    doc.text(`${product.clientName || 'Cliente sem nome'}: R$ ${product.value.toFixed(2).replace('.', ',')}`, 20, y);
-                    y += 5;
-                });
-            }
-
-            const overallProductsTotal = weeklyProducts.reduce((sum, product) => sum + product.value, 0);
-            if (y > 270) { doc.addPage(); y = 15; }
-            doc.setFontSize(12);
-            doc.text(`Total Produtos: R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-            y += 15;
-
-            if (y > 260) { doc.addPage(); y = 15; }
-            doc.setFontSize(16);
-            doc.text("Detalhes da Contribuição:", 15, y);
-            y += 10;
-
-            let grossServicesTotalForPDF = weeklyCollaborators.reduce((sum, collab) => sum + collab.clients.reduce((s, c) => s + c.value, 0), 0);
-            
-            if (weeklyCollaborators.length > 0) {
-                if (y > 270) { doc.addPage(); y = 15; }
-                doc.setFontSize(12);
-                doc.text("Serviços por Colaboradora (Bruto):", 20, y);
-                y += 7;
-                weeklyCollaborators.forEach(collab => {
-                    const collabGrossTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
-                    if (grossServicesTotalForPDF > 0) {
-                        const percentageOfServices = (collabGrossTotal / grossServicesTotalForPDF) * 100;
-                        if (y > 270) { doc.addPage(); y = 15; }
-                        doc.setFontSize(10);
-                        doc.text(`${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')} (${percentageOfServices.toFixed(1)}% dos serviços)`, 25, y);
-                        y += 5;
-                    } else {
-                        if (y > 270) { doc.addPage(); y = 15; }
-                        doc.setFontSize(10);
-                        doc.text(`${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')}`, 25, y);
-                        y += 5;
-                    }
-                });
-            } else {
-                if (y > 270) { doc.addPage(); y = 15; }
-                doc.setFontSize(10);
-                doc.text("Nenhum serviço registrado.", 20, y);
-                y += 5;
-            }
-
-            if (y > 270) { doc.addPage(); y = 15; }
-            doc.setFontSize(12);
-            doc.text("Venda de Produtos:", 20, y);
-            y += 7;
-            doc.setFontSize(10);
-            doc.text(`Total de Produtos: R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`, 25, y);
-            y += 10;
-
-
-            if (y > 260) { doc.addPage(); y = 15; }
-            doc.setFontSize(16);
-            doc.text("Resumo Geral:", 15, y);
-            y += 10;
-
-            let overallGrossTotalServices = 0;
-            let overallNetTotalServices = 0;
-            weeklyCollaborators.forEach(collab => {
-                const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
-                overallGrossTotalServices += collabTotal;
-                overallNetTotalServices += collabTotal * (1 - collab.discountPercentage);
-            });
-
-            const overallGrossTotal = overallGrossTotalServices + overallProductsTotal;
-            const overallNetTotal = overallNetTotalServices + overallProductsTotal;
-
-            if (y > 270) { doc.addPage(); y = 15; }
-            doc.setFontSize(14);
-            doc.text(`Total Bruto Geral: R$ ${overallGrossTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-            y += 10;
-            doc.text(`Total Líquido Geral (com comissões aplicadas): R$ ${overallNetTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-            y += 10;
-
-            if (generalNotes) {
-                if (y > 270) { doc.addPage(); y = 15; }
-                doc.setFontSize(12);
-                doc.text("Observações Gerais:", 15, y);
-                y += 7;
-                doc.setFontSize(10);
-                const splitNotes = doc.splitTextToSize(generalNotes, 180);
-                doc.text(splitNotes, 20, y);
-                y += splitNotes.length * 5;
-            }
-
-            doc.save("fechamento_semanal_salao.pdf");
-        }
-
-        // --- Funções do Sistema de Gestão de Estoque ---
-
-        // Função para habilitar/desabilitar botões e campos após autenticação (Estoque)
-        function toggleInventoryUIEnabled(enabled) {
-            console.log(`toggleInventoryUIEnabled called with enabled: ${enabled}`);
-            const section = document.getElementById('inventory-section');
-            if (!section) return;
-
-            section.querySelectorAll('input, select, button, textarea').forEach(el => {
-                el.disabled = !enabled;
-            });
-        }
-
-        function initializeInventoryLogic() {
-            console.log("initializeInventoryLogic called. window.db:", window.db, "window.userId:", window.userId);
-            if (window.db && window.userId && window.userId !== 'Não autenticado') {
-                const productsCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`);
-                window.onSnapshot(productsCollectionRef, (snapshot) => {
-                    window.productsInventory = [];
-                    snapshot.forEach((doc) => {
-                        window.productsInventory.push({ id: doc.id, ...doc.data() });
-                    });
-                    renderInventoryProductsList();
-                    console.log("Estoque atualizado em tempo real:", window.productsInventory);
-                }, (error) => {
-                    console.error("Erro ao ouvir atualizações do estoque:", error);
-                    showMessage('Erro ao carregar estoque em tempo real: ' + error.message, 'error');
-                });
-            } else {
-                showMessage('Faça login para gerenciar o estoque.', 'info');
-                toggleInventoryUIEnabled(false);
-            }
-        }
-
-        async function addInventoryProduct() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para adicionar produtos.', 'error');
-                return;
-            }
-
-            const nameInput = document.getElementById('inventory-product-name');
-            const categoryInput = document.getElementById('inventory-product-category');
-            const currentStockInput = document.getElementById('inventory-product-stock');
-            const minStockLevelInput = document.getElementById('inventory-product-min-stock');
-            const unitInput = document.getElementById('inventory-product-unit');
-
-            const name = nameInput ? nameInput.value.trim() : '';
-            const category = categoryInput ? categoryInput.value.trim() : '';
-            const currentStock = currentStockInput ? parseInt(currentStockInput.value) : 0;
-            const minStockLevel = minStockLevelInput ? parseInt(minStockLevelInput.value) : 0;
-            const unit = unitInput ? unitInput.value.trim() : '';
-
-            if (!name || !category || isNaN(currentStock) || isNaN(minStockLevel) || !unit) {
-                showMessage('Por favor, preencha todos os campos do produto.', 'error');
-                return;
-            }
-
-            showMessage('Adicionando produto...', 'info');
-
-            try {
-                const productsCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`);
-                await window.addDoc(productsCollectionRef, {
-                    name,
-                    category,
-                    currentStock,
-                    minStockLevel,
-                    unit,
-                    lastUpdated: new Date().toISOString()
-                });
-                showMessage('Produto adicionado com sucesso!', 'success');
-                clearInventoryProductForm();
-            } catch (e) {
-                console.error("Erro ao adicionar produto: ", e);
-                showMessage('Erro ao adicionar produto: ' + e.message, 'error');
-            }
-        }
-
-        function editInventoryProduct(productId) {
-            const product = window.productsInventory.find(p => p.id === productId);
-            if (product) {
-                const nameInput = document.getElementById('inventory-product-name');
-                const categoryInput = document.getElementById('inventory-product-category');
-                const currentStockInput = document.getElementById('inventory-product-stock');
-                const minStockLevelInput = document.getElementById('inventory-product-min-stock');
-                const unitInput = document.getElementById('inventory-product-unit');
-
-                if (nameInput) nameInput.value = product.name;
-                if (categoryInput) categoryInput.value = product.category;
-                if (currentStockInput) currentStockInput.value = product.currentStock;
-                if (minStockLevelInput) minStockLevelInput.value = product.minStockLevel;
-                if (unitInput) unitInput.value = product.unit;
-
-                inventoryEditingProductId = productId;
-                const addBtn = document.getElementById('inventory-addProductBtn');
-                const updateBtn = document.getElementById('inventory-updateProductBtn');
-                const cancelBtn = document.getElementById('inventory-cancelEditBtn');
-
-                if (addBtn) addBtn.classList.add('hidden');
-                if (updateBtn) updateBtn.classList.remove('hidden');
-                if (cancelBtn) cancelBtn.classList.remove('hidden');
-            }
-        }
-
-        async function updateInventoryProduct() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para atualizar produtos.', 'error');
-                return;
-            }
-            if (!inventoryEditingProductId) {
-                showMessage('Nenhum produto selecionado para atualização.', 'error');
-                return;
-            }
-
-            const nameInput = document.getElementById('inventory-product-name');
-            const categoryInput = document.getElementById('inventory-product-category');
-            const currentStockInput = document.getElementById('inventory-product-stock');
-            const minStockLevelInput = document.getElementById('inventory-product-min-stock');
-            const unitInput = document.getElementById('inventory-product-unit');
-
-            const name = nameInput ? nameInput.value.trim() : '';
-            const category = categoryInput ? categoryInput.value.trim() : '';
-            const currentStock = currentStockInput ? parseInt(currentStockInput.value) : 0;
-            const minStockLevel = minStockLevelInput ? parseInt(minStockLevelInput.value) : 0;
-            const unit = unitInput ? unitInput.value.trim() : '';
-
-            if (!name || !category || isNaN(currentStock) || isNaN(minStockLevel) || !unit) {
-                showMessage('Por favor, preencha todos os campos do produto.', 'error');
-                return;
-            }
-
-            showMessage('Atualizando produto...', 'info');
-
-            try {
-                const productDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`, inventoryEditingProductId);
-                await window.setDoc(productDocRef, {
-                    name,
-                    category,
-                    currentStock,
-                    minStockLevel,
-                    unit,
-                    lastUpdated: new Date().toISOString()
-                }, { merge: true });
-                showMessage('Produto atualizado com sucesso!', 'success');
-                clearInventoryProductForm();
-                cancelInventoryEdit();
-            } catch (e) {
-                console.error("Erro ao atualizar produto: ", e);
-                showMessage('Erro ao atualizar produto: ' + e.message, 'error');
-            }
-        }
-
-        function cancelInventoryEdit() {
-            inventoryEditingProductId = null;
-            clearInventoryProductForm();
-            const addBtn = document.getElementById('inventory-addProductBtn');
-            const updateBtn = document.getElementById('inventory-updateProductBtn');
-            const cancelBtn = document.getElementById('inventory-cancelEditBtn');
-
-            if (addBtn) addBtn.classList.remove('hidden');
-            if (updateBtn) updateBtn.classList.add('hidden');
-            if (cancelBtn) cancelBtn.classList.add('hidden');
-        }
-
-        function clearInventoryProductForm() {
-            const nameInput = document.getElementById('inventory-product-name');
-            const categoryInput = document.getElementById('inventory-product-category');
-            const currentStockInput = document.getElementById('inventory-product-stock');
-            const minStockLevelInput = document.getElementById('inventory-product-min-stock');
-            const unitInput = document.getElementById('inventory-product-unit');
-
-            if (nameInput) nameInput.value = '';
-            if (categoryInput) categoryInput.value = '';
-            if (currentStockInput) currentStockInput.value = '0';
-            if (minStockLevelInput) minStockLevelInput.value = '0';
-            if (unitInput) unitInput.value = '';
-        }
-
-        async function adjustInventoryStock(productId, change) {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para ajustar o estoque.', 'error');
-                return;
-            }
-
-            const productRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`, productId);
-            try {
-                const docSnap = await window.getDoc(productRef);
-                if (docSnap.exists()) {
-                    const currentStock = docSnap.data().currentStock;
-                    const newStock = Math.max(0, currentStock + change);
-                    await window.setDoc(productRef, { currentStock: newStock, lastUpdated: new Date().toISOString() }, { merge: true });
-                    showMessage('Estoque atualizado!', 'success');
-                } else {
-                    showMessage('Produto não encontrado.', 'error');
-                }
-            } catch (e) {
-                console.error("Erro ao ajustar estoque: ", e);
-                showMessage('Erro ao ajustar estoque: ' + e.message, 'error');
-            }
-        }
-
-        async function deleteInventoryProduct(productId) {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para excluir produtos.', 'error');
-                return;
-            }
-
-            showGenericConfirm(
-                'Tem certeza que deseja excluir este produto do estoque?',
-                'Esta ação não pode ser desfeita.',
-                async (confirmed) => {
-                    if (confirmed) {
-                        try {
-                            const productDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`, productId);
-                            await window.deleteDoc(productDocRef);
-                            showMessage('Produto excluído com sucesso!', 'success');
-                        } catch (e) {
-                            console.error("Erro ao excluir produto: ", e);
-                            showMessage('Erro ao excluir produto: ' + e.message, 'error');
-                        }
-                    } else {
-                        showMessage('Operação de exclusão cancelada.', 'info');
-                    }
-                }
-            );
-        }
-
-        function showInventoryClearConfirm() {
-            const modal = document.getElementById('inventory-custom-confirm-modal');
-            if (modal) modal.style.display = 'flex'; // Added null check
-        }
-
-        function handleInventoryClearConfirm(confirmed) {
-            const modal = document.getElementById('inventory-custom-confirm-modal');
-            if (modal) modal.style.display = 'none'; // Added null check
-            if (confirmed) {
-                clearAllInventoryProducts();
-            } else {
-                showMessage('Operação de limpeza cancelada.', 'info');
-            }
-        }
-
-        async function clearAllInventoryProducts() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para limpar todo o estoque.', 'error');
-                return;
-            }
-
-            // A confirmação já é feita por handleInventoryClearConfirm
-            showMessage('Limpando todo o estoque...', 'info');
-            try {
-                const productsCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`);
-                const querySnapshot = await window.getDocs(productsCollectionRef);
-                const deletePromises = [];
-                querySnapshot.forEach((doc) => {
-                    deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`, doc.id)));
-                });
-                await Promise.all(deletePromises);
-                showMessage('Todo o estoque foi limpo!', 'success');
-            } catch (e) {
-                console.error("Erro ao limpar todo o estoque: ", e);
-                showMessage('Erro ao limpar todo o estoque: ' + e.message, 'error');
-            }
-        }
-
-        function renderInventoryProductsList() {
-            const container = document.getElementById('inventory-products-list-container');
-            if (!container) return; // Added null check
-
-            container.innerHTML = '';
-
-            if (window.productsInventory.length === 0) {
-                container.innerHTML = '<p class="text-center text-gray-500">Nenhum produto em estoque. Adicione um acima.</p>';
-                return;
-            }
-
-            window.productsInventory.forEach(product => {
-                const isLowStock = product.currentStock <= product.minStockLevel;
-                const productCard = document.createElement('div');
-                productCard.className = `p-4 bg-white rounded-lg shadow-md border border-gray-200 ${isLowStock ? 'low-stock' : ''}`;
-                productCard.innerHTML = `
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2">
-                        <h3 class="text-lg font-semibold text-gray-800">${product.name}</h3>
-                        <span class="text-sm text-gray-500">Categoria: ${product.category}</span>
-                    </div>
-                    <p class="text-gray-700 mb-2">Estoque: 
-                        <span class="font-bold text-xl ${isLowStock ? 'text-red-600' : 'text-green-600'}">
-                            ${product.currentStock} ${product.unit}
-                        </span>
-                        ${isLowStock ? '<span class="text-red-500 ml-2 text-sm">(Estoque baixo!)</span>' : ''}
-                    </p>
-                    <p class="text-sm text-gray-600 mb-4">Nível Mínimo: ${product.minStockLevel} ${product.unit}</p>
-                    <div class="flex flex-wrap gap-2 justify-end">
-                        <button onclick="adjustInventoryStock('${product.id}', 1)" class="bg-green-500 text-white py-1 px-3 rounded-md hover:bg-green-600 transition ease-in-out duration-150 shadow-sm">
-                            +1
-                        </button>
-                        <button onclick="adjustInventoryStock('${product.id}', -1)" class="bg-red-500 text-white py-1 px-3 rounded-md hover:bg-red-600 transition ease-in-out duration-150 shadow-sm">
-                            -1
-                        </button>
-                        <button onclick="editInventoryProduct('${product.id}')" class="bg-blue-500 text-white py-1 px-3 rounded-md hover:bg-blue-600 transition ease-in-out duration-150 shadow-sm">
-                            Editar
-                        </button>
-                        <button onclick="deleteInventoryProduct('${product.id}')" class="bg-gray-400 text-gray-800 py-1 px-3 rounded-md hover:bg-gray-500 transition ease-in-out duration-150 shadow-sm">
-                            Excluir
-                        </button>
-                    </div>
-                `;
-                container.appendChild(productCard);
-            });
-        }
-
-        function exportInventoryToFile() {
-            const dataToSave = window.productsInventory;
-            const jsonString = JSON.stringify(dataToSave, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `estoque_salao_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showMessage('Estoque exportado para "estoque_salao.json"!', 'success');
-        }
-
-        function importInventoryFromFile() {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.json';
-
-            fileInput.onchange = (event) => {
-                const file = event.target.files[0];
-                if (!file) {
-                    showMessage('Nenhum arquivo selecionado.', 'info');
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const importedData = JSON.parse(e.target.result);
-
-                        if (Array.isArray(importedData) && importedData.every(item => typeof item === 'object' && item !== null && 'name' in item && 'currentStock' in item)) {
-                            window.productsInventory = importedData;
-                            renderInventoryProductsList();
-                            showMessage('Estoque importado com sucesso!', 'success');
-                        } else {
-                            showMessage('Formato de arquivo JSON inválido para estoque. Verifique o conteúdo.', 'error');
-                        }
-                    } catch (parseError) {
-                        showMessage('Erro ao ler o arquivo: Não é um JSON válido.', 'error');
-                    }
-                };
-                reader.readAsText(file);
-            };
-
-            fileInput.click();
-        }
-
-        async function saveInventoryToFirestore() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para salvar o inventário no Firestore.', 'error');
-                return;
-            }
-
-            if (window.productsInventory.length === 0) {
-                showMessage('Não há produtos no inventário para salvar.', 'info');
-                return;
-            }
-
-            showMessage('Salvando inventário no Firestore...', 'info');
-
-            const inventoryData = {
-                products: window.productsInventory,
-                savedAt: new Date().toISOString()
-            };
-
-            try {
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedInventories`);
-                await window.addDoc(collectionRef, inventoryData);
-                showMessage('Inventário salvo no Firestore!', 'success');
-            } catch (e) {
-                console.error("Erro ao salvar inventário no Firestore: ", e);
-                showMessage('Erro ao salvar inventário na nuvem: ' + e.message, 'error');
-            }
-        }
-
-        async function openInventorySavedReportsModal() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para carregar inventários do Firestore.', 'error');
-                return;
-            }
-
-            showMessage('Buscando inventários salvos...', 'info');
-            const reportsListDiv = document.getElementById('inventory-saved-reports-list');
-            if (!reportsListDiv) { // Added null check
-                console.error("Element 'inventory-saved-reports-list' not found.");
-                showMessage('Erro: Elemento de lista de inventários não encontrado.', 'error');
-                return;
-            }
-            reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Carregando...</p>';
-            inventoryEditingProductId = null; // Reinicia a seleção
-
-            try {
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedInventories`);
-                const querySnapshot = await window.getDocs(collectionRef);
-                
-                inventorySavedReports = [];
-                if (querySnapshot.empty) {
-                    reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Nenhum inventário salvo.</p>';
-                    showMessage('Nenhum inventário salvo para carregar.', 'info');
-                    return;
-                }
-
-                reportsListDiv.innerHTML = '';
-                querySnapshot.forEach(doc => {
-                    const data = doc.data();
-                    inventorySavedReports.push({ id: doc.id, ...data });
-
-                    const reportItem = document.createElement('div');
-                    reportItem.setAttribute('data-report-id', doc.id);
-                    
-                    const savedDate = data.savedAt ? new Date(data.savedAt).toLocaleDateString('pt-BR') : 'Desconhecida';
-                    const savedTime = data.savedAt ? new Date(data.savedAt).toLocaleTimeString('pt-BR') : '';
-
-                    reportItem.innerHTML = `
-                        <div>
-                            <p class="font-medium">Inventário salvo em: ${savedDate} às ${savedTime}</p>
-                            <p class="text-xs text-gray-500">Total de produtos: ${data.products ? data.products.length : 0}</p>
-                        </div>
-                        <button class="text-red-500 hover:text-red-700 text-sm" onclick="event.stopPropagation(); deleteInventorySavedReport('${doc.id}')">Excluir</button>
-                    `;
-                    reportItem.onclick = (event) => selectInventoryReport(event, doc.id);
-                    reportsListDiv.appendChild(reportItem);
-                });
-
-                const modal = document.getElementById('inventory-saved-reports-modal');
-                if (modal) modal.style.display = 'flex'; // Added null check
-                showMessage('Inventários salvos carregados!', 'success');
-
-            } catch (error) {
-                console.error('Erro ao carregar inventários salvos do Firestore:', error);
-                showMessage('Erro ao carregar inventários salvos: ' + error.message, 'error');
-            }
-        }
-
-        function closeInventorySavedReportsModal() {
-            const modal = document.getElementById('inventory-saved-reports-modal');
-            if (modal) modal.style.display = 'none'; // Added null check
-        }
-
-        function selectInventoryReport(event, reportId) {
-            document.querySelectorAll('#inventory-saved-reports-list div').forEach(item => {
-                item.classList.remove('selected');
-            });
-            event.currentTarget.classList.add('selected');
-            inventoryEditingProductId = reportId;
-        }
-
-        async function loadInventorySelectedReport() {
-            if (!inventoryEditingProductId) {
-                showMessage('Por favor, selecione um inventário para carregar.', 'info');
-                return;
-            }
-
-            showMessage('Carregando inventário selecionado...', 'info');
-            const reportToLoad = inventorySavedReports.find(report => report.id === inventoryEditingProductId);
-
-            if (reportToLoad && reportToLoad.products) {
-                window.productsInventory = reportToLoad.products;
-                renderInventoryProductsList();
-                closeInventorySavedReportsModal();
-                showMessage('Inventário carregado com sucesso!', 'success');
-            } else {
-                showMessage('Erro: Inventário selecionado não encontrado ou vazio.', 'error');
-            }
-        }
-
-        async function deleteInventorySavedReport(reportId) {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para excluir inventários.', 'error');
-                return;
-            }
-
-            showGenericConfirm(
-                'Tem certeza que deseja excluir este inventário salvo?',
-                'Esta ação não pode ser desfeita.',
-                async (confirmed) => {
-                    if (confirmed) {
-                        try {
-                            const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/savedInventories`, reportId);
-                            await window.deleteDoc(docRef);
-                            showMessage('Inventário excluído com sucesso!', 'success');
-                            openInventorySavedReportsModal();
-                        } catch (error) {
-                            console.error('Erro ao excluir inventário salvo:', error);
-                            showMessage('Erro ao excluir inventário: ' + error.message, 'error');
-                        }
-                    } else {
-                        showMessage('Operação de exclusão cancelada.', 'info');
-                    }
-                }
-            );
-        }
-
-        function generateInventoryPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-
-            let y = 20;
-
-            doc.setFontSize(22);
-            doc.text("Relatório de Estoque de Produtos", 105, y, null, null, "center");
-            y += 15;
-
-            doc.setFontSize(12);
-            doc.text(`Data do Relatório: ${new Date().toLocaleDateString('pt-BR')}`, 105, y, null, null, "center");
-            y += 20;
-
-            if (window.productsInventory.length === 0) {
-                doc.setFontSize(14);
-                doc.text("Nenhum produto registrado no estoque.", 15, y);
-                y += 10;
-            } else {
-                window.productsInventory.forEach(product => {
-                    if (y > 270) {
-                        doc.addPage();
-                        y = 20;
-                    }
-
-                    const isLowStock = product.currentStock <= product.minStockLevel;
-                    const stockStatus = isLowStock ? ` (Estoque Baixo!)` : '';
-
-                    doc.setFontSize(14);
-                    doc.text(`Produto: ${product.name}`, 15, y);
-                    y += 7;
-                    doc.setFontSize(10);
-                    doc.text(`  Categoria: ${product.category}`, 20, y);
-                    y += 5;
-                    doc.text(`  Estoque Atual: ${product.currentStock} ${product.unit}${stockStatus}`, 20, y);
-                    y += 5;
-                    doc.text(`  Nível Mínimo: ${product.minStockLevel} ${product.unit}`, 20, y);
-                    y += 10;
-                });
-            }
-
-            doc.save(`relatorio_estoque_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
-            showMessage('PDF do estoque gerado com sucesso!', 'success');
-        }
-
-        // --- Funções do Sistema de Fichas de Atendimento ---
-
-        // Função para habilitar/desabilitar botões e campos após autenticação (Fichas)
-        function toggleFichasUIEnabled(enabled) {
-            console.log(`toggleFichasUIEnabled called with enabled: ${enabled}`);
-            const section = document.getElementById('fichas-section');
-            if (!section) return;
-
-            section.querySelectorAll('input, select, button, textarea').forEach(el => {
-                el.disabled = !enabled;
-            });
-        }
-
-        function initializeFichasLogic() {
-            console.log("initializeFichasLogic called. window.db:", window.db, "window.userId:", window.userId);
-            if (window.db && window.userId && window.userId !== 'Não autenticado') {
-                const fichasCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
-                window.onSnapshot(fichasCollectionRef, (snapshot) => {
-                    fichas = [];
-                    snapshot.forEach((doc) => {
-                        fichas.push({ id: doc.id, ...doc.data() });
-                    });
-                    renderFichasList(); // Renderiza a lista toda vez que há uma mudança
-                    console.log("Fichas atualizadas em tempo real:", fichas);
-                }, (error) => {
-                    console.error("Erro ao ouvir atualizações das fichas:", error);
-                    showMessage('Erro ao carregar fichas em tempo real: ' + error.message, 'error');
-                });
-            } else {
-                showMessage('Faça login para gerenciar as fichas.', 'info');
-                toggleFichasUIEnabled(false);
-            }
-            // Garante que haja pelo menos uma linha de serviço e produto ao iniciar
-            if (document.querySelectorAll('#ficha-services-container .ficha-service-row').length === 0) {
-                addFichaServiceRow();
-            }
-            if (document.querySelectorAll('#ficha-products-container .ficha-product-row').length === 0) {
-                addFichaProductRow();
-            }
-            calculateFichaTotals(); // Calcula os totais iniciais
-        }
-
-        // Adiciona uma nova linha de serviço ao formulário de ficha
-        function addFichaServiceRow() {
-            const container = document.getElementById('ficha-services-container');
-            if (!container) return; // Added null check
-            const newServiceDiv = document.createElement('div');
-            newServiceDiv.className = 'flex items-center gap-2 mb-2 ficha-service-row';
-            newServiceDiv.innerHTML = `
-                <input type="text" placeholder="Descrição do Serviço" class="ficha-service-description flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaServiceData()">
-                <input type="number" step="0.01" min="0" placeholder="Valor" value="0" class="ficha-service-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaServiceData()">
-                <button onclick="removeFichaRow(this, 'service')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            `;
-            container.appendChild(newServiceDiv);
-            calculateFichaTotals();
-        }
-
-        // Adiciona uma nova linha de produto ao formulário de ficha
-        function addFichaProductRow() {
-            const container = document.getElementById('ficha-products-container');
-            if (!container) return; // Added null check
-            const newProductDiv = document.createElement('div');
-            newProductDiv.className = 'flex items-center gap-2 mb-2 ficha-product-row';
-            newProductDiv.innerHTML = `
-                <input type="text" placeholder="Nome do Produto" class="ficha-product-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaProductData()">
-                <input type="number" step="0.01" min="0" placeholder="Valor" value="0" class="ficha-product-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaProductData()">
-                <button onclick="removeFichaRow(this, 'product')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            `;
-            container.appendChild(newProductDiv);
-            calculateFichaTotals();
-        }
-
-        // Remove uma linha de serviço ou produto da ficha
-        function removeFichaRow(button, type) {
-            const row = button.closest('.flex');
-            if (row) row.remove(); // Added null check
-            calculateFichaTotals();
-        }
-
-        // Atualiza os totais de serviços da ficha
-        function updateFichaServiceData() {
-            calculateFichaTotals();
-        }
-
-        // Atualiza os totais de produtos da ficha
-        function updateFichaProductData() {
-            calculateFichaTotals();
-        }
-
-        // Calcula e exibe os totais da ficha
-        function calculateFichaTotals() {
-            let totalServices = 0;
-            document.querySelectorAll('#ficha-services-container .ficha-service-value').forEach(input => {
-                totalServices += parseFloat(input.value) || 0;
-            });
-            const totalServicesEl = document.getElementById('ficha-total-services');
-            if (totalServicesEl) totalServicesEl.textContent = `R$ ${totalServices.toFixed(2).replace('.', ',')}`; // Added null check
-
-            let totalProducts = 0;
-            document.querySelectorAll('#ficha-products-container .ficha-product-value').forEach(input => {
-                totalProducts += parseFloat(input.value) || 0;
-            });
-            const totalProductsEl = document.getElementById('ficha-total-products');
-            if (totalProductsEl) totalProductsEl.textContent = `R$ ${totalProducts.toFixed(2).replace('.', ',')}`; // Added null check
-
-            const totalGeneral = totalServices + totalProducts;
-            const totalGeneralEl = document.getElementById('ficha-total-general');
-            if (totalGeneralEl) totalGeneralEl.textContent = `R$ ${totalGeneral.toFixed(2).replace('.', ',')}`; // Added null check
-        }
-
-        // Limpa o formulário de ficha
-        function clearFichaForm() {
-            const collaboratorNameEl = document.getElementById('ficha-collaborator-name');
-            const clientNameEl = document.getElementById('ficha-client-name');
-            const dateEl = document.getElementById('ficha-date');
-            const notesEl = document.getElementById('ficha-notes');
-            const servicesContainer = document.getElementById('ficha-services-container');
-            const productsContainer = document.getElementById('ficha-products-container');
-            const addFichaBtn = document.getElementById('ficha-addFichaBtn');
-            const updateFichaBtn = document.getElementById('ficha-updateFichaBtn');
-            const cancelEditBtn = document.getElementById('ficha-cancelEditBtn');
-
-            if (collaboratorNameEl) collaboratorNameEl.value = '';
-            if (clientNameEl) clientNameEl.value = '';
-            if (dateEl) dateEl.value = '';
-            if (notesEl) notesEl.value = '';
-            if (servicesContainer) servicesContainer.innerHTML = '';
-            if (productsContainer) productsContainer.innerHTML = '';
-            addFichaServiceRow(); // Adiciona uma linha vazia padrão
-            addFichaProductRow(); // Adiciona uma linha vazia padrão
-            calculateFichaTotals();
-
-            editingFichaId = null;
-            if (addFichaBtn) addFichaBtn.classList.remove('hidden');
-            if (updateFichaBtn) updateFichaBtn.classList.add('hidden');
-            if (cancelEditBtn) cancelEditBtn.classList.add('hidden');
-        }
-
-        // Adiciona uma nova ficha ao Firestore
-        async function addFicha() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para adicionar fichas.', 'error');
-                return;
-            }
-
-            const collaboratorNameEl = document.getElementById('ficha-collaborator-name');
-            const clientNameEl = document.getElementById('ficha-client-name');
-            const dateEl = document.getElementById('ficha-date');
-            const notesEl = document.getElementById('ficha-notes');
-
-            const collaboratorName = collaboratorNameEl ? collaboratorNameEl.value.trim() : '';
-            const clientName = clientNameEl ? clientNameEl.value.trim() : '';
-            const date = dateEl ? dateEl.value : '';
-            const notes = notesEl ? notesEl.value.trim() : '';
-
-            const services = [];
-            document.querySelectorAll('#ficha-services-container .ficha-service-row').forEach(row => {
-                const descriptionInput = row.querySelector('.ficha-service-description');
-                const valueInput = row.querySelector('.ficha-service-value');
-                const description = descriptionInput ? descriptionInput.value.trim() : '';
-                const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
-                if (description || value > 0) { // Só adiciona se tiver descrição ou valor
-                    services.push({ description, value });
-                }
-            });
-
-            const productsSold = [];
-            document.querySelectorAll('#ficha-products-container .ficha-product-row').forEach(row => {
-                const nameInput = row.querySelector('.ficha-product-name');
-                const valueInput = row.querySelector('.ficha-product-value');
-                const name = nameInput ? nameInput.value.trim() : '';
-                const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
-                if (name || value > 0) { // Só adiciona se tiver nome ou valor
-                    productsSold.push({ name, value });
-                }
-            });
-
-            if (!collaboratorName || !clientName || !date || (services.length === 0 && productsSold.length === 0)) {
-                showMessage('Por favor, preencha o nome da colaboradora, cliente, data e adicione pelo menos um serviço ou produto.', 'error');
-                return;
-            }
-
-            showMessage('Adicionando ficha...', 'info');
-
-            const fichaData = {
-                collaboratorName,
-                clientName,
-                date,
-                services,
-                productsSold,
-                notes,
-                totalServices: parseFloat(document.getElementById('ficha-total-services').textContent.replace('R$ ', '').replace(',', '.')),
-                totalProducts: parseFloat(document.getElementById('ficha-total-products').textContent.replace('R$ ', '').replace(',', '.')),
-                totalFicha: parseFloat(document.getElementById('ficha-total-general').textContent.replace('R$ ', '').replace(',', '.')),
-                createdAt: new Date().toISOString()
-            };
-
-            try {
-                const fichasCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
-                await window.addDoc(fichasCollectionRef, fichaData);
-                showMessage('Ficha adicionada com sucesso!', 'success');
-                clearFichaForm();
-            } catch (e) {
-                console.error("Erro ao adicionar ficha: ", e);
-                showMessage('Erro ao adicionar ficha: ' + e.message, 'error');
-            }
-        }
-
-        // Preenche o formulário para edição de uma ficha
-        function editFicha(fichaId) {
-            const fichaToEdit = fichas.find(f => f.id === fichaId);
-            if (fichaToEdit) {
-                const collaboratorNameEl = document.getElementById('ficha-collaborator-name');
-                const clientNameEl = document.getElementById('ficha-client-name');
-                const dateEl = document.getElementById('ficha-date');
-                const notesEl = document.getElementById('ficha-notes');
-                const servicesContainer = document.getElementById('ficha-services-container');
-                const productsContainer = document.getElementById('ficha-products-container');
-                const addFichaBtn = document.getElementById('ficha-addFichaBtn');
-                const updateFichaBtn = document.getElementById('ficha-updateFichaBtn');
-                const cancelEditBtn = document.getElementById('ficha-cancelEditBtn');
-
-                if (collaboratorNameEl) collaboratorNameEl.value = fichaToEdit.collaboratorName;
-                if (clientNameEl) clientNameEl.value = fichaToEdit.clientName;
-                if (dateEl) dateEl.value = fichaToEdit.date;
-                if (notesEl) notesEl.value = fichaToEdit.notes;
-
-                // Limpa e preenche os serviços
-                if (servicesContainer) servicesContainer.innerHTML = '';
-                fichaToEdit.services.forEach(service => {
-                    const newServiceDiv = document.createElement('div');
-                    newServiceDiv.className = 'flex items-center gap-2 mb-2 ficha-service-row';
-                    newServiceDiv.innerHTML = `
-                        <input type="text" placeholder="Descrição do Serviço" value="${service.description}" class="ficha-service-description flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaServiceData()">
-                        <input type="number" step="0.01" min="0" placeholder="Valor" value="${service.value}" class="ficha-service-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaServiceData()">
-                        <button onclick="removeFichaRow(this, 'service')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
-                    `;
-                    if (servicesContainer) servicesContainer.appendChild(newServiceDiv);
-                });
-                if (fichaToEdit.services.length === 0) addFichaServiceRow(); // Garante pelo menos uma linha vazia
-
-                // Limpa e preenche os produtos
-                if (productsContainer) productsContainer.innerHTML = '';
-                fichaToEdit.productsSold.forEach(product => {
-                    const newProductDiv = document.createElement('div');
-                    newProductDiv.className = 'flex items-center gap-2 mb-2 ficha-product-row';
-                    newProductDiv.innerHTML = `
-                        <input type="text" placeholder="Nome do Produto" value="${product.name}" class="ficha-product-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 min-w-[120px]" oninput="updateFichaProductData()">
-                        <input type="number" step="0.01" min="0" placeholder="Valor" value="${product.value}" class="ficha-product-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-purple-500 focus:border-purple-500" oninput="updateFichaProductData()">
-                        <button onclick="removeFichaRow(this, 'product')" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
-                    `;
-                    if (productsContainer) productsContainer.appendChild(newProductDiv);
-                });
-                if (fichaToEdit.productsSold.length === 0) addFichaProductRow(); // Garante pelo menos uma linha vazia
-
-                calculateFichaTotals();
-                editingFichaId = fichaId;
-                if (addFichaBtn) addFichaBtn.classList.add('hidden');
-                if (updateFichaBtn) updateFichaBtn.classList.remove('hidden');
-                if (cancelEditBtn) cancelEditBtn.classList.add('hidden');
-            }
-        }
-
-        // Atualiza uma ficha existente no Firestore
-        async function updateFicha() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para atualizar fichas.', 'error');
-                return;
-            }
-            if (!editingFichaId) {
-                showMessage('Nenhuma ficha selecionada para atualização.', 'error');
-                return;
-            }
-
-            const collaboratorNameEl = document.getElementById('ficha-collaborator-name');
-            const clientNameEl = document.getElementById('ficha-client-name');
-            const dateEl = document.getElementById('ficha-date');
-            const notesEl = document.getElementById('ficha-notes');
-
-            const collaboratorName = collaboratorNameEl ? collaboratorNameEl.value.trim() : '';
-            const clientName = clientNameEl ? clientNameEl.value.trim() : '';
-            const date = dateEl ? dateEl.value : '';
-            const notes = notesEl ? notesEl.value.trim() : '';
-
-            const services = [];
-            document.querySelectorAll('#ficha-services-container .ficha-service-row').forEach(row => {
-                const descriptionInput = row.querySelector('.ficha-service-description');
-                const valueInput = row.querySelector('.ficha-service-value');
-                const description = descriptionInput ? descriptionInput.value.trim() : '';
-                const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
-                if (description || value > 0) {
-                    services.push({ description, value });
-                }
-            });
-
-            const productsSold = [];
-            document.querySelectorAll('#ficha-products-container .ficha-product-row').forEach(row => {
-                const nameInput = row.querySelector('.ficha-product-name');
-                const valueInput = row.querySelector('.ficha-product-value');
-                const name = nameInput ? nameInput.value.trim() : '';
-                const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
-                if (name || value > 0) {
-                    productsSold.push({ name, value });
-                }
-            });
-
-            if (!collaboratorName || !clientName || !date || (services.length === 0 && productsSold.length === 0)) {
-                showMessage('Por favor, preencha o nome da colaboradora, cliente, data e adicione pelo menos um serviço ou produto.', 'error');
-                return;
-            }
-
-            showMessage('Atualizando ficha...', 'info');
-
-            const fichaData = {
-                collaboratorName,
-                clientName,
-                date,
-                services,
-                productsSold,
-                notes,
-                totalServices: parseFloat(document.getElementById('ficha-total-services').textContent.replace('R$ ', '').replace(',', '.')),
-                totalProducts: parseFloat(document.getElementById('ficha-total-products').textContent.replace('R$ ', '').replace(',', '.')),
-                totalFicha: parseFloat(document.getElementById('ficha-total-general').textContent.replace('R$ ', '').replace(',', '.')),
-                lastUpdated: new Date().toISOString() // Adiciona timestamp de atualização
-            };
-
-            try {
-                const fichaDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, editingFichaId);
-                await window.setDoc(fichaDocRef, fichaData, { merge: true });
-                showMessage('Ficha atualizada com sucesso!', 'success');
-                clearFichaForm();
-                cancelFichaEdit();
-            } catch (e) {
-                console.error("Erro ao atualizar ficha: ", e);
-                showMessage('Erro ao atualizar ficha: ' + e.message, 'error');
-            }
-        }
-
-        // Cancela a edição da ficha e volta ao modo de adição
-        function cancelFichaEdit() {
-            editingFichaId = null;
-            clearFichaForm();
-            const addFichaBtn = document.getElementById('ficha-addFichaBtn');
-            const updateFichaBtn = document.getElementById('ficha-updateFichaBtn');
-            const cancelEditBtn = document.getElementById('ficha-cancelEditBtn');
-
-            if (addFichaBtn) addFichaBtn.classList.remove('hidden');
-            if (updateFichaBtn) updateFichaBtn.classList.add('hidden');
-            if (cancelEditBtn) cancelEditBtn.classList.add('hidden');
-        }
-
-        // Renderiza a lista de fichas
-        function renderFichasList() {
-            const container = document.getElementById('fichas-list-container');
-            if (!container) return; // Added null check
-            container.innerHTML = '';
-
-            if (fichas.length === 0) {
-                container.innerHTML = '<p class="text-center text-gray-500">Nenhuma ficha registrada. Adicione uma acima.</p>';
-                return;
-            }
-
-            fichas.forEach(ficha => {
-                const fichaCard = document.createElement('div');
-                fichaCard.className = `p-4 bg-white rounded-lg shadow-md border border-gray-200`;
-                
-                const servicesSummary = ficha.services.map(s => `${s.description} (R$ ${s.value.toFixed(2).replace('.', ',')})`).join(', ');
-                const productsSummary = ficha.productsSold.map(p => `${p.name} (R$ ${p.value.toFixed(2).replace('.', ',')})`).join(', ');
-
-                fichaCard.innerHTML = `
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2">
-                        <h3 class="text-lg font-semibold text-gray-800">${ficha.clientName} - ${ficha.collaboratorName}</h3>
-                        <span class="text-sm text-gray-500">Data: ${ficha.date}</span>
-                    </div>
-                    <p class="text-gray-700 mb-1">Total Serviços: <span class="font-bold">R$ ${ficha.totalServices.toFixed(2).replace('.', ',')}</span></p>
-                    <p class="text-gray-700 mb-1">Total Produtos: <span class="font-bold">R$ ${ficha.totalProducts.toFixed(2).replace('.', ',')}</span></p>
-                    <p class="text-lg font-bold text-gray-800 mb-4">Total Geral: <span class="text-xl">R$ ${ficha.totalFicha.toFixed(2).replace('.', ',')}</span></p>
-                    
-                    <div class="text-sm text-gray-600 mb-4">
-                        ${servicesSummary ? `<p>Serviços: ${servicesSummary}</p>` : ''}
-                        ${productsSummary ? `<p>Produtos: ${productsSummary}</p>` : ''}
-                        ${ficha.notes ? `<p>Observações: ${ficha.notes}</p>` : ''}
-                    </div>
-
-                    <div class="flex flex-wrap gap-2 justify-end">
-                        <button onclick="editFicha('${ficha.id}')" class="bg-blue-500 text-white py-1 px-3 rounded-md hover:bg-blue-600 transition ease-in-out duration-150 shadow-sm">
-                            Editar
-                        </button>
-                        <button onclick="generateFichaPDF('${ficha.id}')" class="bg-indigo-500 text-white py-1 px-3 rounded-md hover:bg-indigo-600 transition ease-in-out duration-150 shadow-sm">
-                            Gerar PDF
-                        </button>
-                        <button onclick="deleteFicha('${ficha.id}')" class="bg-gray-400 text-gray-800 py-1 px-3 rounded-md hover:bg-gray-500 transition ease-in-out duration-150 shadow-sm">
-                            Excluir
-                        </button>
-                    </div>
-                `;
-                container.appendChild(fichaCard);
-            });
-        }
-
-        // Exclui uma ficha do Firestore
-        async function deleteFicha(fichaId) {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para excluir fichas.', 'error');
-                return;
-            }
-
-            showGenericConfirm(
-                'Tem certeza que deseja excluir esta ficha?',
-                'Esta ação não pode ser desfeita.',
-                async (confirmed) => {
-                    if (confirmed) {
-                        try {
-                            const fichaDocRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, fichaId);
-                            await window.deleteDoc(fichaDocRef);
-                            showMessage('Ficha excluída com sucesso!', 'success');
-                        } catch (e) {
-                            console.error("Erro ao excluir ficha: ", e);
-                            showMessage('Erro ao excluir ficha: ' + e.message, 'error');
-                        }
-                    } else {
-                        showMessage('Operação de exclusão cancelada.', 'info');
-                    }
-                }
-            );
-        }
-
-        // Exibe o modal de confirmação para limpar todas as fichas
-        function showFichaClearConfirm() {
-            const modal = document.getElementById('ficha-custom-confirm-modal');
-            if (modal) modal.style.display = 'flex'; // Added null check
+        function showClearAllFichasConfirm() {
+            document.getElementById('custom-confirm-modal').style.display = 'flex';
         }
 
-        // Lida com a resposta do modal de confirmação para limpar todas as fichas
-        function handleFichaClearConfirm(confirmed) {
-            const modal = document.getElementById('ficha-custom-confirm-modal');
-            if (modal) modal.style.display = 'none'; // Added null check
+        function handleClearAllFichasConfirm(confirmed) {
+            document.getElementById('custom-confirm-modal').style.display = 'none';
             if (confirmed) {
                 clearAllFichas();
             } else {
-                showMessage('Operação de limpeza de fichas cancelada.', 'info');
+                showMessage('Operação de limpeza cancelada.', 'info');
+            }
+        }
+        // --- End Helper Functions ---
+
+        // --- Firestore Functions ---
+        async function saveFichaToFirestore(fichaData) {
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível salvar a ficha.', 'error');
+                return;
+            }
+            try {
+                const docRef = await window.addDoc(window.fichasCollectionRef, fichaData);
+                console.log("Ficha salva com ID:", docRef.id);
+                showMessage('Ficha registrada e salva na nuvem!', 'success');
+                return docRef.id;
+            } catch (e) {
+                console.error("Erro ao adicionar ficha ao Firestore: ", e);
+                showMessage('Erro ao salvar ficha na nuvem: ' + e.message, 'error');
+                return null;
             }
         }
 
-        // Limpa todas as fichas do Firestore
-        async function clearAllFichas() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para limpar todas as fichas.', 'error');
+        async function loadFichasFromFirestore() {
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                console.log('Firebase não inicializado ou usuário não autenticado. Não foi possível carregar as fichas.');
+                return;
+            }
+            showMessage('Carregando fichas do Firestore...', 'info');
+            try {
+                fichas = []; 
+                const querySnapshot = await window.getDocs(window.fichasCollectionRef);
+                querySnapshot.forEach((doc) => {
+                    fichas.push({ id: doc.id, ...doc.data() });
+                });
+                renderFichasTable();
+                showMessage('Fichas carregadas do Firestore com sucesso!', 'success');
+                console.log("Fichas carregadas:", fichas);
+            } catch (e) {
+                console.error("Erro ao carregar fichas do Firestore: ", e);
+                showMessage('Erro ao carregar fichas da nuvem: ' + e.message, 'error');
+            }
+        }
+
+        async function removeFichaFromFirestore(fichaId) {
+            if (!window.db || !window.userId) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível remover a ficha.', 'error');
+                return false;
+            }
+            try {
+                await window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, fichaId));
+                showMessage('Ficha removida da nuvem.', 'info');
+                return true;
+            } catch (e) {
+                console.error("Erro ao remover ficha do Firestore: ", e);
+                showMessage('Erro ao remover ficha da nuvem: ' + e.message, 'error');
+                return false;
+            }
+        }
+
+        async function saveWeeklyReportDataToFirestore(data) {
+            if (!window.db || !window.userId) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados.', 'error');
+                return;
+            }
+            try {
+                // Salva os dados agregados em um documento específico para o fechamento semanal
+                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReports/currentWeek`);
+                await window.setDoc(docRef, data);
+                console.log("Dados agregados para fechamento semanal salvos no Firestore com sucesso!");
+                showMessage('Dados agregados para fechamento semanal salvos no Firestore!', 'success');
+            } catch (e) {
+                console.error("Erro ao salvar dados agregados no Firestore: ", e);
+                showMessage('Erro ao salvar dados agregados na nuvem: ' + e.message, 'error');
+            }
+        }
+        // --- End Firestore Functions ---
+
+        // --- Dynamic Input Row Management ---
+        function addServiceRow(serviceName = '', serviceValue = '') {
+            const container = document.getElementById('services-container');
+            const newServiceDiv = document.createElement('div');
+            newServiceDiv.className = 'flex items-center gap-2 mb-2 service-row';
+            newServiceDiv.innerHTML = `
+                <input type="text" placeholder="Nome do Serviço" value="${serviceName}" class="service-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 min-w-[100px]">
+                <input type="number" step="0.01" min="0" placeholder="Valor" class="service-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-blue-500 focus:border-blue-500">
+                <button onclick="removeRow(this)" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            // Set value after creating the element to avoid issues with number input parsing
+            const serviceValueInput = newServiceDiv.querySelector('.service-value');
+            if (serviceValueInput) {
+                serviceValueInput.value = serviceValue;
+            }
+            container.appendChild(newServiceDiv);
+        }
+
+        function addProductSoldRow(productName = '', productValue = '') {
+            const container = document.getElementById('products-sold-container');
+            const newProductDiv = document.createElement('div');
+            newProductDiv.className = 'flex items-center gap-2 mb-2 product-sold-row';
+            newProductDiv.innerHTML = `
+                <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name flex-grow p-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 min-w-[100px]">
+                <input type="number" step="0.01" min="0" placeholder="Valor" class="product-sold-value w-28 p-2 border border-gray-300 rounded-md shadow-sm text-right focus:ring-green-500 focus:border-green-500">
+                <button onclick="removeRow(this)" class="bg-red-500 text-white p-2 rounded-md hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            // Set value after creating the element to avoid issues with number input parsing
+            const productValueInput = newProductDiv.querySelector('.product-sold-value');
+            if (productValueInput) {
+                productValueInput.value = productValue;
+            }
+            container.appendChild(newProductDiv);
+        }
+
+        function removeRow(button) {
+            button.closest('.flex').remove();
+        }
+
+        function clearInputFields() {
+            document.getElementById('clientName').value = '';
+            document.getElementById('professionalName').value = '';
+            document.getElementById('services-container').innerHTML = ''; // Clear all service rows
+            document.getElementById('products-sold-container').innerHTML = ''; // Clear all product rows
+            addServiceRow(); // Add one empty service row back
+            addProductSoldRow(); // Add one empty product row back
+        }
+        // --- End Dynamic Input Row Management ---
+
+        // --- Ficha Management Functions ---
+        async function addFicha() {
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Por favor, aguarde alguns segundos e tente novamente.', 'error');
                 return;
             }
 
-            showMessage('Limpando todas as fichas...', 'info');
+            const clientName = document.getElementById('clientName').value.trim();
+            const professionalName = document.getElementById('professionalName').value.trim();
+
+            if (!clientName || !professionalName) {
+                showMessage('Por favor, preencha o nome da Cliente e da Profissional.', 'error');
+                return;
+            }
+
+            const services = [];
+            document.querySelectorAll('.service-row').forEach(row => {
+                const name = row.querySelector('.service-name').value.trim();
+                const value = parseFloat(row.querySelector('.service-value').value) || 0;
+                if (name && value > 0) {
+                    services.push({ name, value });
+                }
+            });
+
+            const productsSold = [];
+            document.querySelectorAll('.product-sold-row').forEach(row => {
+                const name = row.querySelector('.product-sold-name').value.trim();
+                const value = parseFloat(row.querySelector('.product-sold-value').value) || 0;
+                if (name && value > 0) {
+                    productsSold.push({ name, value });
+                }
+            });
+
+            if (services.length === 0 && productsSold.length === 0) {
+                showMessage('Por favor, adicione pelo menos um serviço ou um produto vendido.', 'error');
+                return;
+            }
+
+            const totalFicha = services.reduce((sum, s) => sum + s.value, 0) + productsSold.reduce((sum, p) => sum + p.value, 0);
+
+            const newFicha = {
+                clientName,
+                professionalName,
+                services,
+                productsSold,
+                totalFicha,
+                timestamp: new Date().toISOString() // Para ordenação e ID único
+            };
+
+            const fichaId = await saveFichaToFirestore(newFicha);
+            if (fichaId) {
+                fichas.push({ id: fichaId, ...newFicha }); // Adiciona ao array local apenas após salvar no Firestore
+                renderFichasTable();
+                clearInputFields();
+            }
+        }
+
+        async function removeFicha(index) {
+            const fichaToRemove = fichas[index];
+            if (!fichaToRemove || !fichaToRemove.id) {
+                showMessage('Erro: Ficha ou ID da ficha não encontrado para remoção.', 'error');
+                return;
+            }
+
+            const removed = await removeFichaFromFirestore(fichaToRemove.id);
+            if (removed) {
+                fichas.splice(index, 1); // Remove do array local apenas se removido do Firestore
+                renderFichasTable();
+            }
+        }
+
+        async function clearAllFichas() {
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível limpar as fichas.', 'error');
+                return;
+            }
+            showMessage('Limpando todas as fichas no Firestore...', 'info');
             try {
-                const fichasCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
-                const querySnapshot = await window.getDocs(fichasCollectionRef);
+                const querySnapshot = await window.getDocs(window.fichasCollectionRef);
                 const deletePromises = [];
                 querySnapshot.forEach((doc) => {
                     deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, doc.id)));
                 });
                 await Promise.all(deletePromises);
-                showMessage('Todas as fichas foram limpas!', 'success');
+                fichas = []; // Limpa o array local após a exclusão no Firestore
+                renderFichasTable();
+                showMessage('Todas as fichas foram limpas (Firestore).', 'success');
             } catch (e) {
-                console.error("Erro ao limpar todas as fichas: ", e);
-                showMessage('Erro ao limpar todas as fichas: ' + e.message, 'error');
+                console.error("Erro ao limpar todas as fichas do Firestore: ", e);
+                showMessage('Erro ao limpar todas as fichas da nuvem: ' + e.message, 'error');
             }
         }
 
-        // Exporta todas as fichas para um arquivo JSON
-        function exportFichasToFile() {
-            const dataToSave = fichas;
-            const jsonString = JSON.stringify(dataToSave, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `fichas_atendimento_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showMessage('Fichas exportadas para "fichas_atendimento.json"!', 'success');
-        }
-
-        // Importa fichas de um arquivo JSON
-        function importFichasFromFile() {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.json';
-
-            fileInput.onchange = (event) => {
-                const file = event.target.files[0];
-                if (!file) {
-                    showMessage('Nenhum arquivo selecionado.', 'info');
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const importedData = JSON.parse(e.target.result);
-
-                        if (Array.isArray(importedData) && importedData.every(item => typeof item === 'object' && item !== null && 'clientName' in item && 'collaboratorName' in item)) {
-                            fichas = importedData;
-                            renderFichasList();
-                            showMessage('Fichas importadas com sucesso!', 'success');
-                        } else {
-                            showMessage('Formato de arquivo JSON inválido para fichas. Verifique o conteúdo.', 'error');
-                        }
-                    } catch (parseError) {
-                        showMessage('Erro ao ler o arquivo: Não é um JSON válido.', 'error');
-                    }
-                };
-                reader.readAsText(file);
-            };
-
-            fileInput.click();
-        }
-
-        // Salva o estado atual das fichas no Firestore (como um único documento)
-        async function saveFichasToFirestore() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para salvar as fichas no Firestore.', 'error');
-                return;
-            }
+        function renderFichasTable() {
+            const tableBody = document.getElementById('fichas-table-body');
+            tableBody.innerHTML = ''; // Clear existing rows
 
             if (fichas.length === 0) {
-                showMessage('Não há fichas para salvar.', 'info');
+                tableBody.innerHTML = `<tr><td colspan="6" class="py-3 px-6 text-center text-gray-500">Nenhuma ficha registrada ainda.</td></tr>`;
                 return;
             }
 
-            showMessage('Salvando fichas no Firestore...', 'info');
+            fichas.forEach((ficha, index) => {
+                const row = tableBody.insertRow();
+                row.className = 'border-b border-gray-200 hover:bg-gray-100';
 
-            const fichasData = {
-                fichas: fichas,
-                savedAt: new Date().toISOString()
+                // Client Name
+                const clientCell = row.insertCell();
+                clientCell.className = 'py-3 px-6 text-left whitespace-nowrap';
+                clientCell.textContent = ficha.clientName;
+
+                // Professional Name
+                const professionalCell = row.insertCell();
+                professionalCell.className = 'py-3 px-6 text-left whitespace-nowrap';
+                professionalCell.textContent = ficha.professionalName;
+
+                // Services
+                const servicesCell = row.insertCell();
+                servicesCell.className = 'py-3 px-6 text-left';
+                servicesCell.innerHTML = ficha.services.map(s => `
+                    <p>${s.name} (R$ ${s.value.toFixed(2).replace('.', ',')})</p>
+                `).join('');
+                if (ficha.services.length === 0) servicesCell.textContent = 'Nenhum';
+
+                // Products Sold
+                const productsCell = row.insertCell();
+                productsCell.className = 'py-3 px-6 text-left';
+                productsCell.innerHTML = ficha.productsSold.map(p => `
+                    <p>${p.name} (R$ ${p.value.toFixed(2).replace('.', ',')})</p>
+                `).join('');
+                if (ficha.productsSold.length === 0) productsCell.textContent = 'Nenhum';
+
+                // Total Ficha
+                const totalCell = row.insertCell();
+                totalCell.className = 'py-3 px-6 text-center font-bold';
+                totalCell.textContent = `R$ ${ficha.totalFicha.toFixed(2).replace('.', ',')}`;
+
+                // Actions
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'py-3 px-6 text-center';
+                actionsCell.innerHTML = `
+                    <button onclick="removeFicha(${index})" class="text-red-600 hover:text-red-800 font-medium">Remover</button>
+                `;
+            });
+        }
+        // --- End Ficha Management Functions ---
+
+        // --- Integration with Weekly Closing System (Firestore) ---
+        async function generateAndExportWeeklyData() {
+            if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados para fechamento semanal.', 'error');
+                console.error("Erro: Firebase não inicializado ou usuário não autenticado ao tentar exportar dados semanais.");
+                return;
+            }
+
+            console.log("Iniciando a geração e exportação de dados semanais...");
+            const aggregatedData = {
+                collaborators: {}, // Use an object to easily group by professional name
+                products: []
             };
 
-            try {
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichas`);
-                await window.addDoc(collectionRef, fichasData); // Usa addDoc para permitir múltiplos salvamentos
-                showMessage('Fichas salvas no Firestore!', 'success');
-            }
-            catch (e) {
-                console.error("Erro ao salvar fichas no Firestore: ", e);
-                showMessage('Erro ao salvar fichas na nuvem: ' + e.message, 'error');
-            }
-        }
+            fichas.forEach(ficha => {
+                const professionalName = ficha.professionalName.trim();
 
-        // Abre o modal para carregar fichas salvas do Firestore
-        async function openFichaSavedReportsModal() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para carregar fichas do Firestore.', 'error');
-                return;
-            }
-
-            showMessage('Buscando fichas salvas...', 'info');
-            const reportsListDiv = document.getElementById('ficha-saved-reports-list');
-            if (!reportsListDiv) { // Added null check
-                console.error("Element 'ficha-saved-reports-list' not found.");
-                showMessage('Erro: Elemento de lista de fichas não encontrado.', 'error');
-                return;
-            }
-            reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Carregando...</p>';
-            editingFichaId = null; // Reinicia a seleção para o modal
-
-            try {
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichas`);
-                const querySnapshot = await window.getDocs(collectionRef);
-                
-                savedFichas = [];
-                if (querySnapshot.empty) {
-                    reportsListDiv.innerHTML = '<p class="text-center text-gray-500">Nenhuma ficha salva.</p>';
-                    showMessage('Nenhuma ficha salva para carregar.', 'info');
-                    return;
+                // Aggregate services by professional
+                if (!aggregatedData.collaborators[professionalName]) {
+                    aggregatedData.collaborators[professionalName] = {
+                        name: professionalName,
+                        clients: [], // Will store { name: clientName, value: serviceValue } for this professional
+                        discountPercentage: 0.30 // Default, can be adjusted in the main app
+                    };
                 }
-
-                reportsListDiv.innerHTML = '';
-                querySnapshot.forEach(doc => {
-                    const data = doc.data();
-                    savedFichas.push({ id: doc.id, ...data });
-
-                    const reportItem = document.createElement('div');
-                    reportItem.setAttribute('data-report-id', doc.id);
-                    
-                    const savedDate = data.savedAt ? new Date(data.savedAt).toLocaleDateString('pt-BR') : 'Desconhecida';
-                    const savedTime = data.savedAt ? new Date(data.savedAt).toLocaleTimeString('pt-BR') : '';
-
-                    reportItem.innerHTML = `
-                        <div>
-                            <p class="font-medium">Fichas salvas em: ${savedDate} às ${savedTime}</p>
-                            <p class="text-xs text-gray-500">Total de fichas: ${data.fichas ? data.fichas.length : 0}</p>
-                        </div>
-                        <button class="text-red-500 hover:text-red-700 text-sm" onclick="event.stopPropagation(); deleteFichaSavedReport('${doc.id}')">Excluir</button>
-                    `;
-                    reportItem.onclick = (event) => selectFichaReport(event, doc.id);
-                    reportsListDiv.appendChild(reportItem);
-                });
-
-                const modal = document.getElementById('ficha-saved-reports-modal');
-                if (modal) modal.style.display = 'flex'; // Added null check
-                showMessage('Fichas salvas carregadas!', 'success');
-
-            } catch (error) {
-                console.error('Erro ao carregar fichas salvas do Firestore:', error);
-                showMessage('Erro ao carregar fichas salvas: ' + error.message, 'error');
-            }
-        }
-
-        // Fecha o modal de fichas salvas
-        function closeFichaSavedReportsModal() {
-            const modal = document.getElementById('ficha-saved-reports-modal');
-            if (modal) modal.style.display = 'none'; // Added null check
-        }
-
-        // Seleciona uma ficha no modal
-        function selectFichaReport(event, reportId) {
-            document.querySelectorAll('#ficha-saved-reports-list div').forEach(item => {
-                item.classList.remove('selected');
-            });
-            event.currentTarget.classList.add('selected');
-            editingFichaId = reportId; // Reutilizando a variável para armazenar o ID selecionado
-        }
-
-        // Carrega a ficha selecionada do modal
-        async function loadFichaSelectedReport() {
-            if (!editingFichaId) {
-                showMessage('Por favor, selecione uma ficha para carregar.', 'info');
-                return;
-            }
-
-            showMessage('Carregando ficha selecionada...', 'info');
-            const reportToLoad = savedFichas.find(report => report.id === editingFichaId);
-
-            if (reportToLoad && reportToLoad.fichas) {
-                fichas = reportToLoad.fichas;
-                renderFichasList();
-                closeFichaSavedReportsModal();
-                showMessage('Fichas carregadas com sucesso!', 'success');
-            } else {
-                showMessage('Erro: Ficha selecionada não encontrada ou vazia.', 'error');
-            }
-        }
-
-        // Exclui uma ficha salva do Firestore (do modal de carregamento)
-        async function deleteFichaSavedReport(reportId) {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para excluir fichas salvas.', 'error');
-                return;
-            }
-
-            showGenericConfirm(
-                'Tem certeza que deseja excluir este conjunto de fichas salvo?',
-                'Esta ação não pode ser desfeita.',
-                async (confirmed) => {
-                    if (confirmed) {
-                        try {
-                            const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichas`, reportId);
-                            await window.deleteDoc(docRef);
-                            showMessage('Conjunto de fichas excluído com sucesso!', 'success');
-                            openFichaSavedReportsModal(); // Recarrega a lista após exclusão
-                        } catch (error) {
-                            console.error('Erro ao excluir conjunto de fichas salvo:', error);
-                            showMessage('Erro ao excluir conjunto de fichas: ' + error.message, 'error');
-                        }
-                    } else {
-                        showMessage('Operação de exclusão cancelada.', 'info');
-                    }
-                }
-            );
-        }
-
-        // Gera um PDF para uma ficha específica
-        function generateFichaPDF(fichaId) {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-
-            const ficha = fichas.find(f => f.id === fichaId);
-            if (!ficha) {
-                console.error("Ficha não encontrada para geração de PDF.");
-                return;
-            }
-
-            let y = 20;
-
-            doc.setFontSize(22);
-            doc.text("Ficha de Atendimento", 105, y, null, null, "center");
-            y += 15;
-
-            doc.setFontSize(14);
-            doc.text(`Colaboradora: ${ficha.collaboratorName}`, 15, y);
-            y += 7;
-            doc.text(`Cliente: ${ficha.clientName}`, 15, y);
-            y += 7;
-            doc.text(`Data: ${ficha.date}`, 15, y);
-            y += 15;
-
-            doc.setFontSize(16);
-            doc.text("Serviços:", 15, y);
-            y += 10;
-            if (ficha.services && ficha.services.length > 0) {
                 ficha.services.forEach(service => {
-                    if (y > 270) { doc.addPage(); y = 15; }
-                    doc.setFontSize(12);
-                    doc.text(`  - ${service.description}: R$ ${service.value.toFixed(2).replace('.', ',')}`, 20, y);
-                    y += 7;
+                    // For simplicity, each service is treated as a client entry for the professional's total
+                    // If a professional does multiple services for the same client, they'll appear as separate entries
+                    // This matches the current structure of the main app's 'clients' array
+                    aggregatedData.collaborators[professionalName].clients.push({
+                        name: ficha.clientName + ' - ' + service.name, // Combine client and service for clarity
+                        value: service.value
+                    });
                 });
-            } else {
-                doc.setFontSize(12);
-                doc.text("  Nenhum serviço registrado.", 20, y);
-                y += 7;
-            }
-            y += 5;
-            doc.setFontSize(14);
-            doc.text(`Total Serviços: R$ ${ficha.totalServices.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-            y += 15;
 
-            doc.setFontSize(16);
-            doc.text("Produtos Vendidos:", 15, y);
-            y += 10;
-            if (ficha.productsSold && ficha.productsSold.length > 0) {
+                // Aggregate products
                 ficha.productsSold.forEach(product => {
-                    if (y > 270) { doc.addPage(); y = 15; }
-                    doc.setFontSize(12);
-                    doc.text(`  - ${product.name}: R$ ${product.value.toFixed(2).replace('.', ',')}`, 20, y);
-                    y += 7;
+                    aggregatedData.products.push({
+                        clientName: ficha.clientName + ' - ' + product.name, // Combine client and product for clarity
+                        value: product.value
+                    });
                 });
-            } else {
-                doc.setFontSize(12);
-                doc.text("  Nenhum produto vendido.", 20, y);
-                y += 7;
+            });
+
+            // Convert collaborators object back to an array
+            const finalCollaboratorsArray = Object.values(aggregatedData.collaborators);
+
+            const dataToExport = {
+                collaborators: finalCollaboratorsArray,
+                products: aggregatedData.products,
+                lastUpdated: new Date().toISOString() // Adiciona um timestamp de atualização
+            };
+
+            console.log("Dados agregados para exportação:", dataToExport);
+            await saveWeeklyReportDataToFirestore(dataToExport);
+            console.log("Chamada para saveWeeklyReportDataToFirestore concluída.");
+        }
+        // --- End Integration ---
+
+        // --- Initialization ---
+        function initializeAppLogic() {
+            console.log("initializeAppLogic called. window.db:", window.db, "window.userId:", window.userId); // Debug log
+            loadFichasFromFirestore(); // Carrega fichas do Firestore
+            // Ensure there's always at least one empty row for input
+            if (document.querySelectorAll('.service-row').length === 0) {
+                addServiceRow();
             }
-            y += 5;
-            doc.setFontSize(14);
-            doc.text(`Total Produtos: R$ ${ficha.totalProducts.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
-            y += 15;
-
-            if (ficha.notes) {
-                if (y > 270) { doc.addPage(); y = 15; }
-                doc.setFontSize(14);
-                doc.text("Observações:", 15, y);
-                y += 7;
-                doc.setFontSize(12);
-                const splitNotes = doc.splitTextToSize(ficha.notes, 180);
-                doc.text(splitNotes, 20, y);
-                y += splitNotes.length * 7;
-                y += 10;
+            if (document.querySelectorAll('.product-sold-row').length === 0) {
+                addProductSoldRow();
             }
-
-            if (y > 270) { doc.addPage(); y = 15; }
-            doc.setFontSize(18);
-            doc.text(`Total Geral da Ficha: R$ ${ficha.totalFicha.toFixed(2).replace('.', ',')}`, 105, y, null, null, "center");
-            y += 10;
-
-            doc.save(`ficha_atendimento_${ficha.clientName.replace(/\s+/g, '_').toLowerCase()}_${ficha.date}.pdf`);
-            showMessage('PDF da ficha gerado com sucesso!', 'success');
+            // Habilitar botões após a inicialização do Firebase e autenticação
+            document.getElementById('addFichaBtn').disabled = false;
+            document.getElementById('clearAllFichasBtn').disabled = false;
+            document.getElementById('exportWeeklyDataBtn').disabled = false;
+            console.log("Buttons enabled."); // Debug log
         }
     </script>
 </body>
