@@ -1084,7 +1084,7 @@
 
             try {
                 const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichasSnapshots`);
-                const querySnapshot = await window.getDocs(collectionRef);
+                const querySnapshot = await window.getDocs(query(collectionRef, orderBy("savedAt", "desc"))); // Order by latest
                 
                 window.fichasSavedSnapshots = [];
                 if (querySnapshot.empty) {
@@ -1178,46 +1178,60 @@
         // --- End Firestore Functions ---
 
         // --- Dynamic Input Row Management ---
-        function addServiceRow(serviceName = '', serviceValue = '') {
+        function addServiceRow(serviceName = '', serviceValue = '', paymentMethod = 'pix') { // Added paymentMethod parameter
             const container = document.getElementById('services-container');
             const newServiceDiv = document.createElement('div');
             newServiceDiv.className = 'flex items-center gap-2 mb-2 client-row'; // Using client-row for styling
             newServiceDiv.innerHTML = `
                 <input type="text" placeholder="Nome do Serviço" value="${serviceName}" class="service-name form-input flex-grow min-w-[100px]">
-                <input type="number" step="0.01" min="0" placeholder="Valor" class="service-value form-input w-28 text-right">
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${serviceValue}" class="service-value form-input w-28 text-right">
+                <select class="form-input w-24" onchange="updateServicePaymentMethod(this)">
+                    <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
+                    <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
+                    <option value="credito" ${paymentMethod === 'credito' ? 'selected' : ''}>Crédito</option>
+                    <option value="dinheiro" ${paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                </select>
                 <button onclick="removeRow(this)" class="btn btn-danger">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                     </svg>
                 </button>
             `;
-            // Set value after creating the element to avoid issues with number input parsing
-            const serviceValueInput = newServiceDiv.querySelector('.service-value');
-            if (serviceValueInput) {
-                serviceValueInput.value = serviceValue;
-            }
             container.appendChild(newServiceDiv);
         }
 
-        function addProductSoldRow(productName = '', productValue = '') {
+        function addProductSoldRow(productName = '', productValue = '', paymentMethod = 'pix') { // Added paymentMethod parameter
             const container = document.getElementById('products-sold-container');
             const newProductDiv = document.createElement('div');
             newProductDiv.className = 'flex items-center gap-2 mb-2 product-row'; // Using product-row for styling
             newProductDiv.innerHTML = `
                 <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name form-input flex-grow min-w-[100px]">
-                <input type="number" step="0.01" min="0" placeholder="Valor" class="product-sold-value form-input w-28 text-right">
+                <input type="number" step="0.01" min="0" placeholder="Valor" value="${productValue}" class="product-sold-value form-input w-28 text-right">
+                <select class="form-input w-24" onchange="updateProductSoldPaymentMethod(this)">
+                    <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
+                    <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
+                    <option value="credito" ${paymentMethod === 'credito' ? 'selected' : ''}>Crédito</option>
+                    <option value="dinheiro" ${paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                </select>
                 <button onclick="removeRow(this)" class="btn btn-danger">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
                     </svg>
                 </button>
             `;
-            // Set value after creating the element to avoid issues with number input parsing
-            const productValueInput = newProductDiv.querySelector('.product-sold-value');
-            if (productValueInput) {
-                productValueInput.value = productValue;
-            }
             container.appendChild(newProductDiv);
+        }
+
+        // Functions to update payment method for services and products (not directly used for ficha data structure, but good practice)
+        function updateServicePaymentMethod(selectElement) {
+            // This function would be more complex if we were directly editing existing ficha data in the UI
+            // For now, it just ensures the select element works.
+            console.log("Service payment method changed to:", selectElement.value);
+        }
+
+        function updateProductSoldPaymentMethod(selectElement) {
+            // Similar to updateServicePaymentMethod
+            console.log("Product payment method changed to:", selectElement.value);
         }
 
         function removeRow(button) {
@@ -1253,8 +1267,9 @@
             document.querySelectorAll('.service-row').forEach(row => {
                 const name = row.querySelector('.service-name').value.trim();
                 const value = parseFloat(row.querySelector('.service-value').value) || 0;
+                const paymentMethod = row.querySelector('select').value; // Get payment method
                 if (name && value > 0) {
-                    services.push({ name, value });
+                    services.push({ name, value, paymentMethod });
                 }
             });
 
@@ -1262,8 +1277,9 @@
             document.querySelectorAll('.product-sold-row').forEach(row => {
                 const name = row.querySelector('.product-sold-name').value.trim();
                 const value = parseFloat(row.querySelector('.product-sold-value').value) || 0;
+                const paymentMethod = row.querySelector('select').value; // Get payment method
                 if (name && value > 0) {
-                    productsSold.push({ name, value });
+                    productsSold.push({ name, value, paymentMethod });
                 }
             });
 
@@ -1354,7 +1370,7 @@
                 const servicesCell = row.insertCell();
                 servicesCell.className = 'py-3 px-6 text-left';
                 servicesCell.innerHTML = ficha.services.map(s => `
-                    <p>${s.name} (R$ ${s.value.toFixed(2).replace('.', ',')})</p>
+                    <p>${s.name} (R$ ${s.value.toFixed(2).replace('.', ',')}) - ${s.paymentMethod || 'N/A'}</p>
                 `).join('');
                 if (ficha.services.length === 0) servicesCell.textContent = 'Nenhum';
 
@@ -1362,7 +1378,7 @@
                 const productsCell = row.insertCell();
                 productsCell.className = 'py-3 px-6 text-left';
                 productsCell.innerHTML = ficha.productsSold.map(p => `
-                    <p>${p.name} (R$ ${p.value.toFixed(2).replace('.', ',')})</p>
+                    <p>${p.name} (R$ ${p.value.toFixed(2).replace('.', ',')}) - ${p.paymentMethod || 'N/A'}</p>
                 `).join('');
                 if (ficha.productsSold.length === 0) productsCell.textContent = 'Nenhum';
 
@@ -1466,7 +1482,8 @@
                     // This matches the current structure of the main app's 'clients' array
                     aggregatedData.collaborators[professionalName].clients.push({
                         name: ficha.clientName + ' - ' + service.name, // Combine client and service for clarity
-                        value: service.value
+                        value: service.value,
+                        paymentMethod: service.paymentMethod || 'pix' // Include payment method
                     });
                 });
 
@@ -1474,7 +1491,8 @@
                 ficha.productsSold.forEach(product => {
                     aggregatedData.products.push({
                         clientName: ficha.clientName + ' - ' + product.name, // Combine client and product for clarity
-                        value: product.value
+                        value: product.value,
+                        paymentMethod: product.paymentMethod || 'pix' // Include payment method
                     });
                 });
             });
@@ -1518,4 +1536,5 @@
     </script>
 </body>
 </html>
+
 
