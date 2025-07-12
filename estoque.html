@@ -65,11 +65,6 @@
         // Variável global para o callback do modal de confirmação genérico
         let currentConfirmCallback = null;
 
-        // --- Variáveis para controle de acesso por senha ---
-        window.privilegedPassword = "100Dolar#"; // SENHA PARA ACESSO RESTRITO - ALTERE AQUI!
-                                              // ATENÇÃO: Esta senha está no código-fonte e não é segura para ambientes de produção.
-        let privilegedAccessGranted = false; // Indica se o acesso privilegiado foi concedido para a sessão atual
-
         // Função de inicialização do Firebase e autenticação
         async function initializeFirebase() {
             console.log("Initializing Firebase...");
@@ -82,21 +77,11 @@
                 await setPersistence(window.auth, browserLocalPersistence);
                 console.log("Firebase initialized and persistence set to LOCAL.");
 
-                // Use a flag to ensure onAuthStateChanged logic runs only once after initial auth
-                let initialAuthCheckCompleted = false;
-
                 // Listener para mudanças no estado de autenticação
                 onAuthStateChanged(window.auth, async (user) => {
-                    // Evita re-executar a lógica de inicialização da UI em cada pequena mudança de estado de autenticação
-                    if (initialAuthCheckCompleted && ((user && window.userId !== 'Não autenticado' && user.uid === window.userId) || (!user && window.userId === 'Não autenticado'))) {
-                        console.log("Minor auth state change (e.g., token refresh). Skipping full UI re-initialization.");
-                        return; 
-                    }
-                    initialAuthCheckCompleted = true; // Marca a verificação inicial como concluída
-
-                    console.log("onAuthStateChanged fired. User:", user ? user.uid : 'null');
+                    console.log("onAuthStateChanged fired. User:", user ? user.uid : 'null', "Current userId (before update):", window.userId);
+                    
                     if (user) {
-                        // Usuário autenticado
                         window.userId = user.uid;
                         const authMethod = user.isAnonymous ? 'Anónimo' : 'Google';
                         const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${window.userId} (${authMethod})`;
@@ -107,47 +92,35 @@
                         console.log("Usuário autenticado:", window.userId, "Método:", authMethod, "Nome:", user.displayName);
                         
                         if (window.db) {
-                            // Inicializa a lógica das seções após a autenticação bem-sucedida
                             initializeWeeklyClosingLogic();
                             initializeInventoryLogic();
                             initializeFichasLogic();
-                            
-                            // Carrega a última aba ativa do localStorage
-                            const lastActiveTab = localStorage.getItem('lastActiveTab');
-                            
-                            // [CORREÇÃO] Forçar o reset de privilegedAccessGranted para garantir que a senha seja pedida em cada nova sessão/atualização para abas restritas.
-                            privilegedAccessGranted = false; 
-                            console.log("privilegedAccessGranted reset to false before showing last active tab:", privilegedAccessGranted);
-
-                            if (lastActiveTab) {
-                                // A função showSection já lida com a lógica de senha para abas restritas
-                                showSection(lastActiveTab); 
-                            } else {
-                                showSection('fichas-section'); // Mostra a seção de fichas por padrão
-                            }
-
+                            toggleWeeklyClosingUIEnabled(true);
+                            toggleInventoryUIEnabled(true);
+                            toggleFichasUIEnabled(true);
                         } else {
                             console.error("Erro: Banco de dados (Firestore) não disponível após autenticação.");
                             showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
+                            toggleWeeklyClosingUIEnabled(false);
+                            toggleInventoryUIEnabled(false);
+                            toggleFichasUIEnabled(false);
                         }
                     } else {
-                        // Usuário não autenticado
+                        // User logged out or initial unauthenticated state
                         window.userId = 'Não autenticado';
                         document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="signInWithGoogle()" class="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">Entrar com Google</button>
                         `;
-                        // Desabilita todos os botões e campos que dependem de autenticação
                         toggleWeeklyClosingUIEnabled(false);
                         toggleInventoryUIEnabled(false);
                         toggleFichasUIEnabled(false);
                         showMessage('Por favor, faça login para usar todas as funcionalidades.', 'info');
-                        showSection('fichas-section'); // Garante que a aba de fichas esteja visível mesmo sem login
                     }
                 });
 
-                // Tenta fazer login com o token personalizado se fornecido, caso contrário, faz login anonimamente
-                // É crucial que estas chamadas sejam aguardadas para que o onAuthStateChanged receba o estado inicial
+                // The initial sign-in attempt should happen here, outside onAuthStateChanged
+                // because onAuthStateChanged will be triggered by this.
                 if (window.initialAuthToken) {
                     console.log("Attempting signInWithCustomToken...");
                     await signInWithCustomToken(window.auth, window.initialAuthToken);
@@ -165,7 +138,6 @@
                 toggleWeeklyClosingUIEnabled(false);
                 toggleInventoryUIEnabled(false);
                 toggleFichasUIEnabled(false);
-                showSection('fichas-section'); // Garante que algo seja exibido
             }
         }
 
@@ -200,12 +172,27 @@
                 toggleWeeklyClosingUIEnabled(false);
                 toggleInventoryUIEnabled(false);
                 toggleFichasUIEnabled(false);
-                localStorage.removeItem('lastActiveTab'); // Limpa a aba salva ao sair
-                privilegedAccessGranted = false; // Reseta o acesso privilegiado
-                showSection('fichas-section'); // Volta para a aba padrão (Fichas)
             } catch (error) {
                 console.error("Erro ao sair:", error);
                 showMessage('Erro ao sair: ' + error.message, 'error');
+            }
+        }
+
+        // Função para forçar o logout e recarregar a página
+        function forceSignOutAndReload() {
+            console.log("Attempting force signOut and reload...");
+            if (window.auth && window.auth.currentUser) {
+                signOut(window.auth).then(() => {
+                    console.log("Firebase signOut successful. Reloading page.");
+                    location.reload();
+                }).catch((error) => {
+                    console.error("Error during Firebase signOut:", error);
+                    showMessage('Erro ao tentar sair: ' + error.message + '. Recarregando a página...', 'error');
+                    location.reload(); // Still force reload even if signOut fails
+                });
+            } else {
+                console.log("No active Firebase user to sign out. Forcing page reload.");
+                location.reload();
             }
         }
 
@@ -225,6 +212,7 @@
         window.onSnapshot = onSnapshot;
         window.signInWithGoogle = signInWithGoogle;
         window.signOutUser = signOutUser;
+        window.forceSignOutAndReload = forceSignOutAndReload; // Expor a nova função
     </script>
 
     <style>
@@ -397,32 +385,6 @@
             background-color: #fee2e2; /* red-100 */
             border-left: 4px solid #ef4444; /* red-500 */
         }
-
-        /* Estilo para as abas de navegação */
-        .tab-button {
-            padding: 0.75rem 1.5rem;
-            font-weight: 600;
-            border-radius: 0.5rem 0.5rem 0 0;
-            cursor: pointer;
-            transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
-            background-color: #e5e7eb; /* gray-200 */
-            color: #4b5563; /* gray-700 */
-            border-bottom: 2px solid transparent;
-        }
-        .tab-button.active {
-            background-color: #ffffff;
-            color: #4f46e5; /* indigo-600 */
-            border-bottom: 2px solid #4f46e5;
-        }
-        .tab-button:hover:not(.active) {
-            background-color: #d1d5db; /* gray-300 */
-        }
-        .content-section {
-            display: none; /* Esconde todas as seções por padrão */
-        }
-        .content-section.active {
-            display: block; /* Mostra a seção ativa */
-        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -435,20 +397,109 @@
             <div id="auth-buttons" class="flex gap-2">
                 <!-- Botões de autenticação serão injetados aqui pelo JavaScript -->
             </div>
+            <button onclick="forceSignOutAndReload()" class="bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 focus:ring-2 focus:ring-gray-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                Forçar Sair
+            </button>
         </div>
 
         <!-- Área para mensagens de feedback -->
         <div id="app-message" class="hidden mb-4 p-3 rounded-lg text-center font-medium"></div>
 
-        <!-- Abas de Navegação -->
-        <div class="flex justify-center mb-6 border-b border-gray-200">
-            <button id="tab-weekly-closing" class="tab-button" onclick="showSection('weekly-closing-section')">Fechamento Semanal</button>
-            <button id="tab-inventory" class="tab-button" onclick="showSection('inventory-section')">Gestão de Estoque</button>
-            <button id="tab-fichas" class="tab-button active" onclick="showSection('fichas-section')">Fichas de Atendimento</button>
+        <!-- Seção de Fichas de Atendimento (Primeira por padrão) -->
+        <div id="fichas-section" class="mb-12">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Fichas de Atendimento</h2>
+
+            <!-- Formulário para Adicionar/Editar Ficha -->
+            <div class="mb-8 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <h3 class="text-xl font-semibold text-purple-700 mb-4">Adicionar/Editar Ficha</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="ficha-collaborator-name" class="block text-sm font-medium text-gray-700 mb-1">Nome da Colaboradora</label>
+                        <input type="text" id="ficha-collaborator-name" placeholder="Nome da Colaboradora" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
+                    </div>
+                    <div>
+                        <label for="ficha-client-name" class="block text-sm font-medium text-gray-700 mb-1">Nome da Cliente</label>
+                        <input type="text" id="ficha-client-name" placeholder="Nome da Cliente" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
+                    </div>
+                    <div>
+                        <label for="ficha-date" class="block text-sm font-medium text-gray-700 mb-1">Data do Atendimento</label>
+                        <input type="date" id="ficha-date" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
+                    </div>
+                </div>
+
+                <h4 class="text-lg font-semibold text-purple-700 mt-6 mb-3">Serviços Prestados</h4>
+                <div id="ficha-services-container" class="space-y-2">
+                    <!-- Linhas de serviço serão adicionadas aqui -->
+                </div>
+                <button onclick="addFichaServiceRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
+                    Adicionar Serviço
+                </button>
+                <div class="mt-4 text-right">
+                    <p class="text-md font-bold text-gray-800">Total Serviços: <span id="ficha-total-services">R$ 0,00</span></p>
+                </div>
+
+                <h4 class="text-lg font-semibold text-purple-700 mt-6 mb-3">Produtos Vendidos</h4>
+                <div id="ficha-products-container" class="space-y-2">
+                    <!-- Linhas de produto serão adicionadas aqui -->
+                </div>
+                <button onclick="addFichaProductRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
+                    Adicionar Produto
+                </button>
+                <div class="mt-4 text-right">
+                    <p class="text-md font-bold text-gray-800">Total Produtos: <span id="ficha-total-products">R$ 0,00</span></p>
+                </div>
+
+                <div class="mt-6">
+                    <label for="ficha-notes" class="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+                    <textarea id="ficha-notes" rows="3" placeholder="Notas sobre o atendimento..." class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm"></textarea>
+                </div>
+
+                <div class="mt-4 text-right">
+                    <p class="text-lg font-bold text-gray-800">Total Geral da Ficha: <span id="ficha-total-general">R$ 0,00</span></p>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-3 mt-6">
+                    <button id="ficha-addFichaBtn" onclick="addFicha()" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                        Adicionar Ficha
+                    </button>
+                    <button id="ficha-updateFichaBtn" onclick="updateFicha()" class="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
+                        Atualizar Ficha
+                    </button>
+                    <button id="ficha-cancelEditBtn" onclick="cancelFichaEdit()" class="flex-1 bg-gray-400 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
+                        Cancelar Edição
+                    </button>
+                </div>
+            </div>
+
+            <!-- Lista de Fichas -->
+            <div class="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
+                <h3 class="text-xl font-semibold text-green-700 mb-4">Fichas Registradas</h3>
+                <div id="fichas-list-container" class="space-y-3">
+                    <!-- Fichas serão listadas aqui -->
+                    <p class="text-center text-gray-500">Nenhuma ficha registrada. Adicione uma acima.</p>
+                </div>
+                <div class="mt-6 text-center flex flex-col sm:flex-row gap-3 justify-center">
+                    <button id="ficha-exportFichasBtn" onclick="exportFichasToFile()" class="bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                        Exportar Fichas para Arquivo
+                    </button>
+                    <button id="ficha-importFichasFromFileBtn" onclick="importFichasFromFile()" class="bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                        Importar Fichas de Arquivo
+                    </button>
+                    <button id="ficha-saveToFirestoreBtn" onclick="saveFichasToFirestore()" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                        Salvar no Firestore
+                    </button>
+                    <button id="ficha-loadFromFirestoreBtn" onclick="openFichaSavedReportsModal()" class="bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                        Carregar do Firestore
+                    </button>
+                    <button id="ficha-clearAllFichasBtn" onclick="showFichaClearConfirm()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
+                        Limpar Todas as Fichas
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Seção de Fechamento Semanal -->
-        <div id="weekly-closing-section" class="content-section">
+        <div id="weekly-closing-section" class="mb-12">
             <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Fechamento Semanal</h2>
 
             <!-- Seção de Entrada de Data e Opções de Salvamento/Carregamento -->
@@ -561,7 +612,7 @@
         </div>
 
         <!-- Seção de Gestão de Estoque -->
-        <div id="inventory-section" class="content-section">
+        <div id="inventory-section" class="mb-12">
             <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Gestão de Estoque de Produtos</h2>
 
             <!-- Formulário para Adicionar/Editar Produto -->
@@ -627,99 +678,6 @@
                     </button>
                     <button id="inventory-clearAllProductsBtn" onclick="showInventoryClearConfirm()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
                         Limpar Todo o Estoque
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Seção de Fichas de Atendimento -->
-        <div id="fichas-section" class="content-section active">
-            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Fichas de Atendimento</h2>
-
-            <!-- Formulário para Adicionar/Editar Ficha -->
-            <div class="mb-8 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <h3 class="text-xl font-semibold text-purple-700 mb-4">Adicionar/Editar Ficha</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label for="ficha-collaborator-name" class="block text-sm font-medium text-gray-700 mb-1">Nome da Colaboradora</label>
-                        <input type="text" id="ficha-collaborator-name" placeholder="Nome da Colaboradora" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label for="ficha-client-name" class="block text-sm font-medium text-gray-700 mb-1">Nome da Cliente</label>
-                        <input type="text" id="ficha-client-name" placeholder="Nome da Cliente" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-                    </div>
-                    <div>
-                        <label for="ficha-date" class="block text-sm font-medium text-gray-700 mb-1">Data do Atendimento</label>
-                        <input type="date" id="ficha-date" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm">
-                    </div>
-                </div>
-
-                <h4 class="text-lg font-semibold text-purple-700 mt-6 mb-3">Serviços Prestados</h4>
-                <div id="ficha-services-container" class="space-y-2">
-                    <!-- Linhas de serviço serão adicionadas aqui -->
-                </div>
-                <button onclick="addFichaServiceRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
-                    Adicionar Serviço
-                </button>
-                <div class="mt-4 text-right">
-                    <p class="text-md font-bold text-gray-800">Total Serviços: <span id="ficha-total-services">R$ 0,00</span></p>
-                </div>
-
-                <h4 class="text-lg font-semibold text-purple-700 mt-6 mb-3">Produtos Vendidos</h4>
-                <div id="ficha-products-container" class="space-y-2">
-                    <!-- Linhas de produto serão adicionadas aqui -->
-                </div>
-                <button onclick="addFichaProductRow()" class="w-full bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-sm mt-4">
-                    Adicionar Produto
-                </button>
-                <div class="mt-4 text-right">
-                    <p class="text-md font-bold text-gray-800">Total Produtos: <span id="ficha-total-products">R$ 0,00</span></p>
-                </div>
-
-                <div class="mt-6">
-                    <label for="ficha-notes" class="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-                    <textarea id="ficha-notes" rows="3" placeholder="Notas sobre o atendimento..." class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 shadow-sm"></textarea>
-                </div>
-
-                <div class="mt-4 text-right">
-                    <p class="text-lg font-bold text-gray-800">Total Geral da Ficha: <span id="ficha-total-general">R$ 0,00</span></p>
-                </div>
-
-                <div class="flex flex-col sm:flex-row gap-3 mt-6">
-                    <button id="ficha-addFichaBtn" onclick="addFicha()" class="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Adicionar Ficha
-                    </button>
-                    <button id="ficha-updateFichaBtn" onclick="updateFicha()" class="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-600 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
-                        Atualizar Ficha
-                    </button>
-                    <button id="ficha-cancelEditBtn" onclick="cancelFichaEdit()" class="flex-1 bg-gray-400 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-500 focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md hidden">
-                        Cancelar Edição
-                    </button>
-                </div>
-            </div>
-
-            <!-- Lista de Fichas -->
-            <div class="mb-8 p-4 bg-green-50 rounded-lg border border-green-200">
-                <h3 class="text-xl font-semibold text-green-700 mb-4">Fichas Registradas</h3>
-                <div id="fichas-list-container" class="space-y-3">
-                    <!-- Fichas serão listadas aqui -->
-                    <p class="text-center text-gray-500">Nenhuma ficha registrada. Adicione uma acima.</p>
-                </div>
-                <div class="mt-6 text-center flex flex-col sm:flex-row gap-3 justify-center">
-                    <button id="ficha-exportFichasBtn" onclick="exportFichasToFile()" class="bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Exportar Fichas para Arquivo
-                    </button>
-                    <button id="ficha-importFichasFromFileBtn" onclick="importFichasFromFile()" class="bg-purple-400 text-white py-2 px-4 rounded-lg hover:bg-purple-500 focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Importar Fichas de Arquivo
-                    </button>
-                    <button id="ficha-saveToFirestoreBtn" onclick="saveFichasToFirestore()" class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Salvar no Firestore
-                    </button>
-                    <button id="ficha-loadFromFirestoreBtn" onclick="openFichaSavedReportsModal()" class="bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Carregar do Firestore
-                    </button>
-                    <button id="ficha-clearAllFichasBtn" onclick="showFichaClearConfirm()" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition ease-in-out duration-150 shadow-md">
-                        Limpar Todas as Fichas
                     </button>
                 </div>
             </div>
@@ -816,99 +774,7 @@
         </div>
     </div>
 
-    <!-- Modal de Senha para Abas Restritas -->
-    <div id="password-modal" class="modal">
-        <div class="modal-content">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Acesso Restrito</h2>
-            <p class="text-gray-600 mb-4">Por favor, insira a senha para acessar esta seção.</p>
-            <input type="password" id="password-input" placeholder="Senha" class="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 shadow-sm mb-4">
-            <div class="modal-buttons">
-                <button class="modal-button cancel" onclick="closePasswordModal()">Cancelar</button>
-                <button class="modal-button confirm bg-indigo-500 hover:bg-indigo-600" onclick="checkPasswordAndShowSection()">Acessar</button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        // --- Funções de Navegação entre Seções ---
-        let requestedSectionId = ''; // Armazena a seção que o usuário tentou acessar
-
-        function showSection(sectionId) {
-            // Salvar a aba ativa no localStorage
-            localStorage.setItem('lastActiveTab', sectionId);
-
-            // Redefine privilegedAccessGranted se navegando para a 'fichas-section'
-            // Isso garante que a senha será solicitada novamente ao tentar acessar abas restritas
-            // se o usuário navegar para "Fichas" e depois tentar voltar para uma aba restrita.
-            if (sectionId === 'fichas-section') {
-                privilegedAccessGranted = false;
-            }
-
-            console.log(`showSection chamada para ${sectionId}. privilegedAccessGranted é: ${privilegedAccessGranted}`);
-            // Verifica se a seção requer senha
-            if ((sectionId === 'weekly-closing-section' || sectionId === 'inventory-section') && !privilegedAccessGranted) {
-                requestedSectionId = sectionId; // Armazena a seção que foi solicitada
-                openPasswordModal();
-                return; // Não mostra a seção ainda
-            }
-
-            // Esconde todas as seções
-            document.querySelectorAll('.content-section').forEach(section => {
-                section.classList.remove('active');
-            });
-            // Mostra a seção desejada
-            const targetSection = document.getElementById(sectionId);
-            if (targetSection) {
-                targetSection.classList.add('active');
-            }
-
-            // Atualiza o estado dos botões de aba
-            document.querySelectorAll('.tab-button').forEach(button => {
-                button.classList.remove('active');
-            });
-            const targetButton = document.getElementById('tab-' + sectionId.replace('-section', ''));
-            if (targetButton) {
-                targetButton.classList.add('active');
-            }
-        }
-
-        // --- Funções do Modal de Senha ---
-        function openPasswordModal() {
-            const modal = document.getElementById('password-modal');
-            const passwordInput = document.getElementById('password-input');
-            if (modal) {
-                modal.style.display = 'flex';
-                if (passwordInput) {
-                    passwordInput.value = ''; // Limpa o campo de senha
-                    passwordInput.focus(); // Foca no campo de senha
-                }
-            }
-        }
-
-        function closePasswordModal() {
-            const modal = document.getElementById('password-modal');
-            if (modal) modal.style.display = 'none';
-            requestedSectionId = ''; // Limpa a seção solicitada
-        }
-
-        function checkPasswordAndShowSection() {
-            const passwordInput = document.getElementById('password-input');
-            // Alterado para usar window.privilegedPassword
-            if (passwordInput && passwordInput.value === window.privilegedPassword) {
-                privilegedAccessGranted = true;
-                closePasswordModal();
-                showMessage('Acesso concedido!', 'success');
-                // Se a senha estiver correta, mostra a seção que foi solicitada
-                if (requestedSectionId) {
-                    showSection(requestedSectionId);
-                    requestedSectionId = ''; // Limpa após mostrar
-                }
-            } else {
-                showMessage('Senha incorreta. Tente novamente.', 'error');
-                if (passwordInput) passwordInput.value = ''; // Limpa o campo para nova tentativa
-            }
-        }
-
         // --- Funções de Feedback e Confirmação (Genéricas) ---
         function showMessage(message, type = 'success') {
             const msgDiv = document.getElementById('app-message');
@@ -970,7 +836,7 @@
 
             section.querySelectorAll('input, select, button, textarea').forEach(el => {
                 // Excluir os botões de autenticação do toggle, pois eles são gerenciados separadamente
-                if (el.id === 'signInWithGoogleBtn' || el.id === 'signOutUserBtn') {
+                if (el.id === 'signInWithGoogleBtn' || el.id === 'signOutUserBtn' || el.id === 'forceSignOutAndReloadBtn') {
                     return;
                 }
                 el.disabled = !enabled;
@@ -980,8 +846,6 @@
         // Função de inicialização da lógica da aplicação (chamada após autenticação Firebase)
         function initializeWeeklyClosingLogic() {
             console.log("initializeWeeklyClosingLogic called. window.db:", window.db, "window.userId:", window.userId);
-            toggleWeeklyClosingUIEnabled(true); // Habilita a UI
-
             if (weeklyCollaborators.length === 0) {
                 weeklyCollaborators.push({ name: '', clients: [{ name: '', value: 0 }], discountPercentage: 0.30 });
             }
@@ -1884,8 +1748,6 @@
 
         function initializeInventoryLogic() {
             console.log("initializeInventoryLogic called. window.db:", window.db, "window.userId:", window.userId);
-            toggleInventoryUIEnabled(true);
-
             if (window.db && window.userId && window.userId !== 'Não autenticado') {
                 const productsCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/productsInventory`);
                 window.onSnapshot(productsCollectionRef, (snapshot) => {
@@ -2438,9 +2300,6 @@
 
         function initializeFichasLogic() {
             console.log("initializeFichasLogic called. window.db:", window.db, "window.userId:", window.userId);
-            toggleFichasUIEnabled(true);
-
-            // Adiciona um listener em tempo real para a coleção de fichas
             if (window.db && window.userId && window.userId !== 'Não autenticado') {
                 const fichasCollectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
                 window.onSnapshot(fichasCollectionRef, (snapshot) => {
