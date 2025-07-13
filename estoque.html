@@ -1176,7 +1176,7 @@
             newServiceDiv.className = 'flex items-center gap-2 mb-2 service-row'; 
             newServiceDiv.innerHTML = `
                 <input type="text" placeholder="Nome do Serviço" value="${serviceName}" class="service-name form-input flex-grow min-w-[100px]">
-                <input type="text" placeholder="Valor" value="${serviceValue}" class="service-value form-input w-28 text-right" onfocus="clearZero(this)" onblur="formatCurrency(this)" oninput="formatCurrencyLive(this)">
+                <input type="text" placeholder="Valor" value="${serviceValue}" class="service-value form-input w-28 text-right" onfocus="clearZero(this)" onblur="formatInteger(this)" oninput="formatIntegerLive(this)">
                 <select class="form-input w-24" onchange="updateServicePaymentMethod(this)">
                     <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
                     <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
@@ -1198,7 +1198,7 @@
             newProductDiv.className = 'flex items-center gap-2 mb-2 product-sold-row'; 
             newProductDiv.innerHTML = `
                 <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name form-input flex-grow min-w-[100px]">
-                <input type="text" placeholder="Valor" value="${productValue}" class="product-sold-value form-input w-28 text-right" onfocus="clearZero(this)" onblur="formatCurrency(this)" oninput="formatCurrencyLive(this)">
+                <input type="text" placeholder="Valor" value="${productValue}" class="product-sold-value form-input w-28 text-right" onfocus="clearZero(this)" onblur="formatInteger(this)" oninput="formatIntegerLive(this)">
                 <select class="form-input w-24" onchange="updateProductSoldPaymentMethod(this)">
                     <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
                     <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
@@ -1221,33 +1221,24 @@
             }
         }
 
-        // Function to format currency input on blur
-        function formatCurrency(input) {
+        // Nova função para formatar como inteiro ao perder o foco
+        function formatInteger(input) {
             let value = input.value.replace(/\D/g, ''); // Remove non-digits
             if (value.length === 0) {
-                input.value = '0,00';
+                input.value = '0';
                 return;
             }
-            if (value.length < 3) {
-                value = '0'.repeat(3 - value.length) + value; // Pad with leading zeros if less than 3 digits
-            }
-            value = value.replace(/(\d)(\d{2})$/, '$1,$2'); // Add comma for cents
-            input.value = value;
+            input.value = parseInt(value, 10).toString(); // Convert to integer and back to string
         }
 
-        // Function to format currency input live as user types
-        function formatCurrencyLive(input) {
+        // Nova função para formatar como inteiro enquanto digita
+        function formatIntegerLive(input) {
             let value = input.value.replace(/\D/g, ''); // Remove non-digits
-            if (value.length > 2) {
-                value = value.replace(/(\d)(\d{2})$/, '$1,$2'); // Add comma for cents
-            } else if (value.length === 2) {
-                value = '0,' + value;
-            } else if (value.length === 1) {
-                value = '0,0' + value;
+            if (value.length === 0) {
+                input.value = '0'; // Keep it simple during live typing if empty
             } else {
-                value = '0'; // Keep it simple during live typing if empty
+                input.value = value; // Just display the digits
             }
-            input.value = value;
         }
 
         // Functions to update payment method for services and products (not directly used for ficha data structure, but good practice)
@@ -1294,9 +1285,8 @@
             const services = [];
             document.querySelectorAll('.service-row').forEach(row => {
                 const name = row.querySelector('.service-name').value.trim();
-                // Replace comma with dot for parsing
-                const valueString = row.querySelector('.service-value').value.replace(',', '.');
-                const value = parseFloat(valueString) || 0;
+                // Use parseInt for integer values directly
+                const value = parseInt(row.querySelector('.service-value').value) || 0;
                 const paymentMethod = row.querySelector('select').value; // Get payment method
                 // Only add if name is not empty. Value can be 0.
                 if (name) { 
@@ -1307,9 +1297,8 @@
             const productsSold = [];
             document.querySelectorAll('.product-sold-row').forEach(row => {
                 const name = row.querySelector('.product-sold-name').value.trim();
-                // Replace comma with dot for parsing
-                const valueString = row.querySelector('.product-sold-value').value.replace(',', '.');
-                const value = parseFloat(valueString) || 0;
+                // Use parseInt for integer values directly
+                const value = parseInt(row.querySelector('.product-sold-value').value) || 0;
                 const paymentMethod = row.querySelector('select').value; // Get payment method
                 // Only add if name is not empty. Value can be 0.
                 if (name) {
@@ -1414,7 +1403,7 @@
                 const servicesCell = row.insertCell();
                 servicesCell.className = 'py-3 px-6 text-left';
                 servicesCell.innerHTML = ficha.services.map(s => `
-                    <p>${s.name} (R$ ${s.value.toFixed(2).replace('.', ',')}) - ${s.paymentMethod || 'N/A'}</p>
+                    <p>${s.name} (R$ ${s.value.toFixed(0).replace('.', ',')}) - ${s.paymentMethod || 'N/A'}</p>
                 `).join('');
                 if (ficha.services.length === 0) servicesCell.textContent = 'Nenhum';
 
@@ -1422,14 +1411,14 @@
                 const productsCell = row.insertCell();
                 productsCell.className = 'py-3 px-6 text-left';
                 productsCell.innerHTML = ficha.productsSold.map(p => `
-                    <p>${p.name} (R$ ${p.value.toFixed(2).replace('.', ',')}) - ${p.paymentMethod || 'N/A'}</p>
+                    <p>${p.name} (R$ ${p.value.toFixed(0).replace('.', ',')}) - ${p.paymentMethod || 'N/A'}</p>
                 `).join('');
                 if (ficha.productsSold.length === 0) productsCell.textContent = 'Nenhum';
 
                 // Total Ficha
                 const totalCell = row.insertCell();
                 totalCell.className = 'py-3 px-6 text-center font-bold';
-                totalCell.textContent = `R$ ${ficha.totalFicha.toFixed(2).replace('.', ',')}`;
+                totalCell.textContent = `R$ ${ficha.totalFicha.toFixed(0).replace('.', ',')}`;
 
                 // Actions
                 const actionsCell = row.insertCell();
@@ -1580,6 +1569,7 @@
     </script>
 </body>
 </html>
+
 
 
 
