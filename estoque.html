@@ -616,13 +616,13 @@
                 <div class="mt-6">
                     <h3 class="text-lg font-semibold text-gray-700 mb-3">Opções de Dados</h3>
                     <div class="grid grid-cols-2 gap-3">
-                        <button onclick="window.salonApp.exportDataToFile()" class="btn btn-secondary btn-full">
+                        <button id="exportDataToFileBtn" onclick="window.salonApp.exportDataToFile()" class="btn btn-secondary btn-full">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                             </svg>
                             Exportar Dados
                         </button>
-                        <button onclick="window.salonApp.importDataFromFile()" class="btn btn-secondary btn-full">
+                        <button id="importDataFromFileBtn" onclick="window.salonApp.importDataFromFile()" class="btn btn-secondary btn-full">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
                             </svg>
@@ -960,6 +960,7 @@
 
             // Updates the date display based on the selected date input
             updateDateDisplay() {
+                console.log("updateDateDisplay called."); // Debug log
                 const dateInput = document.getElementById('closingDate');
                 const dateDisplay = document.getElementById('dateDisplay');
 
@@ -975,6 +976,7 @@
 
             // Adds a new collaborator to the data model and re-renders UI
             addCollaborator() {
+                console.log("addCollaborator called."); // Debug log
                 const newCollabData = {
                     name: '',
                     clients: [{ name: '', value: 0, paymentMethod: 'pix' }],
@@ -987,6 +989,7 @@
 
             // Removes a collaborator from the data model and re-renders UI, with confirmation
             removeCollaborator(indexToRemove) {
+                console.log("removeCollaborator called.", indexToRemove); // Debug log
                 if (confirm('Tem certeza que deseja remover esta colaboradora e todos os seus clientes?')) {
                     this.collaborators.splice(indexToRemove, 1);
                     this.renderAllUI();
@@ -996,6 +999,7 @@
 
             // Updates a collaborator's name in the data model and controls observation area visibility
             updateCollaboratorName(index, name) {
+                console.log("updateCollaboratorName called.", index, name); // Debug log
                 if (this.collaborators[index]) {
                     this.collaborators[index].name = name;
                     const observationArea = document.getElementById(`observation-area-${index}`);
@@ -1011,6 +1015,7 @@
 
             // Updates a collaborator's observations in the data model
             updateCollaboratorObservations(index, observations) {
+                console.log("updateCollaboratorObservations called.", index, observations); // Debug log
                 if (this.collaborators[index]) {
                     this.collaborators[index].observations = observations;
                 }
@@ -1018,6 +1023,7 @@
 
             // Updates a collaborator's discount percentage and recalculates their total
             updateCollaboratorDiscount(index, value) {
+                console.log("updateCollaboratorDiscount called.", index, value); // Debug log
                 let newDiscount = parseFloat(value) / 100;
                 // Validate discount percentage
                 if (isNaN(newDiscount) || newDiscount < 0 || newDiscount > 1) {
@@ -1033,6 +1039,7 @@
 
             // Adds a new client row to a specific collaborator and re-renders UI
             addClientRow(collaboratorIndex) {
+                console.log("addClientRow called.", collaboratorIndex); // Debug log
                 if (this.collaborators[collaboratorIndex]) {
                     this.collaborators[collaboratorIndex].clients.push({ name: '', value: 0, paymentMethod: 'pix' });
                     this.renderAllUI();
@@ -1041,6 +1048,7 @@
 
             // Removes a client row from a specific collaborator and re-renders UI, with confirmation
             removeClientRow(collaboratorIndex, clientIndex) {
+                console.log("removeClientRow called.", collaboratorIndex, clientIndex); // Debug log
                 if (confirm('Tem certeza que deseja remover este cliente?')) {
                     if (this.collaborators[collaboratorIndex]) {
                         this.collaborators[collaboratorIndex].clients.splice(clientIndex, 1);
@@ -1052,6 +1060,7 @@
 
             // Updates client data (name, value, payment method) and recalculates collaborator total
             updateClientData(collaboratorIndex, clientIndex, field, value) {
+                console.log("updateClientData called.", collaboratorIndex, clientIndex, field, value); // Debug log
                 if (this.collaborators[collaboratorIndex] && this.collaborators[collaboratorIndex].clients[clientIndex]) {
                     this.collaborators[collaboratorIndex].clients[clientIndex][field] = value;
                     this.calculateCollaboratorTotal(collaboratorIndex);
@@ -1060,12 +1069,14 @@
 
             // Adds a new product row to the data model and re-renders UI
             addProductRow() {
+                console.log("addProductRow called."); // Debug log
                 this.products.push({ clientName: '', value: 0, paymentMethod: 'pix' });
                 this.renderAllUI();
             },
 
             // Removes a product row from the data model and re-renders UI, with confirmation
             removeProductRow(productIndex) {
+                console.log("removeProductRow called.", productIndex); // Debug log
                 if (confirm('Tem certeza que deseja remover este produto?')) {
                     this.products.splice(productIndex, 1);
                     this.renderAllUI();
@@ -1075,6 +1086,7 @@
 
             // Updates product data (client name, value, payment method) and recalculates all totals
             updateProductData(index, field, value) {
+                console.log("updateProductData called.", index, field, value); // Debug log
                 if (this.products[index]) {
                     this.products[index][field] = value;
                     this.calculateAllTotals();
@@ -1094,6 +1106,7 @@
 
             // Calculates the total for a specific collaborator, including commission and card discount
             calculateCollaboratorTotal(collaboratorIndex) {
+                console.log("calculateCollaboratorTotal called.", collaboratorIndex); // Debug log
                 let total = 0;
                 let totalCardDiscount = 0;
                 const collab = this.collaborators[collaboratorIndex];
@@ -1117,6 +1130,7 @@
 
             // Calculates all overall totals for services and products
             calculateAllTotals() {
+                console.log("calculateAllTotals called."); // Debug log
                 let overallGrossTotalServices = 0;
                 let overallProductsTotal = 0;
                 let totalCardDiscountServices = 0;
@@ -1166,6 +1180,7 @@
 
             // Updates the detailed contribution section in the UI
             updateDetailedContribution(grossServicesTotal, productsTotal) {
+                console.log("updateDetailedContribution called."); // Debug log
                 const detailedContributionDiv = document.getElementById('detailed-contribution');
                 let content = '';
 
@@ -1192,6 +1207,7 @@
 
             // Generates a PDF report for a specific collaborator
             generateCollaboratorPDF(collaboratorIndex) {
+                console.log("generateCollaboratorPDF called.", collaboratorIndex); // Debug log
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
 
@@ -1274,6 +1290,7 @@
 
             // Generates a comprehensive PDF report for the entire salon
             generatePDF() {
+                console.log("generatePDF called."); // Debug log
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
 
@@ -1499,4 +1516,5 @@
     </script>
 </body>
 </html>
+
 
