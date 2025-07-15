@@ -1486,7 +1486,12 @@
 
         // This function is called by the Firebase onAuthStateChanged listener once authentication is ready
         function initializeAppLogic() {
-            window.salonApp.init();
+            try {
+                window.salonApp.init();
+            } catch (error) {
+                console.error("Erro ao iniciar a lógica do aplicativo:", error);
+                showMessage('Erro ao iniciar a lógica do aplicativo. Verifique o console para detalhes.', 'error');
+            }
         }
 
         // Expose initializeAppLogic globally so Firebase can call it
@@ -1494,13 +1499,4 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
 
