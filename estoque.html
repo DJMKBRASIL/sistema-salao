@@ -73,6 +73,10 @@
                 await setPersistence(window.auth, browserLocalPersistence);
                 console.log("Firebase initialized successfully");
 
+                // Initialize app logic immediately after Firebase is set up
+                // This ensures non-auth features like export/import work from the start
+                initializeAppLogic();
+
                 // Listen for authentication state changes
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
@@ -94,13 +98,6 @@
                         // Enable buttons that require authentication
                         window.salonApp.enableAuthRequiredButtons(true);
                         console.log("User authenticated:", window.userId, "Method:", authMethod);
-                        if (window.db) {
-                            // Initialize app logic only after Firebase DB is available and user is authenticated
-                            initializeAppLogic();
-                        } else {
-                            console.error("Firebase DB not available after authentication");
-                            showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
-                        }
                     } else {
                         // User is signed out
                         window.userId = 'Não autenticado';
@@ -1497,6 +1494,7 @@
     </script>
 </body>
 </html>
+
 
 
 
