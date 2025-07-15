@@ -3,56 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro de Fichas de Cliente</title>
+    <title>Fechamento Semanal do Salão</title>
+
+    <!-- Preload critical resources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
+    <!-- jsPDF CDN for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, addDoc, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Added orderBy
+        import {
+            getAuth,
+            signInWithCustomToken,
+            onAuthStateChanged,
+            GoogleAuthProvider,
+            signInWithPopup,
+            signOut,
+            setPersistence,
+            browserLocalPersistence
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import {
+            getFirestore,
+            doc,
+            getDoc,
+            setDoc,
+            deleteDoc,
+            collection,
+            query,
+            where,
+            getDocs,
+            addDoc
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Variáveis globais Firebase (serão preenchidas pelo ambiente Canvas ou padrão)
+        // Firebase configuration - These variables are provided by the Canvas environment
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
-            authDomain: "sistema-do-salao.firebaseapp.com",
-            projectId: "sistema-do-salao",
-            storageBucket: "sistema-do-salao.firebasestorage.app",
-            messagingSenderId: "395887083088",
-            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
-            measurementId: "G-1D996M5FKZ"
+            // Placeholder for your Firebase project configuration if running outside Canvas
+            apiKey: "YOUR_FIREBASE_API_KEY",
+            authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
+            projectId: "YOUR_FIREBASE_PROJECT_ID",
+            storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
+            appId: "YOUR_FIREBASE_APP_ID",
+            measurementId: "YOUR_FIREBASE_MEASUREMENT_ID"
         };
         window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Variáveis do Firebase agora como propriedades de window para acessibilidade global
+        // Global Firebase variables
         window.app = null;
         window.db = null;
         window.auth = null;
-        window.userId = 'loading...'; // Será atualizado após a autenticação
-        window.fichasCollectionRef = null; // Referência à coleção de fichas no Firestore
-        window.fichasSavedSnapshots = []; // Array para armazenar snapshots de fichas salvas
-        window.selectedFichaSnapshotId = null; // ID do snapshot selecionado no modal
+        window.userId = 'loading...';
 
-        // Função de inicialização do Firebase e autenticação
+        // Firebase initialization
         async function initializeFirebase() {
             try {
                 window.app = initializeApp(window.firebaseConfig);
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
-                
-                // Define a persistência da autenticação para armazenamento local
-                await setPersistence(window.auth, browserLocalPersistence);
-                console.log("Firebase initialized and persistence set to LOCAL."); // Debug log
 
-                // Monitorar o estado de autenticação
+                // Set persistence to local to maintain session across browser restarts
+                await setPersistence(window.auth, browserLocalPersistence);
+                console.log("Firebase initialized successfully");
+
+                // Listen for authentication state changes
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
-                        // Usuário autenticado (pode ser anónimo ou Google)
+                        // User is signed in
                         window.userId = user.uid;
-                        const authMethod = user.isAnonymous ? 'Anónimo' : 'Google';
+                        const authMethod = user.isAnonymous ? 'Anônimo' : 'Google';
                         const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${window.userId} (${authMethod})`;
+
                         document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="signOutUser()" class="btn btn-danger">
@@ -62,17 +90,19 @@
                                 Sair
                             </button>
                         `;
-                        // Definir fichasCollectionRef aqui, após db e userId estarem disponíveis
-                        window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
-                        console.log("Usuário autenticado:", window.userId, "Método:", authMethod); // Debug log
+
+                        // Enable buttons that require authentication
+                        window.salonApp.enableAuthRequiredButtons(true);
+                        console.log("User authenticated:", window.userId, "Method:", authMethod);
                         if (window.db) {
-                            initializeAppLogic(); // Carregar dados iniciais após autenticação
+                            // Initialize app logic only after Firebase DB is available and user is authenticated
+                            initializeAppLogic();
                         } else {
-                            console.error("Firebase DB not available after authentication. (Inside onAuthStateChanged)"); // Debug log
+                            console.error("Firebase DB not available after authentication");
                             showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
                         }
                     } else {
-                        // Usuário não autenticado
+                        // User is signed out
                         window.userId = 'Não autenticado';
                         document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
                         document.getElementById('auth-buttons').innerHTML = `
@@ -86,54 +116,47 @@
                                 Entrar com Google
                             </button>
                         `;
-                        // Desabilitar botões que dependem de autenticação completa
-                        document.getElementById('addFichaBtn').disabled = true;
-                        document.getElementById('clearAllFichasBtn').disabled = true;
-                        document.getElementById('exportWeeklyDataBtn').disabled = true;
-                        document.getElementById('exportFichasToFileBtn').disabled = true;
-                        document.getElementById('importFichasFromFileBtn').disabled = true;
-                        document.getElementById('saveFichasToCloudBtn').disabled = true;
-                        document.getElementById('loadFichasFromCloudBtn').disabled = true;
+
+                        // Disable buttons that require authentication
+                        window.salonApp.enableAuthRequiredButtons(false);
+                        // Clear local data when logging out, without prompting for confirmation
+                        window.salonApp.clearAllData(false);
                     }
                 });
 
             } catch (error) {
-                console.error("Erro ao inicializar Firebase:", error);
+                console.error("Error initializing Firebase:", error);
                 showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
             }
         }
 
-        // Função para autenticar com Google
+        // Authentication functions
         async function signInWithGoogle() {
             const provider = new GoogleAuthProvider();
             try {
                 await signInWithPopup(window.auth, provider);
                 showMessage('Autenticado com Google!', 'success');
             } catch (error) {
-                console.error("Erro ao autenticar com Google:", error);
+                console.error("Error signing in with Google:", error);
                 showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
             }
         }
 
-        // Função para sair
         async function signOutUser() {
             try {
                 await signOut(window.auth);
                 showMessage('Sessão encerrada.', 'info');
-                // Limpar dados locais ao sair
-                fichas = [];
-                renderFichasTable();
-                clearInputFields();
+                // The onAuthStateChanged listener will handle clearing local data and disabling buttons
             } catch (error) {
-                console.error("Erro ao sair:", error);
+                console.error("Error signing out:", error);
                 showMessage('Erro ao sair: ' + error.message, 'error');
             }
         }
 
-        // Chamar a inicialização do Firebase quando o DOM estiver pronto
+        // Initialize Firebase when DOM is ready
         document.addEventListener('DOMContentLoaded', initializeFirebase);
 
-        // Expondo as funções do Firestore SDK diretamente, se necessário
+        // Expose Firebase functions globally for easier access in the app logic
         window.doc = doc;
         window.getDoc = getDoc;
         window.setDoc = setDoc;
@@ -142,13 +165,13 @@
         window.query = query;
         window.where = where;
         window.getDocs = getDocs;
-        window.addDoc = addDoc; // Adicionado para adicionar novos documentos
-        // Expondo funções de autenticação para o HTML
+        window.addDoc = addDoc;
         window.signInWithGoogle = signInWithGoogle;
         window.signOutUser = signOutUser;
     </script>
 
     <style>
+        /* Define CSS variables for consistent styling */
         :root {
             --primary-color: #6366f1;
             --primary-hover: #4f46e5;
@@ -175,19 +198,22 @@
             --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
+        /* Universal box-sizing for consistent layout */
         * {
             box-sizing: border-box;
         }
 
+        /* Body styling for overall page appearance */
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* Gradient background */
             min-height: 100vh;
             margin: 0;
             padding: 1rem;
             line-height: 1.6;
         }
 
+        /* Main container for the application content */
         .main-container {
             max-width: 1200px;
             margin: 0 auto;
@@ -195,9 +221,10 @@
             border-radius: var(--border-radius);
             box-shadow: var(--shadow-xl);
             overflow: hidden;
-            animation: fadeInUp 0.6s ease-out;
+            animation: fadeInUp 0.6s ease-out; /* Fade-in animation */
         }
 
+        /* Keyframe animation for fade-in effect */
         @keyframes fadeInUp {
             from {
                 opacity: 0;
@@ -209,6 +236,7 @@
             }
         }
 
+        /* Header styling */
         .header {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
@@ -223,10 +251,12 @@
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
+        /* Content area padding */
         .content {
             padding: 2rem;
         }
 
+        /* Section styling for distinct content blocks */
         .section {
             background: var(--gray-50);
             border-radius: var(--border-radius);
@@ -240,9 +270,10 @@
             box-shadow: var(--shadow-md);
         }
 
+        /* Section header layout */
         .section-header {
             display: flex;
-            justify-content: space-between; /* Changed from 'between' to 'space-between' */
+            justify-content: space-between; /* Changed from 'between' to 'space-between' for clarity */
             align-items: center;
             margin-bottom: 1.5rem;
         }
@@ -254,6 +285,7 @@
             margin: 0;
         }
 
+        /* Button base styling */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -267,7 +299,7 @@
             cursor: pointer;
             transition: var(--transition);
             box-shadow: var(--shadow-sm);
-            min-height: 44px; /* Touch-friendly minimum */
+            min-height: 44px; /* Touch-friendly minimum size */
         }
 
         .btn:disabled {
@@ -275,99 +307,33 @@
             cursor: not-allowed;
         }
 
-        .btn-primary {
-            background-color: var(--primary-color);
-            color: white;
-        }
+        /* Specific button color variations */
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
-        .btn-primary:hover:not(:disabled) {
-            background-color: var(--primary-hover);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
+        .btn-secondary { background-color: var(--secondary-color); color: white; }
+        .btn-secondary:hover:not(:disabled) { background-color: #7c3aed; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
-        .btn-secondary {
-            background-color: var(--secondary-color);
-            color: white;
-        }
+        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
-        .btn-secondary:hover:not(:disabled) {
-            background-color: #7c3aed;
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
+        .btn-warning { background-color: var(--warning-color); color: white; }
+        .btn-warning:hover:not(:disabled) { background-color: #d97706; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
-        .btn-success {
-            background-color: var(--success-color);
-            color: white;
-        }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-danger:hover:not(:disabled) { background-color: #dc2626; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
-        .btn-success:hover:not(:disabled) {
-            background-color: #059669;
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
+        .btn-info { background-color: var(--info-color); color: white; }
+        .btn-info:hover:not(:disabled) { background-color: #2563eb; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
-        .btn-warning {
-            background-color: var(--warning-color);
-            color: white;
-        }
+        .btn-gray { background-color: var(--gray-300); color: var(--gray-800); }
+        .btn-gray:hover:not(:disabled) { background-color: var(--gray-400); transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
-        .btn-warning:hover:not(:disabled) {
-            background-color: #d97706;
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
+        .btn-full { width: 100%; }
 
-        .btn-danger {
-            background-color: var(--danger-color);
-            color: white;
-        }
-
-        .btn-danger:hover:not(:disabled) {
-            background-color: #dc2626;
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .btn-info {
-            background-color: var(--info-color);
-            color: white;
-        }
-
-        .btn-info:hover:not(:disabled) {
-            background-color: #2563eb;
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .btn-gray {
-            background-color: var(--gray-300);
-            color: var(--gray-800);
-        }
-
-        .btn-gray:hover:not(:disabled) {
-            background-color: var(--gray-400);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-md);
-        }
-
-        .btn-full {
-            width: 100%;
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-label {
-            display: block;
-            font-weight: 500;
-            color: var(--gray-700);
-            margin-bottom: 0.5rem;
-            font-size: 0.875rem;
-        }
-
+        /* Form element styling */
+        .form-group { margin-bottom: 1rem; }
+        .form-label { display: block; font-weight: 500; color: var(--gray-700); margin-bottom: 0.5rem; font-size: 0.875rem; }
         .form-input {
             width: 100%;
             padding: 0.75rem;
@@ -377,22 +343,12 @@
             transition: var(--transition);
             background-color: white;
         }
+        .form-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
 
-        .form-input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
+        /* Hide number input spinners */
         .form-input::-webkit-outer-spin-button,
-        .form-input::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-
-        .form-input[type=number] {
-            -moz-appearance: textfield;
-        }
+        .form-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .form-input[type=number] { -moz-appearance: textfield; }
 
         .form-textarea {
             width: 100%;
@@ -405,131 +361,62 @@
             resize: vertical;
             min-height: 80px;
         }
+        .form-textarea:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
 
-        .form-textarea:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
+        /* Grid and flex utilities */
+        .grid { display: grid; gap: 1rem; }
+        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+        .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .flex-wrap { flex-wrap: wrap; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
+        .gap-4 { gap: 1rem; }
 
-        .grid {
-            display: grid;
-            gap: 1rem;
-        }
+        /* Margin utilities */
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .mt-4 { margin-top: 1rem; }
 
-        .grid-cols-1 {
-            grid-template-columns: repeat(1, minmax(0, 1fr));
-        }
+        /* Padding utilities */
+        .p-4 { padding: 1rem; }
 
-        .grid-cols-2 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
+        /* Text alignment and sizing */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-sm { font-size: 0.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-xl { font-size: 1.25rem; }
 
-        .grid-cols-3 {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
+        /* Font weight utilities */
+        .font-medium { font-weight: 500; }
+        .font-semibold { font-weight: 600; }
+        .font-bold { font-weight: 700; }
 
-        .flex {
-            display: flex;
-        }
+        /* Text color utilities */
+        .text-gray-500 { color: var(--gray-500); }
+        .text-gray-600 { color: var(--gray-600); }
+        .text-gray-700 { color: var(--gray-700); }
+        .text-gray-800 { color: var(--gray-800); }
 
-        .flex-col {
-            flex-direction: column;
-        }
-
-        .flex-wrap {
-            flex-wrap: wrap;
-        }
-
-        .items-center {
-            align-items: center;
-        }
-
-        .justify-between {
-            justify-content: space-between;
-        }
-
-        .gap-2 {
-            gap: 0.5rem;
-        }
-
-        .gap-3 {
-            gap: 0.75rem;
-        }
-
-        .gap-4 {
-            gap: 1rem;
-        }
-
-        .mb-2 {
-            margin-bottom: 0.5rem;
-        }
-
-        .mb-4 {
-            margin-bottom: 1rem;
-        }
-
-        .mb-6 {
+        /* Specific component styling */
+        .collaborator-block {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
             margin-bottom: 1.5rem;
+            border: 1px solid var(--gray-200);
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
         }
+        .collaborator-block:hover { box-shadow: var(--shadow-md); }
 
-        .mt-4 {
-            margin-top: 1rem;
-        }
-
-        .p-4 {
-            padding: 1rem;
-        }
-
-        .text-center {
-            text-align: center;
-        }
-
-        .text-right {
-            text-align: right;
-        }
-
-        .text-sm {
-            font-size: 0.875rem;
-        }
-
-        .text-lg {
-            font-size: 1.125rem;
-        }
-
-        .text-xl {
-            font-size: 1.25rem;
-        }
-
-        .font-medium {
-            font-weight: 500;
-        }
-
-        .font-semibold {
-            font-weight: 600;
-        }
-
-        .font-bold {
-            font-weight: 700;
-        }
-
-        .text-gray-500 {
-            color: var(--gray-500);
-        }
-
-        .text-gray-600 {
-            color: var(--gray-600);
-        }
-
-        .text-gray-700 {
-            color: var(--gray-700);
-        }
-
-        .text-gray-800 {
-            color: var(--gray-800);
-        }
-
-        .service-row, .product-sold-row { /* Combined for consistent styling */
+        .client-row {
             background: var(--gray-50);
             padding: 0.75rem;
             border-radius: 0.5rem;
@@ -537,6 +424,25 @@
             border: 1px solid var(--gray-200);
         }
 
+        .product-row {
+            background: var(--gray-50);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--gray-200);
+        }
+
+        .observation-area {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            display: none; /* Hidden by default */
+        }
+        .observation-area.visible { display: block; } /* Show when visible class is added */
+
+        /* Message display styling */
         .message {
             padding: 1rem;
             border-radius: 0.5rem;
@@ -544,38 +450,17 @@
             font-weight: 500;
             animation: slideInDown 0.3s ease-out;
         }
-
         @keyframes slideInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
+        .message-success { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .message-error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .message-info { background-color: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
 
-        .message-success {
-            background-color: #d1fae5;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
-        }
-
-        .message-error {
-            background-color: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fca5a5;
-        }
-
-        .message-info {
-            background-color: #dbeafe;
-            color: #1e40af;
-            border: 1px solid #93c5fd;
-        }
-
+        /* Modal styling */
         .modal {
-            display: none;
+            display: none; /* Hidden by default */
             position: fixed;
             z-index: 1000;
             left: 0;
@@ -589,11 +474,7 @@
             padding: 1rem;
             animation: fadeIn 0.3s ease-out;
         }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         .modal-content {
             background: white;
@@ -604,16 +485,9 @@
             box-shadow: var(--shadow-xl);
             animation: scaleIn 0.3s ease-out;
         }
-
         @keyframes scaleIn {
-            from {
-                opacity: 0;
-                transform: scale(0.9);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
         }
 
         .modal-buttons {
@@ -622,15 +496,15 @@
             margin-top: 1.5rem;
         }
 
-        .saved-reports-list { /* Reusing style for saved ficha snapshots */
+        /* Saved reports list styling within modal */
+        .saved-reports-list {
             max-height: 300px;
             overflow-y: auto;
             border: 1px solid var(--gray-200);
             border-radius: 0.5rem;
             margin-bottom: 1rem;
         }
-
-        .report-item { /* Reusing style for saved ficha snapshots */
+        .report-item {
             padding: 1rem;
             border-bottom: 1px solid var(--gray-200);
             cursor: pointer;
@@ -639,123 +513,59 @@
             align-items: center;
             transition: var(--transition);
         }
+        .report-item:last-child { border-bottom: none; }
+        .report-item:hover { background-color: var(--gray-50); }
+        .report-item.selected { background-color: #e0e7ff; font-weight: 600; }
 
-        .report-item:last-child {
-            border-bottom: none;
+        /* Loading spinner animation */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        .report-item:hover {
-            background-color: var(--gray-50);
-        }
-
-        .report-item.selected {
-            background-color: #e0e7ff;
-            font-weight: 600;
-        }
-
-        /* Responsive Design */
+        /* Responsive Design Media Queries */
         @media (max-width: 768px) {
-            body {
-                padding: 0.5rem;
-            }
-
-            .header {
-                padding: 1.5rem 1rem;
-            }
-
-            .header h1 {
-                font-size: 2rem;
-            }
-
-            .content {
-                padding: 1rem;
-            }
-
-            .section {
-                padding: 1rem;
-            }
-
-            .grid-cols-3 {
-                grid-template-columns: repeat(1, minmax(0, 1fr));
-            }
-
-            .grid-cols-2 {
-                grid-template-columns: repeat(1, minmax(0, 1fr));
-            }
-
-            .flex {
-                flex-direction: column;
-            }
-
-            .flex > * {
-                width: 100%;
-            }
-
-            .btn {
-                padding: 1rem;
-                font-size: 1rem;
-            }
-
-            .modal-content {
-                margin: 1rem;
-                padding: 1.5rem;
-            }
-
-            .modal-buttons {
-                flex-direction: column;
-            }
+            body { padding: 0.5rem; }
+            .header { padding: 1.5rem 1rem; }
+            .header h1 { font-size: 2rem; }
+            .content { padding: 1rem; }
+            .section { padding: 1rem; }
+            .grid-cols-3, .grid-cols-2 { grid-template-columns: repeat(1, minmax(0, 1fr)); } /* Stack columns on smaller screens */
+            .flex { flex-direction: column; } /* Stack flex items on smaller screens */
+            .flex > * { width: 100%; } /* Make flex items full width */
+            .btn { padding: 1rem; font-size: 1rem; }
+            .modal-content { margin: 1rem; padding: 1.5rem; }
+            .modal-buttons { flex-direction: column; } /* Stack modal buttons */
         }
 
         @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.75rem;
-            }
-
-            .section-title {
-                font-size: 1.25rem;
-            }
-
-            .client-row,
-            .product-row {
-                padding: 0.5rem;
-            }
+            .header h1 { font-size: 1.75rem; }
+            .section-title { font-size: 1.25rem; }
+            .collaborator-block { padding: 1rem; }
+            .client-row, .product-row { padding: 0.5rem; }
         }
 
-        /* Print styles */
+        /* Print styles to optimize for printing */
         @media print {
-            body {
-                background: white;
-                padding: 0;
-            }
-
-            .main-container {
-                box-shadow: none;
-                border-radius: 0;
-            }
-
-            .header {
-                background: white !important;
-                color: black !important;
-            }
-
-            .btn,
-            .modal {
-                display: none !important;
-            }
+            body { background: white; padding: 0; }
+            .main-container { box-shadow: none; border-radius: 0; }
+            .header { background: white !important; color: black !important; } /* Ensure header is print-friendly */
+            .btn, .modal { display: none !important; } /* Hide interactive elements when printing */
         }
 
-        /* High contrast mode support */
+        /* High contrast mode support for accessibility */
         @media (prefers-contrast: high) {
-            .section {
-                border: 2px solid var(--gray-400);
-            }
-
-            .btn {
-                border: 2px solid currentColor;
-            }
+            .section { border: 2px solid var(--gray-400); }
+            .btn { border: 2px solid currentColor; }
         }
 
-        /* Reduced motion support */
+        /* Reduced motion support for users with motion sensitivities */
         @media (prefers-reduced-motion: reduce) {
             *,
             *::before,
@@ -769,806 +579,925 @@
 </head>
 <body>
     <div class="main-container">
-        <!-- Header -->
+        <!-- Header Section -->
         <header class="header">
             <h1>Espaço Fran Kokott</h1>
-            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Registro de Fichas de Cliente</p>
+            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Fechamento Semanal</p>
         </header>
 
-        <!-- Main Content -->
+        <!-- Main Content Area -->
         <main class="content">
-            <!-- User Authentication Section -->
+            <!-- User Authentication Status Section -->
             <div class="section">
                 <div class="flex items-center justify-between mb-4">
                     <p id="user-id-display" class="text-sm text-gray-500">Usuário: Carregando...</p>
                     <div id="auth-buttons" class="flex gap-2">
-                        <!-- Authentication buttons will be injected here -->
+                        <!-- Authentication buttons (Login/Logout) will be injected here by JavaScript -->
                     </div>
                 </div>
             </div>
 
-            <!-- Message Area -->
+            <!-- Application Message Display Area -->
             <div id="app-message" class="message" style="display: none;"></div>
 
-            <!-- Ficha Input Section -->
-            <div class="section">
+            <!-- Date and Data Options Section -->
+            <section class="section">
                 <div class="section-header">
-                    <h2 class="section-title">Nova Ficha de Atendimento</h2>
+                    <h2 class="section-title">Informações do Fechamento</h2>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">Data do Fechamento Semanal</h3>
                     <div class="form-group">
-                        <label for="clientName" class="form-label">Nome da Cliente</label>
-                        <input type="text" id="clientName" placeholder="Nome Completo da Cliente" class="form-input">
+                        <label for="closingDate" class="form-label">Data</label>
+                        <!-- Using input type="date" for easier date selection -->
+                        <input type="date" id="closingDate" class="form-input" onchange="window.salonApp.updateDateDisplay()">
                     </div>
-                    <div class="form-group">
-                        <label for="professionalName" class="form-label">Nome da Profissional</label>
-                        <input type="text" id="professionalName" placeholder="Nome da Profissional" class="form-input">
-                    </div>
+                    <p id="dateDisplay" class="text-center text-lg font-medium text-gray-800 mt-4"></p>
                 </div>
 
-                <div class="mt-4">
-                    <h3 class="text-md font-medium text-gray-700 mb-2">Serviços</h3>
-                    <div id="services-container">
-                        <!-- Service rows will be added dynamically here -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Opções de Dados</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="window.salonApp.exportDataToFile()" class="btn btn-secondary btn-full">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Exportar Dados
+                        </button>
+                        <button onclick="window.salonApp.importDataFromFile()" class="btn btn-secondary btn-full">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                            </svg>
+                            Importar Dados
+                        </button>
+                        <button id="saveToFirestoreBtn" onclick="window.salonApp.saveWeeklyClosingToFirestore()" class="btn btn-success btn-full" disabled>
+                            <span id="save-spinner" class="loading-spinner mr-2" style="display: none;"></span>
+                            Salvar na Nuvem
+                        </button>
+                        <button id="loadFromFirestoreBtn" onclick="window.salonApp.openSavedReportsModal()" class="btn btn-warning btn-full" disabled>
+                            <span id="load-spinner" class="loading-spinner mr-2" style="display: none;"></span>
+                            Carregar da Nuvem
+                        </button>
+                        <button id="loadDataFromFichasSystemBtn" onclick="window.salonApp.loadDataFromFichasSystem()" class="btn btn-info btn-full" disabled>
+                            <span id="fichas-spinner" class="loading-spinner mr-2" style="display: none;"></span>
+                            Importar das Fichas
+                        </button>
+                        <button id="clearAllDataBtn" onclick="window.salonApp.showClearConfirm()" class="btn btn-gray btn-full" disabled>
+                            <span id="clear-spinner" class="loading-spinner mr-2" style="display: none;"></span>
+                            Limpar Tudo
+                        </button>
                     </div>
-                    <button onclick="addServiceRow()" class="btn btn-primary btn-full mt-4">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                        </svg>
-                        Adicionar Serviço
-                    </button>
                 </div>
+            </section>
 
-                <div class="mt-4">
-                    <h3 class="text-md font-medium text-gray-700 mb-2">Produtos Vendidos (Opcional)</h3>
-                    <div id="products-sold-container">
-                        <!-- Products sold rows will be added dynamically here -->
-                    </div>
-                    <button onclick="addProductSoldRow()" class="btn btn-success btn-full mt-4">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                        </svg>
-                        Adicionar Produto
-                    </button>
-                </div>
-
-                <div class="mt-6 flex justify-end">
-                    <button id="addFichaBtn" onclick="addFicha()" class="btn btn-primary text-lg font-bold" disabled>
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Registrar Ficha
-                    </button>
-                </div>
-            </div>
-
-            <!-- Recorded Fichas Section -->
-            <div class="section">
+            <!-- Collaborators Section -->
+            <section class="section">
                 <div class="section-header">
-                    <h2 class="section-title">Fichas Registradas</h2>
+                    <h2 class="section-title">Colaboradoras</h2>
                 </div>
-                <div id="fichas-list" class="overflow-x-auto">
-                    <table class="min-w-full bg-white rounded-lg shadow-md">
-                        <thead>
-                            <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
-                                <th class="py-3 px-6 text-left">Cliente</th>
-                                <th class="py-3 px-6 text-left">Profissional</th>
-                                <th class="py-3 px-6 text-left">Serviços</th>
-                                <th class="py-3 px-6 text-left">Produtos</th>
-                                <th class="py-3 px-6 text-center">Total Ficha</th>
-                                <th class="py-3 px-6 text-center">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody class="text-gray-600 text-sm font-light" id="fichas-table-body">
-                            <!-- Fichas will be loaded here -->
-                        </tbody>
-                    </table>
+                <div id="collaborators-container">
+                    <!-- Collaborator blocks will be added dynamically here by JavaScript -->
                 </div>
-                <div class="mt-6 flex flex-col sm:flex-row gap-3">
-                    <button id="clearAllFichasBtn" onclick="showClearAllFichasConfirm()" class="btn btn-danger btn-full" disabled>
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                        Limpar Todas as Fichas
-                    </button>
-                    <button id="exportWeeklyDataBtn" onclick="generateAndExportWeeklyData()" class="btn btn-secondary btn-full" disabled>
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
-                        </svg>
-                        Exportar Dados para Fechamento Semanal
-                    </button>
-                    <button id="exportFichasToFileBtn" onclick="exportFichasToFile()" class="btn btn-secondary btn-full" disabled>
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                        </svg>
-                        Exportar Fichas para Arquivo
-                    </button>
-                    <button id="importFichasFromFileBtn" onclick="importFichasFromFile()" class="btn btn-secondary btn-full" disabled>
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
-                        </svg>
-                        Importar Fichas de Arquivo
-                    </button>
-                    <button id="saveFichasToCloudBtn" onclick="saveFichasSnapshotToFirestore()" class="btn btn-success btn-full" disabled>
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                        </svg>
-                        Salvar Fichas na Nuvem
-                    </button>
-                    <button id="loadFichasFromCloudBtn" onclick="openSavedFichasModal()" class="btn btn-warning btn-full" disabled>
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
-                        </svg>
-                        Carregar Fichas da Nuvem
-                    </button>
+                <button onclick="window.salonApp.addCollaborator()" class="btn btn-primary btn-full mt-4">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Adicionar Colaboradora
+                </button>
+            </section>
+
+            <!-- Products Section -->
+            <section class="section">
+                <div class="section-header">
+                    <h2 class="section-title">Produtos Vendidos</h2>
                 </div>
-            </div>
+                <div id="products-container">
+                    <!-- Product rows will be added dynamically here by JavaScript -->
+                </div>
+                <button onclick="window.salonApp.addProductRow()" class="btn btn-success btn-full mt-4">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Adicionar Produto
+                </button>
+                <div class="mt-4 text-right">
+                    <p class="text-lg font-bold text-gray-800">Total Produtos: <span id="products-total">R$ 0,00</span></p>
+                </div>
+            </section>
+
+            <!-- Summary Section -->
+            <section class="section">
+                <div class="section-header">
+                    <h2 class="section-title">Resumo Geral</h2>
+                </div>
+                <div class="text-right mb-4">
+                    <p class="text-lg font-bold text-gray-800">Total Bruto Geral: <span id="overall-gross-total">R$ 0,00</span></p>
+                    <p class="text-lg font-bold text-red-600">Desconto Cartão: <span id="total-card-discount">R$ 0,00</span></p>
+                    <p class="text-lg font-bold text-gray-800">Total Líquido Geral (Após Taxas de Cartão): <span id="overall-net-after-card-fees">R$ 0,00</span></p>
+                    <p class="text-lg font-bold text-blue-600">Total Líquido Colaboradoras: <span id="total-collaborator-net">R$ 0,00</span></p>
+                    <p class="text-lg font-bold text-green-600">Total Líquido Salão (Comissão + Produtos): <span id="total-salon-revenue">R$ 0,00</span></p>
+                </div>
+                <div class="mt-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Detalhes da Contribuição:</h3>
+                    <div id="detailed-contribution" class="text-gray-700">
+                        <!-- Contribution details will be filled here by JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Generate PDF Button -->
+            <button onclick="window.salonApp.generatePDF()" class="btn btn-secondary btn-full text-lg font-bold">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Gerar PDF do Fechamento
+            </button>
         </main>
     </div>
 
-    <!-- Modal de Confirmação para Limpar Tudo -->
+    <!-- Custom Confirmation Modal -->
     <div id="custom-confirm-modal" class="modal">
         <div class="modal-content">
             <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirmar Ação</h3>
-            <p class="text-gray-600 mb-4">Tem certeza que deseja limpar todas as fichas?</p>
+            <p id="confirm-message" class="text-gray-600 mb-4">Tem certeza que deseja limpar todos os dados?</p>
             <p class="text-sm text-gray-500 mb-6">Esta ação não pode ser desfeita.</p>
             <div class="modal-buttons">
-                <button class="btn btn-gray" onclick="handleClearAllFichasConfirm(false)">Cancelar</button>
-                <button class="btn btn-danger" onclick="handleClearAllFichasConfirm(true)">Limpar Tudo</button>
+                <button class="btn btn-gray" onclick="window.salonApp.handleConfirm(false)">Cancelar</button>
+                <button id="confirm-btn" class="btn btn-danger" onclick="window.salonApp.handleConfirm(true)">Confirmar</button>
             </div>
         </div>
     </div>
 
-    <!-- Novo Modal para Snapshots de Fichas Salvas -->
-    <div id="saved-fichas-modal" class="modal">
+    <!-- Saved Reports Modal -->
+    <div id="saved-reports-modal" class="modal">
         <div class="modal-content" style="max-width: 600px;">
-            <h3 class="text-xl font-semibold text-gray-800 mb-4">Escolha um Snapshot de Fichas Salvas</h3>
-            <div id="saved-fichas-list" class="saved-reports-list">
-                <!-- Lista de snapshots de fichas salvas será carregada aqui -->
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">Escolha um Fechamento Salvo</h3>
+            <div id="saved-reports-list" class="saved-reports-list">
+                <!-- List of saved reports will be loaded here by JavaScript -->
             </div>
             <div class="modal-buttons">
-                <button class="btn btn-gray" onclick="closeSavedFichasModal()">Fechar</button>
-                <button class="btn btn-primary" onclick="loadSelectedFichaSnapshot()">Carregar Selecionado</button>
+                <button class="btn btn-gray" onclick="window.salonApp.closeSavedReportsModal()">Fechar</button>
+                <button class="btn btn-primary" onclick="window.salonApp.loadSelectedReport()">Carregar Selecionado</button>
             </div>
         </div>
     </div>
 
     <script>
-        let fichas = []; // Array local para armazenar os objetos de ficha (para renderização e agregação)
+        // Main application object to encapsulate all logic and data
+        window.salonApp = {
+            // Data storage for collaborators, products, and saved reports
+            collaborators: [],
+            products: [],
+            salonName: "Espaço Fran Kokott", // Default salon name
+            savedReports: [], // Array to hold reports loaded from Firestore
+            selectedReportId: null, // ID of the currently selected report in the modal
 
-        // --- Helper Functions for Messages and Modals ---
+            // Initializes the application state and UI
+            init() {
+                // Add a default collaborator if none exist
+                if (this.collaborators.length === 0) {
+                    this.collaborators.push({
+                        name: '',
+                        clients: [{ name: '', value: 0, paymentMethod: 'pix' }], // Default client with pix
+                        discountPercentage: 0.30, // Default commission
+                        observations: ''
+                    });
+                }
+                // Add a default product if none exist
+                if (this.products.length === 0) {
+                    this.products.push({ clientName: '', value: 0, paymentMethod: 'pix' }); // Default product with pix
+                }
+
+                this.renderAllUI(); // Render initial UI
+                this.updateDateDisplay(); // Update date display
+                this.calculateAllTotals(); // Calculate all totals
+            },
+
+            // Enables or disables buttons that require user authentication
+            enableAuthRequiredButtons(enabled) {
+                const authRequiredButtons = [
+                    'loadDataFromFichasSystemBtn',
+                    'clearAllDataBtn',
+                    'saveToFirestoreBtn',
+                    'loadFromFirestoreBtn'
+                ];
+                authRequiredButtons.forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = !enabled;
+                });
+            },
+
+            // Clears all local application data. Can be prompted for confirmation.
+            clearAllData(promptConfirmation = true) {
+                if (promptConfirmation && !confirm('Tem certeza que deseja limpar todos os dados LOCALMENTE? Esta ação não afetará os dados salvos na nuvem, a menos que você clique em "Limpar Tudo" na modal.')) {
+                    showMessage('Operação de limpeza local cancelada.', 'info');
+                    return;
+                }
+                this.collaborators = [];
+                this.products = [];
+                document.getElementById('closingDate').value = ''; // Clear date input
+
+                // Reset with default entries
+                this.collaborators.push({
+                    name: '',
+                    clients: [{ name: '', value: 0, paymentMethod: 'pix' }],
+                    discountPercentage: 0.30,
+                    observations: ''
+                });
+                this.products.push({ clientName: '', value: 0, paymentMethod: 'pix' });
+
+                this.renderAllUI(); // Re-render UI with cleared data
+                this.updateDateDisplay(); // Update date display
+                this.calculateAllTotals(); // Recalculate totals
+                showMessage('Dados locais limpos.', 'info');
+            },
+
+            // Renders all dynamic UI components (collaborators, clients, products)
+            renderAllUI() {
+                document.getElementById('collaborators-container').innerHTML = ''; // Clear existing collaborators
+                document.getElementById('products-container').innerHTML = ''; // Clear existing products
+
+                // Render each collaborator and their clients
+                this.collaborators.forEach((collabData, index) => {
+                    this.addCollaboratorUI(collabData, index);
+                });
+
+                // Render each product
+                this.products.forEach((productData, index) => {
+                    this.addProductRowUI(productData, index);
+                });
+
+                this.updateDateDisplay(); // Ensure date display is updated
+                this.calculateAllTotals(); // Ensure totals are updated
+            },
+
+            // Adds a new collaborator UI block to the DOM
+            addCollaboratorUI(collabData, index) {
+                const container = document.getElementById('collaborators-container');
+                const newCollaboratorDiv = document.createElement('div');
+                newCollaboratorDiv.className = 'collaborator-block';
+                newCollaboratorDiv.setAttribute('data-index', index);
+
+                const hasName = collabData.name && collabData.name.trim() !== '';
+
+                // Using template literals for easier HTML structure, with escapeHTML for user inputs
+                newCollaboratorDiv.innerHTML = `
+                    <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
+                        <input type="text" placeholder="Nome da Colaboradora" value="${escapeHTML(collabData.name)}"
+                               class="form-input flex-grow text-lg font-semibold min-w-[150px]"
+                               oninput="window.salonApp.updateCollaboratorName(${index}, this.value)">
+                        <div class="flex items-center gap-2">
+                            <label for="collab-discount-${index}" class="form-label">Comissão (%):</label>
+                            <input type="number" id="collab-discount-${index}" min="0" max="100"
+                                   value="${(collabData.discountPercentage * 100).toFixed(0)}"
+                                   class="form-input w-20 text-right"
+                                   oninput="window.salonApp.updateCollaboratorDiscount(${index}, this.value)">
+                        </div>
+                        <button onclick="window.salonApp.removeCollaborator(${index})" class="btn btn-danger">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <h3 class="text-md font-medium text-gray-700 mb-2">Clientes</h3>
+                    <div class="clients-container" id="clients-container-${index}">
+                        <!-- Client rows will be added here dynamically by addClientRowUI -->
+                    </div>
+                    <button onclick="window.salonApp.addClientRow(${index})" class="btn btn-primary btn-full mt-4">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Adicionar Cliente
+                    </button>
+
+                    <!-- Observation area, visible only if collaborator name is entered -->
+                    <div class="observation-area ${hasName ? 'visible' : ''}" id="observation-area-${index}">
+                        <label for="observations-${index}" class="form-label">
+                            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                            </svg>
+                            Observações
+                        </label>
+                        <textarea id="observations-${index}" placeholder="Observações sobre a colaboradora..."
+                                  class="form-textarea"
+                                  oninput="window.salonApp.updateCollaboratorObservations(${index}, this.value)">${escapeHTML(collabData.observations || '')}</textarea>
+                    </div>
+
+                    <div class="mt-4 text-right">
+                        <p class="text-sm font-medium text-gray-700">Total: <span id="collab-total-display-${index}">R$ 0,00</span></p>
+                        <p class="text-sm font-medium text-gray-700">-<span id="collab-discount-percentage-display-${index}">${(collabData.discountPercentage * 100).toFixed(0)}</span>%: <span id="collab-discount-value-${index}">R$ 0,00</span></p>
+                        <p class="text-sm font-medium text-red-600">Desconto Cartão: <span id="collab-card-discount-${index}">R$ 0,00</span></p>
+                        <p class="text-md font-bold text-gray-800">Total Líquido: <span id="collab-net-total-display-${index}">R$ 0,00</span></p>
+                    </div>
+                    <button onclick="window.salonApp.generateCollaboratorPDF(${index})" class="btn btn-secondary btn-full mt-4">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Gerar PDF da Colaboradora
+                    </button>
+                `;
+                container.appendChild(newCollaboratorDiv);
+
+                // Add client rows for this newly added collaborator
+                collabData.clients.forEach((clientData, clientIndex) => {
+                    this.addClientRowUI(clientData, index, clientIndex);
+                });
+            },
+
+            // Adds a new client row UI to a specific collaborator's block
+            addClientRowUI(clientData, collaboratorIndex, clientIndex) {
+                const container = document.getElementById(`clients-container-${collaboratorIndex}`);
+                if (!container) return; // Safeguard if container doesn't exist yet
+
+                const newClientDiv = document.createElement('div');
+                newClientDiv.className = 'client-row flex items-center gap-2 mb-2';
+                newClientDiv.innerHTML = `
+                    <input type="text" placeholder="Nome do Cliente" value="${escapeHTML(clientData.name)}"
+                           class="form-input flex-grow min-w-[100px]"
+                           oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)">
+                    <input type="number" step="0.01" min="0" placeholder="Valor" value="${clientData.value}"
+                           class="form-input w-28 text-right"
+                           oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)">
+                    <select class="form-input w-24" onchange="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'paymentMethod', this.value)">
+                        <option value="pix" ${clientData.paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
+                        <option value="debito" ${clientData.paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
+                        <option value="credito" ${clientData.paymentMethod === 'credito' ? 'selected' : ''}>Crédito</option>
+                        <option value="dinheiro" ${clientData.paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                    </select>
+                    <button onclick="window.salonApp.removeClientRow(${collaboratorIndex}, ${clientIndex})" class="btn btn-danger">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                `;
+                container.appendChild(newClientDiv);
+            },
+
+            // Adds a new product row UI to the DOM
+            addProductRowUI(productData, index) {
+                const container = document.getElementById('products-container');
+                const newProductDiv = document.createElement('div');
+                newProductDiv.className = 'product-row flex items-center gap-2 mb-2';
+                newProductDiv.innerHTML = `
+                    <input type="text" placeholder="Nome da Cliente" value="${escapeHTML(productData.clientName)}"
+                           class="form-input flex-grow min-w-[120px]"
+                           oninput="window.salonApp.updateProductData(${index}, 'clientName', this.value)">
+                    <input type="number" step="0.01" min="0" placeholder="Valor" value="${productData.value}"
+                           class="form-input w-28 text-right"
+                           oninput="window.salonApp.updateProductData(${index}, 'value', parseFloat(this.value) || 0)">
+                    <select class="form-input w-24" onchange="window.salonApp.updateProductData(${index}, 'paymentMethod', this.value)">
+                        <option value="pix" ${productData.paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
+                        <option value="debito" ${productData.paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
+                        <option value="credito" ${productData.paymentMethod === 'credito' ? 'selected' : ''}>Crédito</option>
+                        <option value="dinheiro" ${productData.paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                    </select>
+                    <button onclick="window.salonApp.removeProductRow(${index})" class="btn btn-danger">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                `;
+                container.appendChild(newProductDiv);
+            },
+
+            // Updates the date display based on the selected date input
+            updateDateDisplay() {
+                const dateInput = document.getElementById('closingDate');
+                const dateDisplay = document.getElementById('dateDisplay');
+
+                if (dateInput.value) {
+                    const [year, month, day] = dateInput.value.split('-');
+                    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                    const options = { day: 'numeric', month: 'long', year: 'numeric' };
+                    dateDisplay.textContent = `Fechamento semana do dia ${date.toLocaleDateString('pt-BR', options)}`;
+                } else {
+                    dateDisplay.textContent = 'Preencha a data para exibir.';
+                }
+            },
+
+            // Adds a new collaborator to the data model and re-renders UI
+            addCollaborator() {
+                const newCollabData = {
+                    name: '',
+                    clients: [{ name: '', value: 0, paymentMethod: 'pix' }],
+                    discountPercentage: 0.30,
+                    observations: ''
+                };
+                this.collaborators.push(newCollabData);
+                this.renderAllUI();
+            },
+
+            // Removes a collaborator from the data model and re-renders UI, with confirmation
+            removeCollaborator(indexToRemove) {
+                if (confirm('Tem certeza que deseja remover esta colaboradora e todos os seus clientes?')) {
+                    this.collaborators.splice(indexToRemove, 1);
+                    this.renderAllUI();
+                    showMessage('Colaboradora removida.', 'info');
+                }
+            },
+
+            // Updates a collaborator's name in the data model and controls observation area visibility
+            updateCollaboratorName(index, name) {
+                if (this.collaborators[index]) {
+                    this.collaborators[index].name = name;
+                    const observationArea = document.getElementById(`observation-area-${index}`);
+                    if (observationArea) {
+                        if (name && name.trim() !== '') {
+                            observationArea.classList.add('visible');
+                        } else {
+                            observationArea.classList.remove('visible');
+                        }
+                    }
+                }
+            },
+
+            // Updates a collaborator's observations in the data model
+            updateCollaboratorObservations(index, observations) {
+                if (this.collaborators[index]) {
+                    this.collaborators[index].observations = observations;
+                }
+            },
+
+            // Updates a collaborator's discount percentage and recalculates their total
+            updateCollaboratorDiscount(index, value) {
+                let newDiscount = parseFloat(value) / 100;
+                // Validate discount percentage
+                if (isNaN(newDiscount) || newDiscount < 0 || newDiscount > 1) {
+                    newDiscount = 0.30; // Default to 30% if invalid
+                    document.getElementById(`collab-discount-${index}`).value = 30;
+                }
+                if (this.collaborators[index]) {
+                    this.collaborators[index].discountPercentage = newDiscount;
+                    document.getElementById(`collab-discount-percentage-display-${index}`).textContent = (newDiscount * 100).toFixed(0);
+                    this.calculateCollaboratorTotal(index);
+                }
+            },
+
+            // Adds a new client row to a specific collaborator and re-renders UI
+            addClientRow(collaboratorIndex) {
+                if (this.collaborators[collaboratorIndex]) {
+                    this.collaborators[collaboratorIndex].clients.push({ name: '', value: 0, paymentMethod: 'pix' });
+                    this.renderAllUI();
+                }
+            },
+
+            // Removes a client row from a specific collaborator and re-renders UI, with confirmation
+            removeClientRow(collaboratorIndex, clientIndex) {
+                if (confirm('Tem certeza que deseja remover este cliente?')) {
+                    if (this.collaborators[collaboratorIndex]) {
+                        this.collaborators[collaboratorIndex].clients.splice(clientIndex, 1);
+                        this.renderAllUI();
+                        showMessage('Cliente removido.', 'info');
+                    }
+                }
+            },
+
+            // Updates client data (name, value, payment method) and recalculates collaborator total
+            updateClientData(collaboratorIndex, clientIndex, field, value) {
+                if (this.collaborators[collaboratorIndex] && this.collaborators[collaboratorIndex].clients[clientIndex]) {
+                    this.collaborators[collaboratorIndex].clients[clientIndex][field] = value;
+                    this.calculateCollaboratorTotal(collaboratorIndex);
+                }
+            },
+
+            // Adds a new product row to the data model and re-renders UI
+            addProductRow() {
+                this.products.push({ clientName: '', value: 0, paymentMethod: 'pix' });
+                this.renderAllUI();
+            },
+
+            // Removes a product row from the data model and re-renders UI, with confirmation
+            removeProductRow(productIndex) {
+                if (confirm('Tem certeza que deseja remover este produto?')) {
+                    this.products.splice(productIndex, 1);
+                    this.renderAllUI();
+                    showMessage('Produto removido.', 'info');
+                }
+            },
+
+            // Updates product data (client name, value, payment method) and recalculates all totals
+            updateProductData(index, field, value) {
+                if (this.products[index]) {
+                    this.products[index][field] = value;
+                    this.calculateAllTotals();
+                }
+            },
+
+            // Calculates the card discount based on value and payment method
+            calculateCardDiscount(value, paymentMethod) {
+                const discountRates = {
+                    'pix': 0,
+                    'dinheiro': 0,
+                    'debito': 0.0137, // 1.37%
+                    'credito': 0.0315  // 3.15% (1x)
+                };
+                return value * (discountRates[paymentMethod] || 0);
+            },
+
+            // Calculates the total for a specific collaborator, including commission and card discount
+            calculateCollaboratorTotal(collaboratorIndex) {
+                let total = 0;
+                let totalCardDiscount = 0;
+                const collab = this.collaborators[collaboratorIndex];
+                if (collab) {
+                    collab.clients.forEach(client => {
+                        total += client.value;
+                        totalCardDiscount += this.calculateCardDiscount(client.value, client.paymentMethod);
+                    });
+
+                    const discount = total * collab.discountPercentage;
+                    const netTotal = total - discount - totalCardDiscount;
+
+                    // Update UI elements for the specific collaborator
+                    document.getElementById(`collab-total-display-${collaboratorIndex}`).textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+                    document.getElementById(`collab-discount-value-${collaboratorIndex}`).textContent = `R$ ${discount.toFixed(2).replace('.', ',')}`;
+                    document.getElementById(`collab-card-discount-${collaboratorIndex}`).textContent = `R$ ${totalCardDiscount.toFixed(2).replace('.', ',')}`;
+                    document.getElementById(`collab-net-total-display-${collaboratorIndex}`).textContent = `R$ ${netTotal.toFixed(2).replace('.', ',')}`;
+                }
+                this.calculateAllTotals(); // Recalculate overall totals after collaborator total changes
+            },
+
+            // Calculates all overall totals for services and products
+            calculateAllTotals() {
+                let overallGrossTotalServices = 0;
+                let overallProductsTotal = 0;
+                let totalCardDiscountServices = 0;
+                let totalCardDiscountProducts = 0;
+                let totalCollaboratorNetServices = 0; // What collaborators take home from services
+                let totalSalonCommissionServices = 0; // Salon's cut from services (the 30%)
+
+                // Calculate collaborator totals and salon commission from services
+                this.collaborators.forEach(collab => {
+                    const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                    const collabCardDiscount = collab.clients.reduce((sum, client) =>
+                        sum + this.calculateCardDiscount(client.value, client.paymentMethod), 0);
+
+                    const collabDiscountValue = collabTotal * collab.discountPercentage; // Salon's commission from this collab
+                    const collabNet = collabTotal - collabDiscountValue - collabCardDiscount; // Collaborator's net
+
+                    overallGrossTotalServices += collabTotal;
+                    totalCardDiscountServices += collabCardDiscount;
+                    totalCollaboratorNetServices += collabNet;
+                    totalSalonCommissionServices += collabDiscountValue;
+                });
+
+                // Calculate product totals
+                this.products.forEach(product => {
+                    overallProductsTotal += product.value;
+                    totalCardDiscountProducts += this.calculateCardDiscount(product.value, product.paymentMethod);
+                });
+
+                // Overall Totals
+                const overallGrossTotal = overallGrossTotalServices + overallProductsTotal;
+                const totalCardDiscount = totalCardDiscountServices + totalCardDiscountProducts;
+                const totalNetAfterCardFees = overallGrossTotal - totalCardDiscount; // Total money received by the salon after card fees
+
+                // Salon's total revenue: commission from services + net from products
+                const totalSalonRevenue = totalSalonCommissionServices + (overallProductsTotal - totalCardDiscountProducts);
+
+                // Update UI elements
+                document.getElementById('products-total').textContent = `R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`;
+                document.getElementById('overall-gross-total').textContent = `R$ ${overallGrossTotal.toFixed(2).replace('.', ',')}`;
+                document.getElementById('total-card-discount').textContent = `R$ ${totalCardDiscount.toFixed(2).replace('.', ',')}`;
+                document.getElementById('overall-net-after-card-fees').textContent = `R$ ${totalNetAfterCardFees.toFixed(2).replace('.', ',')}`; // New element
+                document.getElementById('total-collaborator-net').textContent = `R$ ${totalCollaboratorNetServices.toFixed(2).replace('.', ',')}`; // New element
+                document.getElementById('total-salon-revenue').textContent = `R$ ${totalSalonRevenue.toFixed(2).replace('.', ',')}`; // New element
+
+                this.updateDetailedContribution(overallGrossTotalServices, overallProductsTotal);
+            },
+
+            // Updates the detailed contribution section in the UI
+            updateDetailedContribution(grossServicesTotal, productsTotal) {
+                const detailedContributionDiv = document.getElementById('detailed-contribution');
+                let content = '';
+
+                if (this.collaborators.length > 0) {
+                    content += '<p class="font-bold">Serviços por Colaboradora (Bruto):</p>';
+                    this.collaborators.forEach(collab => {
+                        const collabGrossTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                        if (grossServicesTotal > 0) {
+                            const percentageOfServices = (collabGrossTotal / grossServicesTotal) * 100;
+                            content += `<p class="ml-4">${escapeHTML(collab.name || 'Colaboradora sem nome')}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')} (${percentageOfServices.toFixed(1)}% dos serviços)</p>`;
+                        } else {
+                            content += `<p class="ml-4">${escapeHTML(collab.name || 'Colaboradora sem nome')}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')}</p>`;
+                        }
+                    });
+                } else {
+                    content += '<p>Nenhum serviço registrado.</p>';
+                }
+
+                content += `<p class="font-bold mt-2">Venda de Produtos:</p>`;
+                content += `<p class="ml-4">Total de Produtos: R$ ${productsTotal.toFixed(2).replace('.', ',')}</p>`;
+
+                detailedContributionDiv.innerHTML = content; // Using innerHTML here is safe as content is generated internally
+            },
+
+            // Generates a PDF report for a specific collaborator
+            generateCollaboratorPDF(collaboratorIndex) {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
+                const collab = this.collaborators[collaboratorIndex];
+                if (!collab) {
+                    console.error("Colaboradora não encontrada para geração de PDF.");
+                    return;
+                }
+
+                const dateText = document.getElementById('dateDisplay').textContent;
+                const collabName = collab.name || 'Colaboradora sem nome';
+
+                const collabTitleY = 20;
+
+                doc.setFontSize(20);
+                doc.text('Espaço Fran Kokott', 105, collabTitleY, null, null, "center");
+
+                let y = collabTitleY + 15;
+
+                doc.setFontSize(14);
+                doc.text(`Fechamento semanal (${collabName})`, 105, y, null, null, "center");
+                y += 15;
+                doc.setFontSize(12);
+                doc.text(dateText, 105, y, null, null, "center");
+                y += 15;
+
+                doc.setFontSize(14);
+                doc.text("Serviços Prestados:", 15, y);
+                y += 10;
+
+                if (collab.clients.length === 0) {
+                    doc.setFontSize(10);
+                    doc.text("Nenhum cliente registrado para esta colaboradora.", 20, y);
+                    y += 10;
+                } else {
+                    collab.clients.forEach(client => {
+                        if (y > 270) { doc.addPage(); y = 15; }
+                        doc.setFontSize(10);
+                        doc.text(`${client.name || 'Nome do Cliente'}: R$ ${client.value.toFixed(2).replace('.', ',')}`, 25, y);
+                        y += 5;
+                    });
+                }
+
+                const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                const collabDiscount = collabTotal * collab.discountPercentage;
+                const collabCardDiscount = collab.clients.reduce((sum, client) =>
+                    sum + this.calculateCardDiscount(client.value, client.paymentMethod), 0);
+                const collabNetTotal = collabTotal - collabDiscount - collabCardDiscount;
+
+
+                if (y > 270) { doc.addPage(); y = 15; }
+                doc.setFontSize(10);
+                doc.text(`Total Bruto Serviços: R$ ${collabTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 5;
+                doc.text(`Comissão (-${(collab.discountPercentage * 100).toFixed(0)}%): R$ ${collabDiscount.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 5;
+                doc.text(`Desconto Cartão: R$ ${collabCardDiscount.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 5;
+                doc.setFontSize(12);
+                doc.text(`Total Líquido para ${collabName}: R$ ${collabNetTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+
+                // Add observations if they exist
+                if (collab.observations && collab.observations.trim() !== '') {
+                    y += 15;
+                    if (y > 260) { doc.addPage(); y = 15; }
+                    doc.setFontSize(12);
+                    doc.text("Observações:", 15, y);
+                    y += 7;
+                    doc.setFontSize(10);
+                    const lines = doc.splitTextToSize(collab.observations, 180);
+                    lines.forEach(line => {
+                        if (y > 270) { doc.addPage(); y = 15; }
+                        doc.text(line, 15, y);
+                        y += 5;
+                    });
+                }
+
+                doc.save(`fechamento_semanal_${collabName.replace(/\s+/g, '_').toLowerCase()}.pdf`);
+            },
+
+            // Generates a comprehensive PDF report for the entire salon
+            generatePDF() {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
+                const dateText = document.getElementById('dateDisplay').textContent;
+
+                const mainTitleY = 20;
+
+                doc.setFontSize(20);
+                doc.text('Espaço Fran Kokott', 105, mainTitleY, null, null, "center");
+
+                let y = mainTitleY + 15;
+
+                doc.setFontSize(14);
+                doc.text("Fechamento semanal (Geral)", 105, y, null, null, "center");
+                y += 15;
+                doc.setFontSize(14);
+                doc.text(dateText, 105, y, null, null, "center");
+                y += 15;
+
+                doc.setFontSize(16);
+                doc.text("Colaboradoras:", 15, y);
+                y += 10;
+
+                let totalCollaboratorNetServices = 0; // Sum of net for all collaborators
+                let totalSalonCommissionServices = 0; // Sum of salon's commission from services
+                let grossServicesTotalForPDF = 0; // Total gross services for PDF details
+
+                if (this.collaborators.length === 0) {
+                    doc.setFontSize(12);
+                    doc.text("Nenhuma colaboradora adicionada.", 15, y);
+                    y += 10;
+                } else {
+                    this.collaborators.forEach(collab => {
+                        if (y > 270) { doc.addPage(); y = 15; }
+                        doc.setFontSize(14);
+                        doc.text(`${collab.name || 'Nome da Colaboradora'}:`, 20, y);
+                        y += 7;
+
+                        if (collab.clients.length === 0) {
+                            doc.setFontSize(10);
+                            doc.text("Nenhum cliente registrado.", 25, y);
+                            y += 7;
+                        } else {
+                            collab.clients.forEach(client => {
+                                if (y > 270) { doc.addPage(); y = 15; }
+                                doc.setFontSize(10);
+                                doc.text(`${client.name || 'Nome do Cliente'}: R$ ${client.value.toFixed(2).replace('.', ',')}`, 25, y);
+                                y += 5;
+                            });
+                        }
+
+                        const collabTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                        const collabDiscount = collabTotal * collab.discountPercentage; // Salon's commission from this collab
+                        const collabCardDiscount = collab.clients.reduce((sum, client) =>
+                            sum + this.calculateCardDiscount(client.value, client.paymentMethod), 0);
+                        const collabNet = collabTotal - collabDiscount - collabCardDiscount; // Collaborator's net
+
+                        totalCollaboratorNetServices += collabNet;
+                        totalSalonCommissionServices += collabDiscount;
+                        grossServicesTotalForPDF += collabTotal;
+
+
+                        if (y > 270) { doc.addPage(); y = 15; }
+                        doc.setFontSize(10);
+                        doc.text(`Total Bruto Serviços: R$ ${collabTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                        y += 5;
+                        doc.text(`Comissão (-${(collab.discountPercentage * 100).toFixed(0)}%): R$ ${collabDiscount.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                        y += 5;
+                        doc.text(`Desconto Cartão: R$ ${collabCardDiscount.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                        y += 5;
+                        doc.setFontSize(12);
+                        doc.text(`Total Líquido: R$ ${collabNet.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                        y += 15;
+                    });
+                }
+
+                if (y > 260) { doc.addPage(); y = 15; }
+                doc.setFontSize(16);
+                doc.text("Produtos Vendidos:", 15, y);
+                y += 10;
+
+                let overallProductsTotal = 0;
+                let totalCardDiscountProducts = 0;
+
+                if (this.products.length === 0) {
+                    doc.setFontSize(12);
+                    doc.text("Nenhum produto vendido.", 15, y);
+                    y += 10;
+                } else {
+                    this.products.forEach(product => {
+                        if (y > 270) { doc.addPage(); y = 15; }
+                        doc.setFontSize(10);
+                        doc.text(`${product.clientName || 'Cliente sem nome'}: R$ ${product.value.toFixed(2).replace('.', ',')}`, 20, y);
+                        y += 5;
+                        overallProductsTotal += product.value;
+                        totalCardDiscountProducts += this.calculateCardDiscount(product.value, product.paymentMethod);
+                    });
+                }
+
+                if (y > 270) { doc.addPage(); y = 15; }
+                doc.setFontSize(12);
+                doc.text(`Total Produtos: R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 15;
+
+                // Add contribution details to PDF
+                if (y > 260) { doc.addPage(); y = 15; }
+                doc.setFontSize(16);
+                doc.text("Detalhes da Contribuição:", 15, y);
+                y += 10;
+
+                // grossServicesTotalForPDF is already calculated above in the collaborator loop
+
+                if (this.collaborators.length > 0) {
+                    if (y > 270) { doc.addPage(); y = 15; }
+                    doc.setFontSize(12);
+                    doc.text("Serviços por Colaboradora (Bruto):", 20, y);
+                    y += 7;
+                    this.collaborators.forEach(collab => {
+                        const collabGrossTotal = collab.clients.reduce((sum, client) => sum + client.value, 0);
+                        if (grossServicesTotalForPDF > 0) {
+                            const percentageOfServices = (collabGrossTotal / grossServicesTotalForPDF) * 100;
+                            if (y > 270) { doc.addPage(); y = 15; }
+                            doc.setFontSize(10);
+                            doc.text(`${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')} (${percentageOfServices.toFixed(1)}% dos serviços)`, 25, y);
+                            y += 5;
+                        } else {
+                            if (y > 270) { doc.addPage(); y = 15; }
+                            doc.setFontSize(10);
+                            doc.text(`${collab.name || 'Colaboradora sem nome'}: R$ ${collabGrossTotal.toFixed(2).replace('.', ',')}`, 25, y);
+                            y += 5;
+                        }
+                    });
+                } else {
+                    if (y > 270) { doc.addPage(); y = 15; }
+                    doc.setFontSize(10);
+                    doc.text("Nenhum serviço registrado.", 20, y);
+                    y += 5;
+                }
+
+                if (y > 270) { doc.addPage(); y = 15; }
+                doc.setFontSize(12);
+                doc.text("Venda de Produtos:", 20, y);
+                y += 7;
+                doc.setFontSize(10);
+                doc.text(`Total de Produtos: R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`, 25, y);
+                y += 10;
+
+                if (y > 260) { doc.addPage(); y = 15; }
+                doc.setFontSize(16);
+                doc.text("Resumo Geral:", 15, y);
+                y += 10;
+
+                const overallGrossTotal = grossServicesTotalForPDF + overallProductsTotal;
+                const totalCardDiscount = this.collaborators.reduce((sum, collab) => sum + collab.clients.reduce((s, c) => s + this.calculateCardDiscount(c.value, c.paymentMethod), 0), 0) + totalCardDiscountProducts;
+                const totalNetAfterCardFees = overallGrossTotal - totalCardDiscount;
+                const totalSalonRevenue = totalSalonCommissionServices + (overallProductsTotal - totalCardDiscountProducts);
+
+
+                if (y > 270) { doc.addPage(); y = 15; }
+                doc.setFontSize(14);
+                doc.text(`Total Bruto Geral: R$ ${overallGrossTotal.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 10;
+                doc.text(`Desconto Cartão: R$ ${totalCardDiscount.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 10;
+                doc.text(`Total Líquido Geral (Após Taxas de Cartão): R$ ${totalNetAfterCardFees.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 10;
+                doc.text(`Total Líquido Colaboradoras: R$ ${totalCollaboratorNetServices.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+                y += 10;
+                doc.text(`Total Líquido Salão (Comissão + Produtos): R$ ${totalSalonRevenue.toFixed(2).replace('.', ',')}`, 150, y, null, null, "right");
+
+                doc.save("fechamento_semanal_salao.pdf");
+            }
+        };
+
+        // --- Global Utility Functions (outside salonApp for broader access if needed) ---
+
+        // Displays a temporary message to the user
         function showMessage(message, type = 'success') {
             const msgDiv = document.getElementById('app-message');
             msgDiv.textContent = message;
-            msgDiv.className = `message message-${type}`; // Use new message classes
+            msgDiv.className = `message message-${type}`;
             msgDiv.style.display = 'block';
-            
+
+            // Hide message after 5 seconds
             setTimeout(() => {
                 msgDiv.style.display = 'none';
             }, 5000);
         }
 
-        function showClearAllFichasConfirm() {
-            document.getElementById('custom-confirm-modal').style.display = 'flex';
+        // Global variable to hold the callback for the custom confirmation modal
+        let confirmActionCallback = null;
+
+        // Helper function to escape HTML characters to prevent XSS attacks
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
         }
 
-        function handleClearAllFichasConfirm(confirmed) {
-            document.getElementById('custom-confirm-modal').style.display = 'none';
-            if (confirmed) {
-                clearAllFichas();
-            } else {
-                showMessage('Operação de limpeza cancelada.', 'info');
-            }
-        }
-        // --- End Helper Functions ---
-
-        // --- Firestore Functions ---
-        async function saveFichaToFirestore(fichaData) {
-            if (!window.db || !window.userId || !window.fichasCollectionRef) {
-                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível salvar a ficha.', 'error');
-                return;
-            }
-            try {
-                const docRef = await window.addDoc(window.fichasCollectionRef, fichaData);
-                console.log("Ficha salva com ID:", docRef.id);
-                // showMessage('Ficha registrada e salva na nuvem!', 'success'); // Moved to addFicha for better UX
-                return docRef.id;
-            } catch (e) {
-                console.error("Erro ao adicionar ficha ao Firestore: ", e);
-                showMessage('Erro ao salvar ficha na nuvem: ' + e.message, 'error');
-                return null;
-            }
-        }
-
-        async function loadFichasFromFirestore() {
-            if (!window.db || !window.userId || !window.fichasCollectionRef) {
-                console.log('Firebase não inicializado ou usuário não autenticado. Não foi possível carregar as fichas.');
-                return;
-            }
-            showMessage('Carregando fichas do Firestore...', 'info');
-            try {
-                fichas = []; 
-                const querySnapshot = await window.getDocs(window.fichasCollectionRef);
-                querySnapshot.forEach((doc) => {
-                    fichas.push({ id: doc.id, ...doc.data() });
-                });
-                renderFichasTable();
-                showMessage('Fichas carregadas do Firestore com sucesso!', 'success');
-                console.log("Fichas carregadas:", fichas);
-            } catch (e) {
-                console.error("Erro ao carregar fichas do Firestore: ", e);
-                showMessage('Erro ao carregar fichas da nuvem: ' + e.message, 'error');
-            }
-        }
-
-        async function removeFichaFromFirestore(fichaId) {
-            if (!window.db || !window.userId) {
-                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível remover a ficha.', 'error');
-                return false;
-            }
-            try {
-                await window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, fichaId));
-                showMessage('Ficha removida da nuvem.', 'info');
-                return true;
-            } catch (e) {
-                console.error("Erro ao remover ficha do Firestore: ", e);
-                showMessage('Erro ao remover ficha da nuvem: ' + e.message, 'error');
-                return false;
-            }
-        }
-
-        async function saveWeeklyReportDataToFirestore(data) {
-            if (!window.db || !window.userId) {
-                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados.', 'error');
-                return;
-            }
-            try {
-                // Salva os dados agregados em um documento específico para o fechamento semanal
-                // O caminho foi ajustado para corresponder ao que o sistema de fechamento semanal espera
-                const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
-                await window.setDoc(docRef, data);
-                console.log("Dados agregados para fechamento semanal salvos no Firestore com sucesso!");
-                showMessage('Dados agregados para fechamento semanal salvos no Firestore!', 'success');
-            } catch (e) {
-                console.error("Erro ao salvar dados agregados no Firestore: ", e);
-                showMessage('Erro ao salvar dados agregados na nuvem: ' + e.message, 'error');
-            }
-        }
-
-        async function saveFichasSnapshotToFirestore() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para salvar fichas na nuvem.', 'error');
-                return;
-            }
-
-            if (fichas.length === 0) {
-                showMessage('Não há fichas para salvar.', 'info');
-                return;
-            }
-
-            showMessage('Salvando snapshot de fichas na nuvem...', 'info');
-
-            const snapshotData = {
-                fichas: fichas,
-                savedAt: new Date().toISOString()
-            };
-
-            try {
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichasSnapshots`);
-                await window.addDoc(collectionRef, snapshotData);
-                showMessage('Snapshot de fichas salvo na nuvem com sucesso!', 'success');
-            } catch (e) {
-                console.error("Erro ao salvar snapshot de fichas no Firestore: ", e);
-                showMessage('Erro ao salvar snapshot de fichas na nuvem: ' + e.message, 'error');
-            }
-        }
-
-        async function openSavedFichasModal() {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para carregar fichas da nuvem.', 'error');
-                return;
-            }
-
-            showMessage('Buscando snapshots de fichas salvos...', 'info');
-            const fichasListDiv = document.getElementById('saved-fichas-list');
-            fichasListDiv.innerHTML = '<p class="text-center text-gray-500 p-4">Carregando...</p>';
-            window.selectedFichaSnapshotId = null;
-
-            try {
-                const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichasSnapshots`);
-                const querySnapshot = await window.getDocs(query(collectionRef, orderBy("savedAt", "desc"))); // Order by latest
-                
-                window.fichasSavedSnapshots = [];
-                if (querySnapshot.empty) {
-                    fichasListDiv.innerHTML = '<p class="text-center text-gray-500 p-4">Nenhum snapshot de fichas salvo.</p>';
-                    showMessage('Nenhum snapshot de fichas salvo para carregar.', 'info');
-                    return;
-                }
-
-                fichasListDiv.innerHTML = '';
-                querySnapshot.forEach(doc => {
-                    const data = doc.data();
-                    window.fichasSavedSnapshots.push({ id: doc.id, ...data });
-
-                    const reportItem = document.createElement('div');
-                    reportItem.className = 'report-item';
-                    reportItem.setAttribute('data-report-id', doc.id);
-                    
-                    const savedDate = data.savedAt ? new Date(data.savedAt).toLocaleDateString('pt-BR') : 'Desconhecida';
-                    const savedTime = data.savedAt ? new Date(data.savedAt).toLocaleTimeString('pt-BR') : '';
-
-                    reportItem.innerHTML = `
-                        <div>
-                            <p class="font-medium">Snapshot salvo em: ${savedDate} às ${savedTime}</p>
-                            <p class="text-xs text-gray-500">Total de fichas: ${data.fichas ? data.fichas.length : 0}</p>
-                        </div>
-                        <button class="btn btn-danger text-sm" onclick="event.stopPropagation(); deleteSavedFichaSnapshot('${doc.id}')">Excluir</button>
-                    `;
-                    
-                    reportItem.onclick = (event) => selectFichaSnapshot(event, doc.id);
-                    fichasListDiv.appendChild(reportItem);
-                });
-
-                document.getElementById('saved-fichas-modal').style.display = 'flex';
-                showMessage('Snapshots de fichas carregados!', 'success');
-
-            } catch (error) {
-                console.error('Erro ao carregar snapshots de fichas salvos do Firestore:', error);
-                showMessage('Erro ao carregar snapshots de fichas salvos: ' + error.message, 'error');
-            }
-        }
-
-        function closeSavedFichasModal() {
-            document.getElementById('saved-fichas-modal').style.display = 'none';
-        }
-
-        function selectFichaSnapshot(event, snapshotId) {
-            document.querySelectorAll('#saved-fichas-list .report-item').forEach(item => {
-                item.classList.remove('selected');
-            });
-            event.currentTarget.classList.add('selected');
-            window.selectedFichaSnapshotId = snapshotId;
-        }
-
-        async function loadSelectedFichaSnapshot() {
-            if (!window.selectedFichaSnapshotId) {
-                showMessage('Por favor, selecione um snapshot para carregar.', 'info');
-                return;
-            }
-
-            showMessage('Carregando snapshot de fichas selecionado...', 'info');
-            const snapshotToLoad = window.fichasSavedSnapshots.find(snapshot => snapshot.id === window.selectedFichaSnapshotId);
-
-            if (snapshotToLoad && snapshotToLoad.fichas) {
-                fichas = snapshotToLoad.fichas;
-                renderFichasTable();
-                closeSavedFichasModal();
-                showMessage('Snapshot de fichas carregado com sucesso!', 'success');
-            } else {
-                showMessage('Erro: Snapshot de fichas selecionado não encontrado ou vazio.', 'error');
-            }
-        }
-
-        async function deleteSavedFichaSnapshot(snapshotId) {
-            if (!window.db || !window.userId || window.userId === 'Não autenticado') {
-                showMessage('Por favor, faça login para excluir snapshots.', 'error');
-                return;
-            }
-
-            if (confirm('Tem certeza que deseja excluir este snapshot de fichas salvo?')) {
-                try {
-                    const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/savedFichasSnapshots`, snapshotId);
-                    await window.deleteDoc(docRef);
-                    showMessage('Snapshot de fichas excluído com sucesso!', 'success');
-                    openSavedFichasModal(); // Recarrega a lista após a exclusão
-                } catch (error) {
-                    console.error('Erro ao excluir snapshot de fichas salvo:', error);
-                    showMessage('Erro ao excluir snapshot: ' + error.message, 'error');
-                }
-            }
-        }
-        // --- End Firestore Functions ---
-
-        // --- Dynamic Input Row Management ---
-        function addServiceRow(serviceName = '', serviceValue = '0', paymentMethod = 'pix') { 
-            const container = document.getElementById('services-container');
-            const newServiceDiv = document.createElement('div');
-            newServiceDiv.className = 'flex items-center gap-2 mb-2 service-row'; 
-            newServiceDiv.innerHTML = `
-                <input type="text" placeholder="Nome do Serviço" value="${serviceName}" class="service-name form-input flex-grow min-w-[100px]">
-                <input type="text" placeholder="Valor" value="${serviceValue}" class="service-value form-input w-28 text-right" onfocus="clearZero(this)" onblur="formatInteger(this)" oninput="formatIntegerLive(this)">
-                <select class="form-input w-24" onchange="updateServicePaymentMethod(this)">
-                    <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
-                    <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
-                    <option value="credito" ${paymentMethod === 'credito' ? 'selected' : ''}>Crédito</option>
-                    <option value="dinheiro" ${paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
-                </select>
-                <button onclick="removeRow(this)" class="btn btn-danger">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                    </svg>
-                </button>
-            `;
-            container.appendChild(newServiceDiv);
-        }
-
-        function addProductSoldRow(productName = '', productValue = '0', paymentMethod = 'pix') { 
-            const container = document.getElementById('products-sold-container');
-            const newProductDiv = document.createElement('div');
-            newProductDiv.className = 'flex items-center gap-2 mb-2 product-sold-row'; 
-            newProductDiv.innerHTML = `
-                <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name form-input flex-grow min-w-[100px]">
-                <input type="text" placeholder="Valor" value="${productValue}" class="product-sold-value form-input w-28 text-right" onfocus="clearZero(this)" onblur="formatInteger(this)" oninput="formatIntegerLive(this)">
-                <select class="form-input w-24" onchange="updateProductSoldPaymentMethod(this)">
-                    <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
-                    <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
-                    <option value="credito" ${paymentMethod === 'credito' ? 'selected' : ''}>Crédito</option>
-                    <option value="dinheiro" ${paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
-                </select>
-                <button onclick="removeRow(this)" class="btn btn-danger">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            `;
-            container.appendChild(newProductDiv);
-        }
-
-        // Function to clear "0" or "0,00" on focus
-        function clearZero(input) {
-            if (input.value === '0' || input.value === '0,00') {
-                input.value = '';
-            }
-        }
-
-        // Nova função para formatar como inteiro ao perder o foco
-        function formatInteger(input) {
-            let value = input.value.replace(/\D/g, ''); // Remove non-digits
-            if (value.length === 0) {
-                input.value = '0';
-                return;
-            }
-            input.value = parseInt(value, 10).toString(); // Convert to integer and back to string
-        }
-
-        // Nova função para formatar como inteiro enquanto digita
-        function formatIntegerLive(input) {
-            let value = input.value.replace(/\D/g, ''); // Remove non-digits
-            if (value.length === 0) {
-                input.value = '0'; // Keep it simple during live typing if empty
-            } else {
-                input.value = value; // Just display the digits
-            }
-        }
-
-        // Functions to update payment method for services and products (not directly used for ficha data structure, but good practice)
-        function updateServicePaymentMethod(selectElement) {
-            // This function would be more complex if we were directly editing existing ficha data in the UI
-            // For now, it just ensures the select element works.
-            console.log("Service payment method changed to:", selectElement.value);
-        }
-
-        function updateProductSoldPaymentMethod(selectElement) {
-            // Similar to updateServicePaymentMethod
-            console.log("Product payment method changed to:", selectElement.value);
-        }
-
-        function removeRow(button) {
-            button.closest('.flex').remove();
-        }
-
-        function clearInputFields() {
-            document.getElementById('clientName').value = '';
-            document.getElementById('professionalName').value = '';
-            document.getElementById('services-container').innerHTML = ''; // Clear all service rows
-            document.getElementById('products-sold-container').innerHTML = ''; // Clear all product rows
-            addServiceRow(); // Add one empty service row back
-            addProductSoldRow(); // Add one empty product row back
-        }
-        // --- End Dynamic Input Row Management ---
-
-        // --- Ficha Management Functions ---
-        async function addFicha() {
-            if (!window.db || !window.userId || !window.fichasCollectionRef) {
-                showMessage('Firebase não inicializado ou usuário não autenticado. Por favor, aguarde alguns segundos e tente novamente.', 'error');
-                return;
-            }
-
-            const clientName = document.getElementById('clientName').value.trim();
-            const professionalName = document.getElementById('professionalName').value.trim();
-
-            if (!clientName || !professionalName) {
-                showMessage('Por favor, preencha o nome da Cliente e da Profissional.', 'error');
-                return;
-            }
-
-            const services = [];
-            document.querySelectorAll('.service-row').forEach(row => {
-                const name = row.querySelector('.service-name').value.trim();
-                // Use parseInt for integer values directly
-                const value = parseInt(row.querySelector('.service-value').value) || 0;
-                const paymentMethod = row.querySelector('select').value; // Get payment method
-                // Only add if name is not empty. Value can be 0.
-                if (name) { 
-                    services.push({ name, value, paymentMethod });
-                }
-            });
-
-            const productsSold = [];
-            document.querySelectorAll('.product-sold-row').forEach(row => {
-                const name = row.querySelector('.product-sold-name').value.trim();
-                // Use parseInt for integer values directly
-                const value = parseInt(row.querySelector('.product-sold-value').value) || 0;
-                const paymentMethod = row.querySelector('select').value; // Get payment method
-                // Only add if name is not empty. Value can be 0.
-                if (name) {
-                    productsSold.push({ name, value, paymentMethod });
-                }
-            });
-
-            if (services.length === 0 && productsSold.length === 0) {
-                showMessage('Por favor, adicione pelo menos um serviço ou um produto vendido.', 'error');
-                return;
-            }
-
-            const totalFicha = services.reduce((sum, s) => sum + s.value, 0) + productsSold.reduce((sum, p) => sum + p.value, 0);
-
-            const newFicha = {
-                clientName,
-                professionalName,
-                services,
-                productsSold,
-                totalFicha,
-                timestamp: new Date().toISOString() // Para ordenação e ID único
-            };
-
-            // Add to local array first for immediate display
-            fichas.push(newFicha); 
-            renderFichasTable();
-            clearInputFields();
-            showMessage('Ficha registrada com sucesso!', 'success');
-
-            // Then save to Firestore in the background
-            const fichaId = await saveFichaToFirestore(newFicha);
-            if (fichaId) {
-                // Update the local ficha with the Firestore ID if needed for future operations
-                const index = fichas.findIndex(f => f.timestamp === newFicha.timestamp && !f.id);
-                if (index !== -1) {
-                    fichas[index].id = fichaId;
-                }
-                showMessage('Ficha salva na nuvem!', 'info'); // More subtle message for cloud save
-            }
-        }
-
-        async function removeFicha(index) {
-            const fichaToRemove = fichas[index];
-            if (!fichaToRemove || !fichaToRemove.id) {
-                showMessage('Erro: Ficha ou ID da ficha não encontrado para remoção.', 'error');
-                return;
-            }
-
-            const removed = await removeFichaFromFirestore(fichaToRemove.id);
-            if (removed) {
-                fichas.splice(index, 1); // Remove do array local apenas se removido do Firestore
-                renderFichasTable();
-            }
-        }
-
-        async function clearAllFichas() {
-            if (!window.db || !window.userId || !window.fichasCollectionRef) {
-                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível limpar as fichas.', 'error');
-                return;
-            }
-            showMessage('Limpando todas as fichas no Firestore...', 'info');
-            try {
-                const querySnapshot = await window.getDocs(window.fichasCollectionRef);
-                const deletePromises = [];
-                querySnapshot.forEach((doc) => {
-                    deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, doc.id)));
-                });
-                await Promise.all(deletePromises);
-                fichas = []; // Limpa o array local após a exclusão no Firestore
-                renderFichasTable();
-                showMessage('Todas as fichas foram limpas (Firestore).', 'success');
-            } catch (e) {
-                console.error("Erro ao limpar todas as fichas do Firestore: ", e);
-                showMessage('Erro ao limpar todas as fichas da nuvem: ' + e.message, 'error');
-            }
-        }
-
-        function renderFichasTable() {
-            const tableBody = document.getElementById('fichas-table-body');
-            tableBody.innerHTML = ''; // Clear existing rows
-
-            if (fichas.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="6" class="py-3 px-6 text-center text-gray-500">Nenhuma ficha registrada ainda.</td></tr>`;
-                return;
-            }
-
-            fichas.forEach((ficha, index) => {
-                const row = tableBody.insertRow();
-                row.className = 'border-b border-gray-200 hover:bg-gray-100';
-
-                // Client Name
-                const clientCell = row.insertCell();
-                clientCell.className = 'py-3 px-6 text-left whitespace-nowrap';
-                clientCell.textContent = ficha.clientName;
-
-                // Professional Name
-                const professionalCell = row.insertCell();
-                professionalCell.className = 'py-3 px-6 text-left whitespace-nowrap';
-                professionalCell.textContent = ficha.professionalName;
-
-                // Services
-                const servicesCell = row.insertCell();
-                servicesCell.className = 'py-3 px-6 text-left';
-                servicesCell.innerHTML = ficha.services.map(s => `
-                    <p>${s.name} (R$ ${s.value.toFixed(0).replace('.', ',')}) - ${s.paymentMethod || 'N/A'}</p>
-                `).join('');
-                if (ficha.services.length === 0) servicesCell.textContent = 'Nenhum';
-
-                // Products Sold
-                const productsCell = row.insertCell();
-                productsCell.className = 'py-3 px-6 text-left';
-                productsCell.innerHTML = ficha.productsSold.map(p => `
-                    <p>${p.name} (R$ ${p.value.toFixed(0).replace('.', ',')}) - ${p.paymentMethod || 'N/A'}</p>
-                `).join('');
-                if (ficha.productsSold.length === 0) productsCell.textContent = 'Nenhum';
-
-                // Total Ficha
-                const totalCell = row.insertCell();
-                totalCell.className = 'py-3 px-6 text-center font-bold';
-                totalCell.textContent = `R$ ${ficha.totalFicha.toFixed(0).replace('.', ',')}`;
-
-                // Actions
-                const actionsCell = row.insertCell();
-                actionsCell.className = 'py-3 px-6 text-center';
-                actionsCell.innerHTML = `
-                    <button onclick="removeFicha(${index})" class="text-red-600 hover:text-red-800 font-medium">Remover</button>
-                `;
-            });
-        }
-        // --- End Ficha Management Functions ---
-
-        // --- File Operations ---
-        function exportFichasToFile() {
-            const dataToSave = fichas;
-            const jsonString = JSON.stringify(dataToSave, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `fichas_clientes_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            showMessage('Fichas exportadas para arquivo JSON!', 'success');
-        }
-
-        function importFichasFromFile() {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.json';
-
-            fileInput.onchange = (event) => {
-                const file = event.target.files[0];
-                if (!file) {
-                    showMessage('Nenhum arquivo selecionado.', 'info');
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const importedData = JSON.parse(e.target.result);
-
-                        if (Array.isArray(importedData) && importedData.every(item => typeof item === 'object' && item !== null && 'clientName' in item && 'professionalName' in item)) {
-                            fichas = importedData;
-                            renderFichasTable();
-                            showMessage('Fichas importadas com sucesso!', 'success');
-                        } else {
-                            showMessage('Formato de arquivo JSON inválido para fichas. Verifique o conteúdo.', 'error');
-                        }
-                    } catch (parseError) {
-                        showMessage('Erro ao ler o arquivo: Não é um JSON válido.', 'error');
-                    }
-                };
-                reader.readAsText(file);
-            };
-
-            fileInput.click();
-        }
-        // --- End File Operations ---
-
-
-        // --- Integration with Weekly Closing System (Firestore) ---
-        async function generateAndExportWeeklyData() {
-            if (!window.db || !window.userId || !window.fichasCollectionRef) {
-                showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados para fechamento semanal.', 'error');
-                console.error("Erro: Firebase não inicializado ou usuário não autenticado ao tentar exportar dados semanais.");
-                return;
-            }
-
-            console.log("Iniciando a geração e exportação de dados semanais...");
-            const aggregatedData = {
-                collaborators: {}, // Use an object to easily group by professional name
-                products: []
-            };
-
-            fichas.forEach(ficha => {
-                const professionalName = ficha.professionalName.trim();
-
-                // Aggregate services by professional
-                if (!aggregatedData.collaborators[professionalName]) {
-                    aggregatedData.collaborators[professionalName] = {
-                        name: professionalName,
-                        clients: [], // Will store { name: clientName, value: serviceValue } for this professional
-                        discountPercentage: 0.30 // Default, can be adjusted in the main app
-                    };
-                }
-                ficha.services.forEach(service => {
-                    // For simplicity, each service is treated as a client entry for the professional's total
-                    // If a professional does multiple services for the same client, they'll appear as separate entries
-                    // This matches the current structure of the main app's 'clients' array
-                    aggregatedData.collaborators[professionalName].clients.push({
-                        name: ficha.clientName + ' - ' + service.name, // Combine client and service for clarity
-                        value: service.value,
-                        paymentMethod: service.paymentMethod || 'pix' // Include payment method
-                    });
-                });
-
-                // Aggregate products
-                ficha.productsSold.forEach(product => {
-                    aggregatedData.products.push({
-                        clientName: ficha.clientName + ' - ' + product.name, // Combine client and product for clarity
-                        value: product.value,
-                        paymentMethod: product.paymentMethod || 'pix' // Include payment method
-                    });
-                });
-            });
-
-            // Convert collaborators object back to an array
-            const finalCollaboratorsArray = Object.values(aggregatedData.collaborators);
-
-            const dataToExport = {
-                collaborators: finalCollaboratorsArray,
-                products: aggregatedData.products,
-                lastUpdated: new Date().toISOString() // Adiciona um timestamp de atualização
-            };
-
-            console.log("Dados agregados para exportação:", dataToExport);
-            await saveWeeklyReportDataToFirestore(dataToExport);
-            console.log("Chamada para saveWeeklyReportDataToFirestore concluída.");
-        }
-        // --- End Integration ---
-
-        // --- Initialization ---
+        // --- Global Function Aliases for backward compatibility or direct access ---
+        // These are exposed globally to allow direct calls from inline HTML event handlers
+        window.updateDateDisplay = () => window.salonApp.updateDateDisplay();
+        window.addCollaborator = () => window.salonApp.addCollaborator();
+        window.addProductRow = () => window.salonApp.addProductRow();
+        window.generatePDF = () => window.salonApp.generatePDF();
+        window.showClearConfirm = () => window.salonApp.showClearConfirm(); // Alias to the salonApp method
+        window.handleConfirm = (confirmed) => window.salonApp.handleConfirm(confirmed); // Alias to the salonApp method
+        // Exposing deleteSavedReport directly for use in dynamic HTML generation
+        window.deleteSavedReport = (id) => window.salonApp.deleteSavedReport(id);
+
+        // This function is called by the Firebase onAuthStateChanged listener once authentication is ready
         function initializeAppLogic() {
-            console.log("initializeAppLogic called. window.db:", window.db, "window.userId:", window.userId); // Debug log
-            loadFichasFromFirestore(); // Carrega fichas do Firestore
-            // Ensure there's always at least one empty row for input
-            if (document.querySelectorAll('.service-row').length === 0) {
-                addServiceRow();
-            }
-            if (document.querySelectorAll('.product-sold-row').length === 0) {
-                addProductSoldRow();
-            }
-            // Habilitar botões após a inicialização do Firebase e autenticação
-            document.getElementById('addFichaBtn').disabled = false;
-            document.getElementById('clearAllFichasBtn').disabled = false;
-            document.getElementById('exportWeeklyDataBtn').disabled = false;
-            document.getElementById('exportFichasToFileBtn').disabled = false;
-            document.getElementById('importFichasFromFileBtn').disabled = false;
-            document.getElementById('saveFichasToCloudBtn').disabled = false;
-            document.getElementById('loadFichasFromCloudBtn').disabled = false;
-            console.log("Buttons enabled."); // Debug log
+            window.salonApp.init();
         }
+
+        // Expose initializeAppLogic globally so Firebase can call it
+        window.initializeAppLogic = initializeAppLogic;
     </script>
 </body>
 </html>
+
 
 
 
