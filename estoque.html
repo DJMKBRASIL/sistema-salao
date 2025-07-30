@@ -47,13 +47,13 @@
         // __app_id e __firebase_config são variáveis globais fornecidas pelo ambiente Canvas
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "YOUR_API_KEY", // Substitua pela sua chave de API real se não estiver no ambiente Canvas
-            authDomain: "YOUR_AUTH_DOMAIN",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_STORAGE_BUCKET",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID",
-            measurementId: "YOUR_MEASUREMENT_ID"
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", // Suas credenciais do Firebase
+            authDomain: "sistema-do-salao.firebaseapp.com", // Suas credenciais do Firebase
+            projectId: "sistema-do-salao",   // Suas credenciais do Firebase
+            storageBucket: "sistema-do-salao.firebasestorage.app", // Suas credenciais do Firebase
+            messagingSenderId: "395887083088", // Suas credenciais do Firebase
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55", // Suas credenciais do Firebase
+            // measurementId: "G-1D996M5FKZ" // Comentado, pois não é usado diretamente na aplicação
         };
         // __initial_auth_token é uma variável global fornecida pelo ambiente Canvas
         window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -1505,26 +1505,22 @@
              */
             calculateCollaboratorTotal(collaboratorIndex) {
                 let grossTotalServices = 0;
-                let cardDiscountServices = 0; // Ainda calculamos para o resumo geral
                 const collab = this.collaborators[collaboratorIndex];
 
                 if (collab) {
                     collab.clients.forEach(client => {
                         grossTotalServices += client.value;
-                        cardDiscountServices += this.calculateCardDiscount(client.value, client.paymentMethod);
+                        // A taxa do cartão NÃO é descontada aqui para a colaboradora
                     });
                     
                     // A parte do salão é calculada sobre o valor BRUTO do serviço
                     const salonShareValue = grossTotalServices * collab.discountPercentage;
-                    // O total líquido da colaboradora é o bruto menos a parte do salão (sem descontar o cartão dela)
+                    // O total líquido da colaboradora é o bruto menos a parte do salão
                     const collabNetTotal = grossTotalServices - salonShareValue; 
 
                     // Atualiza a UI individual da colaboradora
                     document.getElementById(`collab-gross-total-display-${collaboratorIndex}`).textContent = `R$ ${grossTotalServices.toFixed(2).replace('.', ',')}`;
-                    // O desconto do cartão não é exibido aqui para a colaboradora
-                    // document.getElementById(`collab-card-discount-services-${collaboratorIndex}`).textContent = `R$ ${cardDiscountServices.toFixed(2).replace('.', ',')}`;
-                    
-                    // O "Líquido P/ Comissão" agora é o bruto, já que a taxa não é dela
+                    // O "Líquido P/ Comissão" agora é o bruto do serviço, já que a taxa não é descontada dela
                     document.getElementById(`collab-net-for-commission-${collaboratorIndex}`).textContent = `R$ ${grossTotalServices.toFixed(2).replace('.', ',')}`;
                     document.getElementById(`collab-salon-share-value-${collaboratorIndex}`).textContent = `R$ ${salonShareValue.toFixed(2).replace('.', ',')}`; // Valor da parte do salão
                     document.getElementById(`collab-net-total-display-${collaboratorIndex}`).textContent = `R$ ${collabNetTotal.toFixed(2).replace('.', ',')}`;
@@ -1538,8 +1534,6 @@
             calculateAllTotals() {
                 let overallGrossRevenue = 0; // Total de receita bruta de serviços e produtos
                 let totalCardDiscount = 0;    // Total de descontos de cartão para serviços e produtos (despesa do salão)
-                let totalSalonShareFromServices = 0; // Total da parte do salão nos serviços
-                let overallProductsTotal = 0; // Total de receita bruta de produtos
                 let totalCollaboratorNetPayments = 0; // Total que as colaboradoras recebem (despesa do salão)
 
                 // Calcula totais para serviços
@@ -1552,8 +1546,6 @@
                     overallGrossRevenue += grossServices; // Acumula o bruto dos serviços
 
                     const salonShareValue = grossServices * collab.discountPercentage; // Parte do salão sobre o bruto do serviço
-                    totalSalonShareFromServices += salonShareValue;
-
                     const collabNetTotal = grossServices - salonShareValue; // O que a colaboradora recebe (bruto - parte salão)
                     totalCollaboratorNetPayments += collabNetTotal;
                 });
@@ -1563,25 +1555,22 @@
                     overallGrossRevenue += product.value;
                     const productCardDiscount = this.calculateCardDiscount(product.value, product.paymentMethod);
                     totalCardDiscount += productCardDiscount; // Acumula o desconto do cartão dos produtos AQUI
-                    overallProductsTotal += product.value;
                 });
 
                 // Lucro Líquido do Salão = Receita Bruta Total - Total Desconto Cartão - Total Pago às Colaboradoras
                 const salonNetProfit = overallGrossRevenue - totalCardDiscount - totalCollaboratorNetPayments;
 
                 // --- DEBUGGING: Log no console para verificar os valores ---
-                console.log("--- Resumo de Cálculos (Lucro Líquido do Salão) ---");
-                console.log("Receita Bruta Total (Serviços + Produtos):", overallGrossRevenue.toFixed(2));
-                console.log("Total Desconto Cartão (Serviços + Produtos):", totalCardDiscount.toFixed(2));
-                console.log("Total Parte do Salão nos Serviços (acumulado):", totalSalonShareFromServices.toFixed(2));
-                console.log("Total Pago às Colaboradoras (acumulado):", totalCollaboratorNetPayments.toFixed(2));
-                console.log("Total Bruto Produtos:", overallProductsTotal.toFixed(2));
-                console.log("Lucro Líquido do Salão (Bruto Total - Desconto Cartão Total - Pago Colaboradoras Total):", salonNetProfit.toFixed(2));
-                console.log("--------------------------------------------------");
+                // console.log("--- Resumo de Cálculos (Lucro Líquido do Salão) ---");
+                // console.log("Receita Bruta Total (Serviços + Produtos):", overallGrossRevenue.toFixed(2));
+                // console.log("Total Desconto Cartão (Serviços + Produtos):", totalCardDiscount.toFixed(2));
+                // console.log("Total Pago às Colaboradoras (acumulado):", totalCollaboratorNetPayments.toFixed(2));
+                // console.log("Lucro Líquido do Salão (Bruto Total - Desconto Cartão Total - Pago Colaboradoras Total):", salonNetProfit.toFixed(2));
+                // console.log("--------------------------------------------------");
                 // --- FIM DEBUGGING ---
 
                 // Atualiza elementos da UI
-                document.getElementById('products-total').textContent = `R$ ${overallProductsTotal.toFixed(2).replace('.', ',')}`;
+                document.getElementById('products-total').textContent = `R$ ${this.products.reduce((sum, p) => sum + p.value, 0).toFixed(2).replace('.', ',')}`;
                 document.getElementById('overall-gross-total').textContent = `R$ ${overallGrossRevenue.toFixed(2).replace('.', ',')}`;
                 document.getElementById('total-card-discount').textContent = `R$ ${totalCardDiscount.toFixed(2).replace('.', ',')}`;
                 document.getElementById('overall-net-total').textContent = `R$ ${salonNetProfit.toFixed(2).replace('.', ',')}`;
@@ -1754,7 +1743,7 @@
                 }
 
                 const grossTotalServices = collab.clients.reduce((sum, client) => sum + client.value, 0);
-                // const cardDiscountServices = collab.clients.reduce((sum, client) => sum + this.calculateCardDiscount(client.value, client.paymentMethod), 0); // Não usado aqui para o total da colaboradora
+                // A taxa do cartão NÃO é descontada aqui para a colaboradora
                 const salonShareValue = grossTotalServices * collab.discountPercentage;
                 const collabNetTotal = grossTotalServices - salonShareValue;
 
@@ -2612,6 +2601,7 @@
     </script>
 </body>
 </html>
+
 
 
 
