@@ -48,12 +48,12 @@
         // O login NÃO funcionará sem essas credenciais.
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "YOUR_API_KEY", 
-            authDomain: "YOUR_AUTH_DOMAIN", 
-            projectId: "YOUR_PROJECT_ID",   
-            storageBucket: "YOUR_STORAGE_BUCKET", 
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID", 
-            appId: "YOUR_APP_ID", 
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
+            authDomain: "sistema-do-salao.firebaseapp.com", 
+            projectId: "sistema-do-salao",   
+            storageBucket: "sistema-do-salao.firebasestorage.app", 
+            messagingSenderId: "395887083088", 
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55", 
         };
 
         // Verificação para alertar se as credenciais ainda são placeholders
@@ -1194,7 +1194,7 @@
                     <div class="mt-6 flex justify-end">
                         <button id="addProductBtn" onclick="window.unifiedApp.productInventoryApp.addProduct()" class="btn btn-primary text-lg font-bold" disabled>
                             <span id="add-product-spinner" class="loading-spinner mr-2 hidden"></span>
-                            <svg id="add-product-icon" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg id="add-product-icon" class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                             </svg>
                             Adicionar Produto
@@ -3434,4 +3434,5 @@
     </script>
 </body>
 </html>
+
 
