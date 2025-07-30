@@ -44,9 +44,11 @@
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Configuração do Firebase (usando as credenciais fornecidas ou placeholders)
+        // ATENÇÃO: Substitua "YOUR_API_KEY", "YOUR_AUTH_DOMAIN", etc., pelas suas credenciais reais do Firebase.
+        // O login NÃO funcionará sem essas credenciais.
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "YOUR_API_KEY", // Substitua com suas credenciais reais do Firebase
+            apiKey: "YOUR_API_KEY", 
             authDomain: "YOUR_AUTH_DOMAIN", 
             projectId: "YOUR_PROJECT_ID",   
             storageBucket: "YOUR_STORAGE_BUCKET", 
@@ -97,7 +99,8 @@
                         window.productsCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/products`);
 
                         if (window.db) {
-                            window.unifiedApp.init(); // Inicializa a aplicação unificada após autenticação
+                            // Inicializa a aplicação unificada APENAS UMA VEZ após a autenticação
+                            window.unifiedApp.init(); 
                         } else {
                             console.error("Banco de dados Firebase não disponível após autenticação.");
                             window.unifiedApp.showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
@@ -889,9 +892,9 @@
 
         <!-- Navigation Tabs -->
         <nav class="tab-nav">
-            <a href="#fechamento-semanal" class="tab-button active" data-tab="fechamento-semanal">Fechamento Semanal</a>
-            <a href="#fichas-clientes" class="tab-button" data-tab="fichas-clientes">Fichas de Cliente</a>
-            <a href="#controle-estoque" class="tab-button" data-tab="controle-estoque">Controle de Estoque</a>
+            <a href="#fechamento-semanal" class="tab-button active" data-tab="fechamento-semanal-app">Fechamento Semanal</a>
+            <a href="#fichas-clientes" class="tab-button" data-tab="fichas-clientes-app">Fichas de Cliente</a>
+            <a href="#controle-estoque" class="tab-button" data-tab="controle-estoque-app">Controle de Estoque</a>
         </nav>
 
         <!-- Main Content Area -->
@@ -1309,7 +1312,7 @@
     <script>
         // Objeto principal da aplicação unificada
         window.unifiedApp = {
-            activeTab: 'fechamento-semanal', // Aba ativa por padrão
+            activeTab: 'fechamento-semanal-app', // Aba ativa por padrão
             confirmAction: null, // Ação pendente para o modal de confirmação
             reportToDeleteId: null, // ID do relatório a ser excluído (para Fechamento Semanal)
 
@@ -1319,7 +1322,8 @@
             init() {
                 console.log("Unified App inicializado.");
                 this.setupTabListeners();
-                this.showTab(this.activeTab); // Mostra a aba inicial
+                // Chama showTab para a aba inicial, que por sua vez inicializará o módulo correspondente.
+                this.showTab(this.activeTab); 
                 this.enableButtons(); // Habilita botões que dependem de autenticação
             },
 
@@ -1353,14 +1357,15 @@
                 console.log(`Aba ativa: ${this.activeTab}`);
 
                 // Inicializa o módulo correspondente à aba ativa
+                // Isso garante que o init de cada módulo seja chamado quando sua aba é ativada
                 switch (tabId) {
-                    case 'fechamento-semanal':
+                    case 'fechamento-semanal-app': // Corrigido o ID da aba
                         this.salonApp.init();
                         break;
-                    case 'fichas-clientes':
+                    case 'fichas-clientes-app': // Corrigido o ID da aba
                         this.fichasApp.init();
                         break;
-                    case 'controle-estoque':
+                    case 'controle-estoque-app': // Corrigido o ID da aba
                         this.productInventoryApp.init();
                         break;
                 }
@@ -1471,10 +1476,10 @@
                             this.salonApp.clearAllDataFromFirestoreAndLocal();
                             break;
                         case 'clearAllFichas':
-                            this.fichasApp.clearAllFichas();
+                            this.fichasApp.clearAllFichasFirestoreOnly(); // Chama a função que limpa apenas o Firestore
                             break;
                         case 'clearAllProducts':
-                            this.productInventoryApp.clearAllProducts();
+                            this.productInventoryApp.clearAllProductsFirestoreOnly(); // Chama a função que limpa apenas o Firestore
                             break;
                         case 'deleteSavedReport':
                             this.salonApp.deleteSavedReport(this.reportToDeleteId);
@@ -2626,6 +2631,7 @@
                 init() {
                     this.loadLocalData();
                     this.loadFichasFromFirestore();
+                    // Garante que as linhas de input existam para a aba ativa
                     if (document.querySelectorAll('#fichas-clientes-app .service-row').length === 0) {
                         this.addServiceRow();
                     }
