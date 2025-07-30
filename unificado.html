@@ -44,7 +44,7 @@
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Configuração do Firebase (usando as credenciais fornecidas ou placeholders)
-        // ATENÇÃO: Substitua "YOUR_API_KEY", "YOUR_AUTH_DOMAIN", etc., pelas suas credenciais reais do Firebase.
+        // ATENÇÃO CRÍTICA: Substitua "YOUR_API_KEY", "YOUR_AUTH_DOMAIN", etc., pelas suas credenciais reais do Firebase.
         // O login NÃO funcionará sem essas credenciais.
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -55,6 +55,13 @@
             messagingSenderId: "YOUR_MESSAGING_SENDER_ID", 
             appId: "YOUR_APP_ID", 
         };
+
+        // Verificação para alertar se as credenciais ainda são placeholders
+        if (window.firebaseConfig.apiKey === "YOUR_API_KEY") {
+            console.error("ERRO DE CONFIGURAÇÃO DO FIREBASE: As credenciais do Firebase ainda são placeholders. Por favor, substitua-as pelas suas credenciais reais do projeto Firebase para que o login funcione.");
+            alert("ERRO: As credenciais do Firebase não estão configuradas. O login não funcionará. Por favor, verifique o código e insira suas credenciais.");
+        }
+
         window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Variáveis globais do Firebase
@@ -3427,3 +3434,4 @@
     </script>
 </body>
 </html>
+
