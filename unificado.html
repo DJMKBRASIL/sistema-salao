@@ -80,6 +80,8 @@
                 window.app = initializeApp(window.firebaseConfig);
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
+                // Exponha GoogleAuthProvider globalmente para que possa ser acessado
+                window.GoogleAuthProvider = GoogleAuthProvider; 
                 
                 await setPersistence(window.auth, browserLocalPersistence);
                 console.log("Firebase inicializado com sucesso");
@@ -1259,14 +1261,14 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <button id="saveToCloudBtn" onclick="window.unifiedApp.productInventoryApp.saveAllProductsToFirestore()" class="btn btn-success btn-full" disabled>
                             <span id="save-cloud-spinner" class="loading-spinner mr-2 hidden"></span>
-                            <svg id="save-cloud-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg id="save-cloud-icon" class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                             </svg>
                             Salvar na Nuvem
                         </button>
                         <button id="loadFromCloudBtn" onclick="window.unifiedApp.productInventoryApp.loadProductsFromFirestore()" class="btn btn-warning btn-full" disabled>
                             <span id="load-cloud-spinner" class="loading-spinner mr-2 hidden"></span>
-                            <svg id="load-cloud-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg id="load-cloud-icon" class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
                             </svg>
                             Carregar da Nuvem
@@ -1401,7 +1403,8 @@
              * Função para fazer login com o Google.
              */
             async signInWithGoogle() {
-                const provider = new GoogleAuthProvider();
+                // Agora GoogleAuthProvider é acessível via window.GoogleAuthProvider
+                const provider = new window.GoogleAuthProvider(); 
                 try {
                     await signInWithPopup(window.auth, provider);
                     this.showMessage('Autenticado com Google!', 'success');
@@ -1789,7 +1792,9 @@
                 updateClientData(collaboratorIndex, clientIndex, field, value) {
                     if (this.collaborators[collaboratorIndex] && this.collaborators[collaboratorIndex].clients[clientIndex]) {
                         this.collaborators[collaboratorIndex].clients[clientIndex][field] = value;
-                        this.calculateCollaboratorTotal(collaboratorIndex);
+                        this.calculateCollaboratorTotal(collaboratorIndex); 
+                        this.calculateAllTotals(); // Garante que os totais gerais sejam atualizados
+                        this.saveLocalData(); 
                     }
                 },
 
@@ -1808,7 +1813,8 @@
                 updateProductData(index, field, value) {
                     if (this.products[index]) {
                         this.products[index][field] = value;
-                        this.calculateAllTotals();
+                        this.calculateAllTotals(); // Garante que os totais gerais sejam atualizados
+                        this.saveLocalData();
                     }
                 },
 
@@ -1819,19 +1825,22 @@
                 calculateCollaboratorTotal(collaboratorIndex) {
                     let grossTotalServices = 0;
                     const collab = this.collaborators[collaboratorIndex];
+
                     if (collab) {
                         collab.clients.forEach(client => {
                             grossTotalServices += client.value;
                         });
+                        
                         const salonShareValue = grossTotalServices * collab.discountPercentage;
-                        const collabNetTotal = grossTotalServices - salonShareValue;
+                        const collabNetTotal = grossTotalServices - salonShareValue; 
 
+                        // Update UI elements for individual collaborator
                         document.getElementById(`collab-gross-total-display-${collaboratorIndex}`).textContent = `R$ ${grossTotalServices.toFixed(2).replace('.', ',')}`;
                         document.getElementById(`collab-net-for-commission-${collaboratorIndex}`).textContent = `R$ ${grossTotalServices.toFixed(2).replace('.', ',')}`;
                         document.getElementById(`collab-salon-share-value-${collaboratorIndex}`).textContent = `R$ ${salonShareValue.toFixed(2).replace('.', ',')}`;
                         document.getElementById(`collab-net-total-display-${collaboratorIndex}`).textContent = `R$ ${collabNetTotal.toFixed(2).replace('.', ',')}`;
                     }
-                    this.calculateAllTotals();
+                    this.calculateAllTotals(); // This is correctly called
                 },
 
                 calculateAllTotals() {
@@ -1846,6 +1855,7 @@
                             totalCardDiscount += this.calculateCardDiscount(client.value, client.paymentMethod);
                         });
                         overallGrossRevenue += grossServices;
+
                         const salonShareValue = grossServices * collab.discountPercentage;
                         const collabNetTotal = grossServices - salonShareValue;
                         totalCollaboratorNetPayments += collabNetTotal;
@@ -1858,6 +1868,13 @@
                     });
 
                     const salonNetProfit = overallGrossRevenue - totalCardDiscount - totalCollaboratorNetPayments;
+
+                    // Debugging logs
+                    console.log("calculateAllTotals executed:");
+                    console.log("overallGrossRevenue:", overallGrossRevenue);
+                    console.log("totalCardDiscount:", totalCardDiscount);
+                    console.log("totalCollaboratorNetPayments:", totalCollaboratorNetPayments);
+                    console.log("salonNetProfit:", salonNetProfit);
 
                     document.getElementById('products-total').textContent = `R$ ${this.products.reduce((sum, p) => sum + p.value, 0).toFixed(2).replace('.', ',')}`;
                     document.getElementById('overall-gross-total').textContent = `R$ ${overallGrossRevenue.toFixed(2).replace('.', ',')}`;
@@ -2091,7 +2108,7 @@
                     } else {
                         this.collaborators.forEach(collab => {
                             if (y > 270) { doc.addPage(); y = 15; }
-                            doc.setFontSize(14);
+                            doc.setFontSize(12);
                             doc.text(`${collab.name || 'Nome da Colaboradora'}:`, 20, y);
                             y += 7;
                             if (collab.clients.length === 0) {
@@ -3434,5 +3451,6 @@
     </script>
 </body>
 </html>
+
 
 
