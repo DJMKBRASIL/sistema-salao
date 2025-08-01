@@ -914,8 +914,8 @@
                     'addAppointmentBtn',
                     'clearAllAgendaBtn',
                     'refreshAgendaBtn',
-                    // 'exportLocalBtn', // Estes botões não existem no HTML atual
-                    // 'importLocalBtn'
+                    'exportLocalBtn',
+                    'importLocalBtn'
                 ];
                 authRequiredButtons.forEach(id => {
                     const btn = document.getElementById(id);
@@ -931,8 +931,8 @@
                     'addAppointmentBtn',
                     'clearAllAgendaBtn',
                     'refreshAgendaBtn',
-                    // 'exportLocalBtn', // Estes botões não existem no HTML atual
-                    // 'importLocalBtn'
+                    'exportLocalBtn',
+                    'importLocalBtn'
                 ];
                 authRequiredButtons.forEach(id => {
                     const btn = document.getElementById(id);
@@ -1118,7 +1118,7 @@
              */
             async saveAppointmentToFirestore(appointmentData) {
                 if (!window.db || !window.userId || !window.agendaCollectionRef) {
-                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível salvar o agendamento.', 'error');
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado.', 'error');
                     return null;
                 }
                 this.toggleLoadingSpinner('add-appointment', true);
@@ -1361,7 +1361,7 @@
              */
             navigateDate(days) {
                 const newDate = new Date(this.currentDate);
-                newDate.setDate(this.currentDate.getDate() + days);
+                newDate.setDate(newDate.getDate() + days);
                 this.currentDate = newDate;
                 this.updateDateInput();
                 this.renderAppointmentsList();
@@ -1373,7 +1373,7 @@
             changeDate() {
                 const dateInput = document.getElementById('currentDateInput');
                 if (dateInput.value) {
-                    this.currentDate = new Date(dateInput.value + 'T00:00:00'); // Adiciona T00:00:00 para evitar problemas de fuso horário
+                    this.currentDate = new Date(dateInput.value + 'T00:00:00'); 
                     this.renderAppointmentsList();
                 }
             },
@@ -1512,5 +1512,6 @@
     </script>
 </body>
 </html>
+
 
 
