@@ -37,13 +37,15 @@
 
         // --- Configuração do Firebase ---
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // CORREÇÃO: As credenciais do Firebase foram atualizadas com os valores corretos.
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "YOUR_API_KEY", 
-            authDomain: "YOUR_AUTH_DOMAIN", 
-            projectId: "YOUR_PROJECT_ID",   
-            storageBucket: "YOUR_STORAGE_BUCKET", 
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID", 
-            appId: "YOUR_APP_ID", 
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
+            authDomain: "sistema-do-salao.firebaseapp.com",
+            projectId: "sistema-do-salao",
+            storageBucket: "sistema-do-salao.firebasestorage.app",
+            messagingSenderId: "395887083088",
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
+            measurementId: "G-1D996M5FKZ"
         };
 
         // --- Variáveis globais do Firebase ---
@@ -564,5 +566,6 @@
     </div>
 </body>
 </html>
+
 
 
