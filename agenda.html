@@ -759,49 +759,10 @@
             <!-- Area for feedback messages -->
             <div id="app-message" class="message" style="display: none;"></div>
 
-            <!-- New Appointment Section -->
-            <section class="section">
-                <h2 class="section-title">Agendar Novo Atendimento</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label for="collaboratorName" class="form-label">Nome da Colaboradora</label>
-                        <input type="text" id="collaboratorName" placeholder="Nome da Colaboradora" class="form-input">
-                    </div>
-                    <div>
-                        <label for="clientName" class="form-label">Nome da Cliente</label>
-                        <input type="text" id="clientName" placeholder="Nome da Cliente" class="form-input">
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                        <label for="appointmentValue" class="form-label">Valor (R$)</label>
-                        <input type="number" step="0.01" min="0" id="appointmentValue" placeholder="0,00" class="form-input text-right">
-                    </div>
-                    <div>
-                        <label for="appointmentDate" class="form-label">Dia</label>
-                        <input type="date" id="appointmentDate" class="form-input">
-                    </div>
-                    <div>
-                        <label for="appointmentTime" class="form-label">Horário</label>
-                        <input type="time" id="appointmentTime" class="form-input">
-                    </div>
-                </div>
-
-                <div class="mt-6 flex justify-end">
-                    <button id="addAppointmentBtn" onclick="window.agendaApp.addAppointment()" class="btn btn-primary text-lg font-bold" disabled>
-                        <span id="add-appointment-spinner" class="loading-spinner mr-2 hidden"></span>
-                        <svg id="add-appointment-icon" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                        </svg>
-                        Adicionar Agendamento
-                    </button>
-                </div>
-            </section>
-
             <!-- Agenda View and Controls Section -->
             <section class="section">
                 <div class="section-header">
-                    <h2 class="section-title">Agenda Diária</h2>
+                    <h2 class="section-title">Agenda</h2>
                     <div class="flex items-center gap-2">
                          <input type="date" id="currentDateInput" class="form-input w-48 text-center" onchange="window.agendaApp.changeDate()">
                         <button onclick="window.agendaApp.navigateDate(-1)" class="btn btn-gray">
@@ -839,21 +800,40 @@
                 </div>
             </section>
 
-            <!-- Local File Operations Section -->
+            <!-- Agendamento e Opções Locais Sections -->
             <section class="section">
-                <h2 class="section-title">Opções de Arquivo Local</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <button onclick="window.agendaApp.exportDataToFile()" class="btn btn-info btn-full" disabled>
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                <h2 class="section-title">Agendar Novo Atendimento</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="collaboratorName" class="form-label">Nome da Colaboradora</label>
+                        <input type="text" id="collaboratorName" placeholder="Nome da Colaboradora" class="form-input">
+                    </div>
+                    <div>
+                        <label for="clientName" class="form-label">Nome da Cliente</label>
+                        <input type="text" id="clientName" placeholder="Nome da Cliente" class="form-input">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label for="appointmentValue" class="form-label">Valor (R$)</label>
+                        <input type="number" step="0.01" min="0" id="appointmentValue" placeholder="0,00" class="form-input text-right">
+                    </div>
+                    <div>
+                        <label for="appointmentDate" class="form-label">Dia</label>
+                        <input type="date" id="appointmentDate" class="form-input">
+                    </div>
+                    <div>
+                        <label for="appointmentTime" class="form-label">Horário</label>
+                        <input type="time" id="appointmentTime" class="form-input">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button id="addAppointmentBtn" onclick="window.agendaApp.addAppointment()" class="btn btn-primary text-lg font-bold" disabled>
+                        <span id="add-appointment-spinner" class="loading-spinner mr-2 hidden"></span>
+                        <svg id="add-appointment-icon" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                         </svg>
-                        Exportar Agenda (JSON)
-                    </button>
-                    <button onclick="window.agendaApp.importDataFromFile()" class="btn btn-info btn-full" disabled>
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
-                        </svg>
-                        Importar Agenda (JSON)
+                        Adicionar Agendamento
                     </button>
                 </div>
             </section>
@@ -1523,6 +1503,10 @@
         window.importDataFromFile = () => window.agendaApp.importDataFromFile();
         window.navigateDate = (days) => window.agendaApp.navigateDate(days);
         window.changeDate = () => window.agendaApp.changeDate();
+        window.openEditModal = (id) => window.agendaApp.openEditModal(id);
+        window.closeEditModal = () => window.agendaApp.closeEditModal();
+        window.saveEditedAppointment = () => window.agendaApp.saveEditedAppointment();
+        window.deleteAppointment = () => window.agendaApp.deleteAppointment();
 
         // Função de inicialização da lógica da aplicação
         function initializeAppLogic() {
@@ -1531,3 +1515,4 @@
     </script>
 </body>
 </html>
+
