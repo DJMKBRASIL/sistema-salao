@@ -58,7 +58,7 @@
         window.db = null;
         window.auth = null;
         window.userId = 'Carregando...'; 
-        window.agendaCollectionRef = null; // Nova referência para a coleção da agenda
+        window.agendaCollectionRef = null; 
 
         /**
          * Inicializa o Firebase e configura o listener de autenticação.
@@ -926,7 +926,7 @@
             /**
              * Desabilita os botões que requerem autenticação.
              */
-            disableAuthRequiredButtons() {
+            disableButtons() {
                 const authRequiredButtons = [
                     'addAppointmentBtn',
                     'clearAllAgendaBtn',
@@ -965,7 +965,7 @@
                     this.appointments = [];
                     this.renderAppointmentsList();
                     this.clearInputFields();
-                    this.disableAuthRequiredButtons();
+                    this.disableButtons();
                 } catch (error) {
                     console.error("Erro ao sair:", error);
                     this.showMessage('Erro ao sair: ' + error.message, 'error');
@@ -1512,6 +1512,7 @@
     </script>
 </body>
 </html>
+
 
 
 
