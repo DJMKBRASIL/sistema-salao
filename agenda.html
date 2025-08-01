@@ -40,7 +40,7 @@
             addDoc 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuração do Firebase
+        // Configuração do Firebase (usando as credenciais fornecidas ou placeholders)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
@@ -58,8 +58,11 @@
         window.db = null;
         window.auth = null;
         window.userId = 'Carregando...'; 
-        window.agendaCollectionRef = null; 
+        window.agendaCollectionRef = null; // Nova referência para a coleção da agenda
 
+        /**
+         * Inicializa o Firebase e configura o listener de autenticação.
+         */
         async function initializeFirebase() {
             try {
                 window.app = initializeApp(window.firebaseConfig);
@@ -88,7 +91,7 @@
                         console.log("Usuário autenticado:", window.userId, "Método:", authMethod);
                         window.agendaCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`);
                         if (window.db) {
-                            window.agendaApp.init();
+                            window.agendaApp.init(); // Carregar dados iniciais após autenticação
                         } else {
                             console.error("Banco de dados Firebase não disponível após autenticação.");
                             window.agendaApp.showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
@@ -1509,6 +1512,7 @@
     </script>
 </body>
 </html>
+
 
 
 
