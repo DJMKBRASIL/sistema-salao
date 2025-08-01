@@ -40,7 +40,7 @@
             addDoc 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuração do Firebase (usando as credenciais fornecidas ou placeholders)
+        // Configuração do Firebase
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
@@ -58,11 +58,8 @@
         window.db = null;
         window.auth = null;
         window.userId = 'Carregando...'; 
-        window.agendaCollectionRef = null; // Nova referência para a coleção da agenda
+        window.agendaCollectionRef = null; 
 
-        /**
-         * Inicializa o Firebase e configura o listener de autenticação.
-         */
         async function initializeFirebase() {
             try {
                 window.app = initializeApp(window.firebaseConfig);
@@ -91,7 +88,7 @@
                         console.log("Usuário autenticado:", window.userId, "Método:", authMethod);
                         window.agendaCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`);
                         if (window.db) {
-                            window.agendaApp.init(); // Carregar dados iniciais após autenticação
+                            window.agendaApp.init();
                         } else {
                             console.error("Banco de dados Firebase não disponível após autenticação.");
                             window.agendaApp.showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
@@ -111,8 +108,7 @@
                             </button>
                         `;
                         
-                        // Desabilitar botões que dependem de autenticação completa
-                        window.agendaApp.disableAuthRequiredButtons();
+                        window.agendaApp.disableButtons();
                     }
                 });
 
@@ -122,10 +118,8 @@
             }
         }
 
-        // Chamar a inicialização do Firebase quando o DOM estiver pronto
         document.addEventListener('DOMContentLoaded', initializeFirebase);
 
-        // Expondo as funções do Firestore SDK diretamente, se necessário
         window.doc = doc;
         window.getDoc = getDoc;
         window.setDoc = setDoc;
@@ -705,7 +699,7 @@
             font-size: 0.875rem;
             color: var(--gray-500);
             border-right: 1px solid var(--gray-200);
-            height: 4rem; /* Altura fixa para cada slot de 1 hora */
+            height: 4rem;
         }
         
         .agenda-slot {
@@ -713,7 +707,7 @@
             flex-direction: column;
             gap: 0.25rem;
             padding: 0.5rem;
-            min-height: 4rem; /* Altura mínima para o slot */
+            min-height: 4rem;
         }
 
         .agenda-card {
@@ -1515,6 +1509,7 @@
     </script>
 </body>
 </html>
+
 
 
 
