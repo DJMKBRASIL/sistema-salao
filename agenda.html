@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Agenda do Salão</title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged, 
+            GoogleAuthProvider, 
+            signInWithPopup, 
+            signOut, 
+            setPersistence, 
+            browserLocalPersistence 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDoc, 
+            setDoc, 
+            deleteDoc, 
+            collection, 
+            query, 
+            where, 
+            getDocs, 
+            addDoc 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuração do Firebase (usando as credenciais fornecidas ou placeholders)
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
+            authDomain: "sistema-do-salao.firebaseapp.com", 
+            projectId: "sistema-do-salao",   
+            storageBucket: "sistema-do-salao.firebasestorage.app", 
+            messagingSenderId: "395887083088", 
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55", 
+            measurementId: "G-1D996M5FKZ" 
+        };
+        window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Variáveis globais do Firebase
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = 'Carregando...'; 
+        window.agendaCollectionRef = null; // Nova referência para a coleção da agenda
+
+        /**
+         * Inicializa o Firebase e configura o listener de autenticação.
+         */
+        async function initializeFirebase() {
+            try {
+                window.app = initializeApp(window.firebaseConfig);
+                window.db = getFirestore(window.app);
+                window.auth = getAuth(window.app);
+                
+                await setPersistence(window.auth, browserLocalPersistence);
+                console.log("Firebase inicializado com sucesso");
+
+                onAuthStateChanged(window.auth, async (user) => {
+                    if (user) {
+                        window.userId = user.uid;
+                        const authMethod = user.isAnonymous ? 'Anônimo' : 'Google';
+                        const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${window.userId} (${authMethod})`;
+                        
+                        document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="window.agendaApp.signOutUser()" class="btn btn-danger">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                                Sair
+                            </button>
+                        `;
+                        
+                        console.log("Usuário autenticado:", window.userId, "Método:", authMethod);
+                        window.agendaCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`);
+                        if (window.db) {
+                            window.agendaApp.init(); // Carregar dados iniciais após autenticação
+                        } else {
+                            console.error("Banco de dados Firebase não disponível após autenticação.");
+                            window.agendaApp.showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
+                        }
+                    } else {
+                        window.userId = 'Não autenticado';
+                        document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="window.agendaApp.signInWithGoogle()" class="btn btn-primary">
+                                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                </svg>
+                                Entrar com Google
+                            </button>
+                        `;
+                        
+                        // Desabilitar botões que dependem de autenticação completa
+                        window.agendaApp.disableAuthRequiredButtons();
+                    }
+                });
+
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                window.agendaApp.showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
+            }
+        }
+
+        // Chamar a inicialização do Firebase quando o DOM estiver pronto
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
+
+        // Expondo as funções do Firestore SDK diretamente, se necessário
+        window.doc = doc;
+        window.getDoc = getDoc;
+        window.setDoc = setDoc;
+        window.deleteDoc = deleteDoc;
+        window.collection = collection;
+        window.query = query;
+        window.where = where;
+        window.getDocs = getDocs;
+        window.addDoc = addDoc; 
+    </script>
+
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-hover: #4f46e5;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #3b82f6;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --border-radius: 0.75rem;
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+            line-height: 1.6;
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .section {
+            background: var(--gray-50);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--gray-200);
+            transition: var(--transition);
+        }
+
+        .section:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between; 
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin: 0;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
+            min-height: 44px; /* Touch-friendly minimum */
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #7c3aed;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #059669;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover:not(:disabled) {
+            background-color: #d97706;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background-color: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-info {
+            background-color: var(--info-color);
+            color: white;
+        }
+
+        .btn-info:hover:not(:disabled) {
+            background-color: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-gray {
+            background-color: var(--gray-300);
+            color: var(--gray-800);
+        }
+
+        .btn-gray:hover:not(:disabled) {
+            background-color: var(--gray-400);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: var(--transition);
+            background-color: white;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-input::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: var(--transition);
+            background-color: white;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .grid-cols-1 {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+        }
+
+        .grid-cols-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .grid-cols-3 {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
+            flex-direction: column;
+        }
+
+        .flex-wrap {
+            flex-wrap: wrap;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .gap-2 {
+            gap: 0.5rem;
+        }
+
+        .gap-3 {
+            gap: 0.75rem;
+        }
+
+        .gap-4 {
+            gap: 1rem;
+        }
+
+        .mb-2 {
+            margin-bottom: 0.5rem;
+        }
+
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+
+        .mb-6 {
+            margin-bottom: 1.5rem;
+        }
+
+        .mt-4 {
+            margin-top: 1rem;
+        }
+
+        .p-4 {
+            padding: 1rem;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-sm {
+            font-size: 0.875rem;
+        }
+
+        .text-lg {
+            font-size: 1.125rem;
+        }
+
+        .text-xl {
+            font-size: 1.25rem;
+        }
+
+        .font-medium {
+            font-weight: 500;
+        }
+
+        .font-semibold {
+            font-weight: 600;
+        }
+
+        .font-bold {
+            font-weight: 700;
+        }
+
+        .text-gray-500 {
+            color: var(--gray-500);
+        }
+
+        .text-gray-600 {
+            color: var(--gray-600);
+        }
+
+        .text-gray-700 {
+            color: var(--gray-700);
+        }
+
+        .text-gray-800 {
+            color: var(--gray-800);
+        }
+
+        .agenda-item {
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--gray-200);
+            transition: var(--transition);
+        }
+
+        .agenda-item:hover {
+            box-shadow: var(--shadow-md);
+        }
+        
+        .agenda-item.expired {
+            background-color: #fef2f2;
+            opacity: 0.7;
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            animation: slideInDown 0.3s ease-out;
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .message-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .message-info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: var(--shadow-xl);
+            animation: scaleIn 0.3s ease-out;
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            body {
+                padding: 0.5rem;
+            }
+
+            .header {
+                padding: 1.5rem 1rem;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .content {
+                padding: 1rem;
+            }
+
+            .section {
+                padding: 1rem;
+            }
+
+            .grid-cols-3 {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+
+            .grid-cols-2 {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+
+            .flex {
+                flex-direction: column;
+            }
+
+            .flex > * {
+                width: 100%;
+            }
+
+            .btn {
+                padding: 1rem;
+                font-size: 1rem;
+            }
+
+            .modal-content {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+
+            .modal-buttons {
+                flex-direction: column;
+            }
+        }
+
+        .agenda-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            background: #fff;
+        }
+
+        .agenda-time {
+            padding: 0.5rem;
+            text-align: right;
+            font-size: 0.875rem;
+            color: var(--gray-500);
+            border-right: 1px solid var(--gray-200);
+            height: 4rem; /* Altura fixa para cada slot de 1 hora */
+        }
+        
+        .agenda-slot {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            padding: 0.5rem;
+            min-height: 4rem; /* Altura mínima para o slot */
+        }
+
+        .agenda-card {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s;
+            cursor: pointer;
+            word-break: break-word;
+        }
+
+        .agenda-card.expired {
+            background-color: var(--gray-400);
+        }
+
+        .agenda-card:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Sistema de Agenda</h1>
+            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Gerencie seus agendamentos</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="content">
+            <!-- User Authentication Section -->
+            <div class="section">
+                <div class="flex items-center justify-between mb-4">
+                    <p id="user-id-display" class="text-sm text-gray-500">Usuário: Carregando...</p>
+                    <div id="auth-buttons" class="flex gap-2">
+                        <!-- Authentication buttons will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Area for feedback messages -->
+            <div id="app-message" class="message" style="display: none;"></div>
+
+            <!-- New Appointment Section -->
+            <section class="section">
+                <h2 class="section-title">Agendar Novo Atendimento</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label for="collaboratorName" class="form-label">Nome da Colaboradora</label>
+                        <input type="text" id="collaboratorName" placeholder="Nome da Colaboradora" class="form-input">
+                    </div>
+                    <div>
+                        <label for="clientName" class="form-label">Nome da Cliente</label>
+                        <input type="text" id="clientName" placeholder="Nome da Cliente" class="form-input">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label for="appointmentValue" class="form-label">Valor (R$)</label>
+                        <input type="number" step="0.01" min="0" id="appointmentValue" placeholder="0,00" class="form-input text-right">
+                    </div>
+                    <div>
+                        <label for="appointmentDate" class="form-label">Dia</label>
+                        <input type="date" id="appointmentDate" class="form-input">
+                    </div>
+                    <div>
+                        <label for="appointmentTime" class="form-label">Horário</label>
+                        <input type="time" id="appointmentTime" class="form-input">
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <button id="addAppointmentBtn" onclick="window.agendaApp.addAppointment()" class="btn btn-primary text-lg font-bold" disabled>
+                        <span id="add-appointment-spinner" class="loading-spinner mr-2 hidden"></span>
+                        <svg id="add-appointment-icon" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Adicionar Agendamento
+                    </button>
+                </div>
+            </section>
+
+            <!-- Agenda View and Controls Section -->
+            <section class="section">
+                <div class="section-header">
+                    <h2 class="section-title">Agenda Diária</h2>
+                    <div class="flex items-center gap-2">
+                         <input type="date" id="currentDateInput" class="form-input w-48 text-center" onchange="window.agendaApp.changeDate()">
+                        <button onclick="window.agendaApp.navigateDate(-1)" class="btn btn-gray">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button onclick="window.agendaApp.navigateDate(1)" class="btn btn-gray">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="agenda-grid" class="agenda-grid mt-4">
+                    <!-- Agenda will be rendered here -->
+                </div>
+
+                <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                     <button id="clearAllAgendaBtn" onclick="window.agendaApp.showClearAllConfirm()" class="btn btn-danger btn-full" disabled>
+                        <span id="clear-agenda-spinner" class="loading-spinner mr-2 hidden"></span>
+                        <svg id="clear-agenda-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        Limpar Todos os Agendamentos
+                    </button>
+                    <button id="refreshAgendaBtn" onclick="window.agendaApp.loadAppointmentsFromFirestore()" class="btn btn-warning btn-full" disabled>
+                         <span id="refresh-agenda-spinner" class="loading-spinner mr-2 hidden"></span>
+                         <svg id="refresh-agenda-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m3.9-2.222a7.999 7.999 0 0113.593 2.152m-1.043 1.043l-4.593 4.593m0 0l-4.593-4.593m4.593 4.593V9m8 2a8.001 8.001 0 00-15.356-2L4 12"></path>
+                         </svg>
+                        Atualizar Agenda
+                    </button>
+                </div>
+            </section>
+
+            <!-- Local File Operations Section -->
+            <section class="section">
+                <h2 class="section-title">Opções de Arquivo Local</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <button onclick="window.agendaApp.exportDataToFile()" class="btn btn-info btn-full" disabled>
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Exportar Agenda (JSON)
+                    </button>
+                    <button onclick="window.agendaApp.importDataFromFile()" class="btn btn-info btn-full" disabled>
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                        </svg>
+                        Importar Agenda (JSON)
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal de Confirmação para Limpar Tudo -->
+    <div id="custom-confirm-modal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirmar Ação</h3>
+            <p class="text-gray-600 mb-4" id="confirm-message">Tem certeza que deseja limpar todos os agendamentos?</p>
+            <p class="text-sm text-gray-500">Esta ação não pode ser desfeita.</p>
+            <div class="modal-buttons">
+                <button class="btn btn-gray" onclick="window.agendaApp.handleConfirm(false)">Cancelar</button>
+                <button class="btn btn-danger" onclick="window.agendaApp.handleConfirm(true)">Limpar Tudo</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de Edição de Agendamento -->
+    <div id="edit-appointment-modal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Editar Agendamento</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="editCollaboratorName" class="form-label">Colaboradora</label>
+                    <input type="text" id="editCollaboratorName" class="form-input">
+                </div>
+                <div>
+                    <label for="editClientName" class="form-label">Cliente</label>
+                    <input type="text" id="editClientName" class="form-input">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label for="editAppointmentValue" class="form-label">Valor (R$)</label>
+                    <input type="number" step="0.01" id="editAppointmentValue" class="form-input text-right">
+                </div>
+                <div>
+                    <label for="editAppointmentDate" class="form-label">Dia</label>
+                    <input type="date" id="editAppointmentDate" class="form-input">
+                </div>
+                <div>
+                    <label for="editAppointmentTime" class="form-label">Horário</label>
+                    <input type="time" id="editAppointmentTime" class="form-input">
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-gray" onclick="window.agendaApp.closeEditModal()">Cancelar</button>
+                <button class="btn btn-danger" onclick="window.agendaApp.deleteAppointment()">Excluir</button>
+                <button class="btn btn-success" onclick="window.agendaApp.saveEditedAppointment()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Objeto principal da aplicação de Agenda
+        window.agendaApp = {
+            appointments: [], 
+            currentEditAppointmentId: null,
+            currentDate: new Date(),
+
+            /**
+             * Inicializa a aplicação de agenda.
+             */
+            init() {
+                this.loadAppointmentsFromFirestore(); 
+                this.loadLocalData();
+                this.enableButtons();
+                this.updateDateInput();
+                // Verifica e limpa agendamentos vencidos a cada 5 minutos
+                setInterval(() => this.deleteExpiredAppointments(), 300000); 
+                console.log("Agenda App inicializado.");
+            },
+
+            /**
+             * Habilita os botões que requerem autenticação.
+             */
+            enableButtons() {
+                const authRequiredButtons = [
+                    'addAppointmentBtn',
+                    'clearAllAgendaBtn',
+                    'refreshAgendaBtn',
+                    'exportLocalBtn',
+                    'importLocalBtn'
+                ];
+                authRequiredButtons.forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = false;
+                });
+            },
+
+            /**
+             * Desabilita os botões que requerem autenticação.
+             */
+            disableAuthRequiredButtons() {
+                const authRequiredButtons = [
+                    'addAppointmentBtn',
+                    'clearAllAgendaBtn',
+                    'refreshAgendaBtn',
+                    'exportLocalBtn',
+                    'importLocalBtn'
+                ];
+                authRequiredButtons.forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = true;
+                });
+            },
+
+            // --- Funções de Autenticação (Espelhadas dos outros sistemas) ---
+            /**
+             * Função para fazer login com o Google.
+             */
+            async signInWithGoogle() {
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(window.auth, provider);
+                    this.showMessage('Autenticado com Google!', 'success');
+                } catch (error) {
+                    console.error("Erro ao autenticar com Google:", error);
+                    this.showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
+                }
+            },
+
+            /**
+             * Função para fazer logout do usuário.
+             */
+            async signOutUser() {
+                try {
+                    await signOut(window.auth);
+                    this.showMessage('Sessão encerrada.', 'info');
+                    this.appointments = [];
+                    this.renderAppointmentsList();
+                    this.clearInputFields();
+                    this.disableAuthRequiredButtons();
+                } catch (error) {
+                    console.error("Erro ao sair:", error);
+                    this.showMessage('Erro ao sair: ' + error.message, 'error');
+                }
+            },
+            // --- Fim Funções de Autenticação ---
+
+            // --- Helper Functions for Messages and Modals ---
+            /**
+             * Exibe uma mensagem na interface.
+             * @param {string} message - A mensagem a ser exibida.
+             * @param {string} type - O tipo da mensagem ('success', 'error', 'info').
+             */
+            showMessage(message, type = 'success') {
+                const msgDiv = document.getElementById('app-message');
+                msgDiv.textContent = message;
+                msgDiv.classList.remove('hidden', 'message-error', 'message-success', 'message-info');
+                if (type === 'success') {
+                    msgDiv.classList.add('message-success');
+                } else if (type === 'error') {
+                    msgDiv.classList.add('message-error');
+                } else if (type === 'info') {
+                    msgDiv.classList.add('message-info');
+                }
+                msgDiv.style.display = 'block'; 
+                setTimeout(() => {
+                    msgDiv.style.display = 'none';
+                }, 5000);
+            },
+
+            /**
+             * Mostra o modal de confirmação para limpar todos os agendamentos.
+             */
+            showClearAllConfirm() {
+                document.getElementById('confirm-message').textContent = 'Tem certeza que deseja limpar todos os agendamentos?';
+                document.getElementById('custom-confirm-modal').style.display = 'flex';
+                this.confirmAction = 'clearAllAppointments';
+            },
+
+            /**
+             * Lida com a resposta do modal de confirmação.
+             * @param {boolean} confirmed - True se a ação foi confirmada, false caso contrário.
+             */
+            handleConfirm(confirmed) {
+                document.getElementById('custom-confirm-modal').style.display = 'none';
+                if (confirmed) {
+                    if (this.confirmAction === 'clearAllAppointments') {
+                        this.clearAllAppointments();
+                    }
+                } else {
+                    this.showMessage('Operação cancelada.', 'info');
+                }
+                this.confirmAction = null; 
+            },
+            
+            /**
+             * Abre o modal de edição e preenche com os dados do agendamento.
+             * @param {string} appointmentId - O ID do agendamento a ser editado.
+             */
+            openEditModal(appointmentId) {
+                const appointment = this.appointments.find(app => app.id === appointmentId);
+                if (!appointment) return;
+
+                this.currentEditAppointmentId = appointmentId;
+                document.getElementById('editCollaboratorName').value = appointment.collaboratorName;
+                document.getElementById('editClientName').value = appointment.clientName;
+                document.getElementById('editAppointmentValue').value = appointment.value;
+                document.getElementById('editAppointmentDate').value = appointment.date;
+                document.getElementById('editAppointmentTime').value = appointment.time;
+
+                document.getElementById('edit-appointment-modal').style.display = 'flex';
+            },
+
+            /**
+             * Fecha o modal de edição.
+             */
+            closeEditModal() {
+                document.getElementById('edit-appointment-modal').style.display = 'none';
+                this.currentEditAppointmentId = null;
+            },
+
+            /**
+             * Salva as alterações de um agendamento.
+             */
+            async saveEditedAppointment() {
+                if (!this.currentEditAppointmentId) return;
+
+                const appointment = this.appointments.find(app => app.id === this.currentEditAppointmentId);
+                if (!appointment) return;
+
+                const newCollaboratorName = document.getElementById('editCollaboratorName').value.trim();
+                const newClientName = document.getElementById('editClientName').value.trim();
+                const newValue = parseFloat(document.getElementById('editAppointmentValue').value) || 0;
+                const newDate = document.getElementById('editAppointmentDate').value;
+                const newTime = document.getElementById('editAppointmentTime').value;
+
+                if (!newCollaboratorName || !newClientName || !newDate || !newTime) {
+                    this.showMessage('Por favor, preencha todos os campos obrigatórios para editar o agendamento.', 'error');
+                    return;
+                }
+
+                const updatedData = {
+                    collaboratorName: newCollaboratorName,
+                    clientName: newClientName,
+                    value: newValue,
+                    date: newDate,
+                    time: newTime
+                };
+
+                try {
+                    await window.setDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`, this.currentEditAppointmentId), updatedData, { merge: true });
+                    this.showMessage('Agendamento atualizado com sucesso!', 'success');
+                    
+                    // Atualiza o array local
+                    Object.assign(appointment, updatedData);
+                    this.renderAppointmentsList();
+                    this.saveLocalData();
+                    this.closeEditModal();
+                } catch (error) {
+                    console.error("Erro ao atualizar agendamento:", error);
+                    this.showMessage('Erro ao salvar as alterações do agendamento.', 'error');
+                }
+            },
+
+            /**
+             * Exclui o agendamento atualmente em edição.
+             */
+            async deleteAppointment() {
+                if (!this.currentEditAppointmentId) return;
+
+                const confirmed = confirm('Tem certeza que deseja excluir este agendamento?');
+                if (confirmed) {
+                    const deleted = await this.deleteAppointmentFromFirestore(this.currentEditAppointmentId);
+                    if (deleted) {
+                        this.appointments = this.appointments.filter(app => app.id !== this.currentEditAppointmentId);
+                        this.renderAppointmentsList();
+                        this.saveLocalData();
+                        this.closeEditModal();
+                    }
+                }
+            },
+
+            // --- End Helper Functions ---
+
+            // --- Firestore Functions ---
+            /**
+             * Salva um agendamento no Firestore.
+             * @param {object} appointmentData - Os dados do agendamento a serem salvos.
+             * @returns {string|null} O ID do documento salvo ou null em caso de erro.
+             */
+            async saveAppointmentToFirestore(appointmentData) {
+                if (!window.db || !window.userId || !window.agendaCollectionRef) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível salvar o agendamento.', 'error');
+                    return null;
+                }
+                this.toggleLoadingSpinner('add-appointment', true);
+                try {
+                    const docRef = await window.addDoc(window.agendaCollectionRef, appointmentData);
+                    this.showMessage('Agendamento registrado e salvo na nuvem!', 'success');
+                    return docRef.id;
+                } catch (e) {
+                    console.error("Erro ao adicionar agendamento ao Firestore: ", e);
+                    this.showMessage('Erro ao salvar agendamento na nuvem: ' + e.message, 'error');
+                    return null;
+                } finally {
+                    this.toggleLoadingSpinner('add-appointment', false);
+                }
+            },
+
+            /**
+             * Carrega os agendamentos do Firestore para o array local.
+             */
+            async loadAppointmentsFromFirestore() {
+                if (!window.db || !window.userId || !window.agendaCollectionRef) {
+                    console.log('Firebase não inicializado ou usuário não autenticado. Não foi possível carregar os agendamentos.');
+                    return;
+                }
+                this.showMessage('Carregando agendamentos do Firestore...', 'info');
+                this.toggleLoadingSpinner('refresh-agenda', true);
+                try {
+                    this.appointments = []; 
+                    const querySnapshot = await window.getDocs(window.agendaCollectionRef);
+                    querySnapshot.forEach((doc) => {
+                        this.appointments.push({ id: doc.id, ...doc.data() });
+                    });
+                    this.renderAppointmentsList();
+                    this.deleteExpiredAppointments(); // Limpa os vencidos após carregar
+                    this.showMessage('Agenda atualizada com sucesso!', 'success');
+                } catch (e) {
+                    console.error("Erro ao carregar agendamentos do Firestore: ", e);
+                    this.showMessage('Erro ao carregar agendamentos da nuvem: ' + e.message, 'error');
+                } finally {
+                    this.toggleLoadingSpinner('refresh-agenda', false);
+                }
+            },
+
+            /**
+             * Remove um agendamento específico do Firestore.
+             * @param {string} appointmentId - O ID do agendamento a ser removido.
+             * @returns {boolean} True se a remoção foi bem-sucedida, false caso contrário.
+             */
+            async deleteAppointmentFromFirestore(appointmentId) {
+                if (!window.db || !window.userId) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível remover o agendamento.', 'error');
+                    return false;
+                }
+                try {
+                    await window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`, appointmentId));
+                    this.showMessage('Agendamento removido da nuvem.', 'info');
+                    return true;
+                } catch (e) {
+                    console.error("Erro ao remover agendamento do Firestore: ", e);
+                    this.showMessage('Erro ao remover agendamento da nuvem: ' + e.message, 'error');
+                    return false;
+                }
+            },
+
+            /**
+             * Limpa todos os agendamentos do Firestore.
+             */
+            async clearAllAppointments() {
+                if (!window.db || !window.userId || !window.agendaCollectionRef) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível limpar os agendamentos.', 'error');
+                    return;
+                }
+                this.showMessage('Limpando todos os agendamentos no Firestore...', 'info');
+                this.toggleLoadingSpinner('clear-agenda', true);
+                try {
+                    const querySnapshot = await window.getDocs(window.agendaCollectionRef);
+                    const deletePromises = [];
+                    querySnapshot.forEach((doc) => {
+                        deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`, doc.id)));
+                    });
+                    await Promise.all(deletePromises);
+                    this.appointments = []; 
+                    this.renderAppointmentsList();
+                    this.showMessage('Todos os agendamentos foram limpos (Firestore).', 'success');
+                    this.saveLocalData(); 
+                } catch (e) {
+                    console.error("Erro ao limpar todos os agendamentos do Firestore: ", e);
+                    this.showMessage('Erro ao limpar todos os agendamentos da nuvem: ' + e.message, 'error');
+                } finally {
+                    this.toggleLoadingSpinner('clear-agenda', false);
+                }
+            },
+
+            /**
+             * Deleta agendamentos vencidos (passado o dia e hora).
+             */
+            async deleteExpiredAppointments() {
+                if (!window.db || !window.userId || !window.agendaCollectionRef) return;
+                
+                const now = new Date();
+                const expiredAppointments = this.appointments.filter(app => {
+                    const appDate = new Date(`${app.date}T${app.time}`);
+                    return appDate < now;
+                });
+                
+                if (expiredAppointments.length === 0) return;
+
+                console.log(`Deletando ${expiredAppointments.length} agendamento(s) vencido(s).`);
+                
+                const deletePromises = expiredAppointments.map(app => 
+                    window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`, app.id))
+                );
+
+                try {
+                    await Promise.all(deletePromises);
+                    this.appointments = this.appointments.filter(app => {
+                        const appDate = new Date(`${app.date}T${app.time}`);
+                        return appDate >= now;
+                    });
+                    this.renderAppointmentsList();
+                    this.saveLocalData();
+                    this.showMessage(`Foram removidos ${expiredAppointments.length} agendamento(s) vencido(s).`, 'info');
+                } catch (error) {
+                    console.error("Erro ao deletar agendamentos vencidos:", error);
+                    this.showMessage("Erro ao limpar agendamentos vencidos.", 'error');
+                }
+            },
+            // --- End Firestore Functions ---
+
+            // --- UI/Data Management ---
+            /**
+             * Adiciona um novo agendamento.
+             */
+            async addAppointment() {
+                if (!window.db || !window.userId || !window.agendaCollectionRef) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado.', 'error');
+                    return;
+                }
+
+                const collaboratorName = document.getElementById('collaboratorName').value.trim();
+                const clientName = document.getElementById('clientName').value.trim();
+                const value = parseFloat(document.getElementById('appointmentValue').value) || 0;
+                const date = document.getElementById('appointmentDate').value;
+                const time = document.getElementById('appointmentTime').value;
+
+                if (!collaboratorName || !clientName || !date || !time) {
+                    this.showMessage('Por favor, preencha todos os campos obrigatórios.', 'error');
+                    return;
+                }
+
+                const newAppointment = {
+                    collaboratorName,
+                    clientName,
+                    value,
+                    date,
+                    time,
+                    timestamp: new Date().toISOString() 
+                };
+
+                const appointmentId = await this.saveAppointmentToFirestore(newAppointment);
+                if (appointmentId) {
+                    this.appointments.push({ id: appointmentId, ...newAppointment });
+                    this.renderAppointmentsList();
+                    this.clearInputFields();
+                    this.saveLocalData(); 
+                }
+            },
+            
+            /**
+             * Limpa todos os campos de input do formulário de agendamento.
+             */
+            clearInputFields() {
+                document.getElementById('collaboratorName').value = '';
+                document.getElementById('clientName').value = '';
+                document.getElementById('appointmentValue').value = '';
+                document.getElementById('appointmentDate').value = '';
+                document.getElementById('appointmentTime').value = '';
+            },
+
+            /**
+             * Renderiza a lista de agendamentos na UI.
+             */
+            renderAppointmentsList() {
+                const listContainer = document.getElementById('agenda-grid');
+                listContainer.innerHTML = '';
+                
+                // Define o horário de início e fim da agenda
+                const startHour = 8;
+                const endHour = 20;
+
+                // Cria os slots de horário
+                for (let h = startHour; h <= endHour; h++) {
+                    const time = `${h.toString().padStart(2, '0')}:00`;
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'agenda-time';
+                    timeDiv.textContent = time;
+                    listContainer.appendChild(timeDiv);
+
+                    const slotDiv = document.createElement('div');
+                    slotDiv.className = 'agenda-slot';
+                    slotDiv.id = `slot-${h}`;
+                    listContainer.appendChild(slotDiv);
+                }
+
+                // Filtra os agendamentos para o dia atual e renderiza
+                const todayAppointments = this.appointments.filter(app => app.date === this.formatDateForInput(this.currentDate));
+
+                const sortedAppointments = todayAppointments.sort((a, b) => {
+                    const timeA = a.time;
+                    const timeB = b.time;
+                    return timeA.localeCompare(timeB);
+                });
+
+                sortedAppointments.forEach((app) => {
+                    const hour = parseInt(app.time.split(':')[0]);
+                    const slotDiv = document.getElementById(`slot-${hour}`);
+                    if (slotDiv) {
+                        const itemCard = document.createElement('div');
+                        itemCard.className = `agenda-card p-2 text-white text-sm font-semibold cursor-pointer`;
+                        itemCard.setAttribute('onclick', `window.agendaApp.openEditModal('${app.id}')`);
+                        
+                        const appointmentDateTime = new Date(`${app.date}T${app.time}`);
+                        if (appointmentDateTime < new Date()) {
+                            itemCard.classList.add('expired');
+                        }
+                        
+                        itemCard.innerHTML = `
+                            <p>${app.collaboratorName}</p>
+                            <p class="font-normal text-xs">Cliente: ${app.clientName}</p>
+                            <p class="font-normal text-xs">${app.time} - R$ ${app.value.toFixed(2).replace('.', ',')}</p>
+                        `;
+                        slotDiv.appendChild(itemCard);
+                    }
+                });
+            },
+
+            /**
+             * Navega para o próximo ou dia anterior.
+             * @param {number} days - O número de dias para navegar (1 para frente, -1 para trás).
+             */
+            navigateDate(days) {
+                const newDate = new Date(this.currentDate);
+                newDate.setDate(this.currentDate.getDate() + days);
+                this.currentDate = newDate;
+                this.updateDateInput();
+                this.renderAppointmentsList();
+            },
+
+            /**
+             * Atualiza a data atual a partir do input de data.
+             */
+            changeDate() {
+                const dateInput = document.getElementById('currentDateInput');
+                if (dateInput.value) {
+                    this.currentDate = new Date(dateInput.value + 'T00:00:00'); // Adiciona T00:00:00 para evitar problemas de fuso horário
+                    this.renderAppointmentsList();
+                }
+            },
+
+            /**
+             * Atualiza o input de data com a data atual.
+             */
+            updateDateInput() {
+                const dateInput = document.getElementById('currentDateInput');
+                dateInput.value = this.formatDateForInput(this.currentDate);
+            },
+            
+            /**
+             * Formata a data para o formato YYYY-MM-DD para o input de data.
+             * @param {Date} dateObj - O objeto de data.
+             * @returns {string} A data formatada.
+             */
+            formatDateForInput(dateObj) {
+                const year = dateObj.getFullYear();
+                const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+                const day = dateObj.getDate().toString().padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            },
+
+            // --- Local Storage Functions ---
+            /**
+             * Salva os dados atuais dos agendamentos no localStorage.
+             */
+            saveLocalData() {
+                localStorage.setItem('salonAgendaData', JSON.stringify(this.appointments));
+            },
+
+            /**
+             * Carrega os dados dos agendamentos do localStorage.
+             */
+            loadLocalData() {
+                const savedData = localStorage.getItem('salonAgendaData');
+                if (savedData) {
+                    try {
+                        this.appointments = JSON.parse(savedData);
+                        this.renderAppointmentsList();
+                        this.showMessage('Agenda carregada do salvamento automático.', 'info');
+                    } catch (e) {
+                        console.error("Erro ao carregar dados do localStorage:", e);
+                        localStorage.removeItem('salonAgendaData'); 
+                        this.showMessage('Erro ao carregar agenda salva localmente. Dados corrompidos foram removidos.', 'error');
+                    }
+                }
+            },
+            // --- End Local Storage Functions ---
+
+            // --- Local File Operations ---
+            /**
+             * Exporta os dados atuais da agenda para um arquivo JSON local.
+             */
+            exportDataToFile() {
+                const dataToSave = this.appointments; 
+
+                const jsonString = JSON.stringify(dataToSave, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `agenda_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                this.showMessage('Agenda exportada para arquivo local com sucesso!', 'success');
+            },
+
+            /**
+             * Importa dados de agenda de um arquivo JSON local.
+             */
+            importDataFromFile() {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = '.json';
+
+                fileInput.onchange = (event) => {
+                    const file = event.target.files[0];
+                    if (!file) {
+                        this.showMessage('Nenhum arquivo selecionado.', 'info');
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const importedData = JSON.parse(e.target.result);
+
+                            // Validação básica para garantir que é um array de agendamentos
+                            if (Array.isArray(importedData) && importedData.every(item => 
+                                typeof item === 'object' && item.collaboratorName && item.clientName && item.date && item.time)) {
+                                
+                                this.appointments = importedData;
+                                this.renderAppointmentsList();
+                                this.saveLocalData(); 
+                                this.showMessage('Agenda importada de arquivo local com sucesso!', 'success');
+                            } else {
+                                this.showMessage('Formato de arquivo JSON inválido para a agenda.', 'error');
+                            }
+                        } catch (parseError) {
+                            this.showMessage('Erro ao ler o arquivo: Não é um JSON válido.', 'error');
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+
+                fileInput.click();
+            }
+            // --- End Local File Operations ---
+        };
+
+        // Aliases de funções globais para compatibilidade retroativa com o HTML
+        window.addAppointment = () => window.agendaApp.addAppointment();
+        window.removeAppointment = (id) => window.agendaApp.removeAppointment(id);
+        window.showClearAllConfirm = () => window.agendaApp.showClearAllConfirm();
+        window.handleConfirm = (confirmed) => window.agendaApp.handleConfirm(confirmed);
+        window.loadAppointmentsFromFirestore = () => window.agendaApp.loadAppointmentsFromFirestore();
+        window.exportDataToFile = () => window.agendaApp.exportDataToFile();
+        window.importDataFromFile = () => window.agendaApp.importDataFromFile();
+        window.navigateDate = (days) => window.agendaApp.navigateDate(days);
+        window.changeDate = () => window.agendaApp.changeDate();
+
+        // Função de inicialização da lógica da aplicação
+        function initializeAppLogic() {
+            window.agendaApp.init();
+        }
+    </script>
+</body>
+</html>
