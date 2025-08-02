@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema Unificado do Salão</title>
+    <title>Sistema de Gestão do Salão</title>
     
     <!-- Preload critical resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -64,7 +64,9 @@
                 this.loadAppointmentsFromFirestore(); 
                 this.enableButtons();
                 this.updateDateInput();
-                document.getElementById('appointmentDate').value = this.formatDateForInput(new Date());
+                if(document.getElementById('appointmentDate')) {
+                    document.getElementById('appointmentDate').value = this.formatDateForInput(new Date());
+                }
                 console.log("Agenda App inicializado.");
             },
 
@@ -86,21 +88,17 @@
                 const provider = new GoogleAuthProvider();
                 try {
                     await signInWithPopup(window.auth, provider);
-                    this.showMessage('Autenticado com Google!', 'success');
                 } catch (error) {
                     console.error("Erro ao autenticar com Google:", error);
-                    this.showMessage(`Erro ao autenticar: ${error.message}`, 'error');
+                    alert(`Erro ao autenticar: ${error.message}`);
                 }
             },
 
             async signOutUser() {
                 try {
                     await signOut(window.auth);
-                    this.showMessage('Sessão encerrada.', 'info');
-                    this.appointments = [];
-                    this.renderAppointmentsList();
                 } catch (error) {
-                    this.showMessage(`Erro ao sair: ${error.message}`, 'error');
+                    alert(`Erro ao sair: ${error.message}`);
                 }
             },
             
@@ -161,17 +159,16 @@
             },
 
             async deleteAppointment() {
-                if (!this.currentEditAppointmentId) return;
-                if (confirm('Tem certeza que deseja excluir este agendamento?')) {
-                    try {
-                        const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`, this.currentEditAppointmentId);
-                        await deleteDoc(docRef);
-                        this.showMessage('Agendamento excluído.', 'info');
-                        this.closeEditModal();
-                        this.loadAppointmentsFromFirestore();
-                    } catch (error) {
-                        this.showMessage('Erro ao excluir agendamento.', 'error');
-                    }
+                if (!this.currentEditAppointmentId && !confirm('Tem certeza que deseja excluir este agendamento?')) return;
+                
+                try {
+                    const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`, this.currentEditAppointmentId);
+                    await deleteDoc(docRef);
+                    this.showMessage('Agendamento excluído.', 'info');
+                    this.closeEditModal();
+                    this.loadAppointmentsFromFirestore();
+                } catch (error) {
+                    this.showMessage('Erro ao excluir agendamento.', 'error');
                 }
             },
 
@@ -361,56 +358,35 @@
                 console.log("Firebase inicializado com sucesso");
 
                 onAuthStateChanged(window.auth, async (user) => {
-                    const loginPrompt = document.getElementById('login-prompt');
-                    const mainAppContent = document.getElementById('main-app-content');
-                    const authButtonsContainer = document.getElementById('auth-buttons');
-                    const userIdDisplay = document.getElementById('user-id-display');
+                    const globalLoginPrompt = document.getElementById('global-login-prompt');
+                    const appWrapper = document.getElementById('app-wrapper');
+                    const globalUserDisplay = document.getElementById('global-user-display');
+                    const globalSignOutBtn = document.getElementById('global-sign-out-btn');
 
                     if (user) {
-                        if(loginPrompt) loginPrompt.style.display = 'none';
-                        if(mainAppContent) mainAppContent.style.display = 'block';
+                        globalLoginPrompt.classList.add('hidden');
+                        appWrapper.classList.remove('hidden');
 
                         window.userId = user.uid;
                         const displayInfo = user.displayName ? `${user.displayName}` : `${user.uid}`;
                         
-                        if(userIdDisplay) userIdDisplay.textContent = `Usuário: ${displayInfo}`;
-                        if(authButtonsContainer) authButtonsContainer.innerHTML = `
-                            <button onclick="window.agendaApp.signOutUser()" class="btn btn-danger">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                                Sair
-                            </button>
-                        `;
+                        globalUserDisplay.textContent = `Usuário: ${displayInfo}`;
+                        globalSignOutBtn.classList.remove('hidden');
                         
-                        console.log("Usuário autenticado:", window.userId);
-                        window.agendaCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`);
-                        
-                        if (window.db) {
-                            window.agendaApp.init();
-                        } else {
-                            window.agendaApp.showMessage('Erro: Banco de dados não disponível.', 'error');
-                        }
-                    } else {
-                        if(loginPrompt) loginPrompt.style.display = 'block';
-                        if(mainAppContent) mainAppContent.style.display = 'none';
+                        // Inicializa a lógica específica da agenda
+                        if(window.agendaApp) window.agendaApp.init();
 
-                        window.userId = 'Não autenticado';
-                        if(userIdDisplay) userIdDisplay.textContent = '';
-                        if(authButtonsContainer) authButtonsContainer.innerHTML = `
-                            <button onclick="window.agendaApp.signInWithGoogle()" class="btn btn-primary">
-                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                                Entrar com Google
-                            </button>
-                        `;
-                        
-                        window.agendaApp.disableButtons();
+                    } else {
+                        globalLoginPrompt.classList.remove('hidden');
+                        appWrapper.classList.add('hidden');
+                        globalSignOutBtn.classList.add('hidden');
+                        globalUserDisplay.textContent = '';
                     }
                 });
 
             } catch (error) {
                 console.error("Erro ao inicializar Firebase:", error);
-                if(window.agendaApp && window.agendaApp.showMessage) {
-                    window.agendaApp.showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
-                }
+                alert('Erro fatal ao inicializar o sistema. Verifique o console.');
             }
         }
 
@@ -504,99 +480,190 @@
 <body class="bg-gray-100 p-4">
 
     <div class="container mx-auto">
-        <!-- Abas Superiores -->
-        <div class="flex flex-wrap space-x-2 sm:space-x-4 border-b mb-4">
-            <button class="py-2 px-4 text-purple-600 border-b-2 border-purple-600 font-semibold" data-tab="agenda">Agenda</button>
-            <button class="py-2 px-4 text-gray-500 hover:text-purple-600 font-semibold" data-tab="estoque">Estoque</button>
-            <button class="py-2 px-4 text-gray-500 hover:text-purple-600 font-semibold" data-tab="fechas_clientes">Fichas Clientes</button>
-            <button class="py-2 px-4 text-gray-500 hover:text-purple-600 font-semibold" data-tab="fechamento">Fechamento</button>
+        <!-- Global Login Prompt -->
+        <div id="global-login-prompt" class="main-container text-center p-8">
+            <header class="header">
+                <h1>Sistema de Gestão do Salão</h1>
+                <p class="text-lg mt-2 opacity-90">Tudo em um só lugar</p>
+            </header>
+            <main class="content">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Bem-vindo(a)!</h2>
+                <p class="text-gray-600 mb-8">Por favor, faça login com sua conta Google para acessar o sistema.</p>
+                <button onclick="window.agendaApp.signInWithGoogle()" class="btn btn-primary text-lg">
+                    <svg class="w-6 h-6 mr-3" fill="currentColor" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    Entrar com Google
+                </button>
+            </main>
         </div>
-        
-        <!-- Conteúdos das Abas -->
-        <div id="content-agenda">
-            <!-- Conteúdo de agenda.html -->
-            <div class="main-container" style="background: transparent; box-shadow: none;">
-                <header class="header">
-                    <h1>Sistema de Agenda</h1>
-                    <p id="user-id-display" class="text-sm mt-2 opacity-80"></p>
-                </header>
-        
-                <main class="content" style="padding: 0; padding-top: 1rem;">
-                    <div id="app-message" class="message" style="display: none;"></div>
-                    
-                    <div id="login-prompt" class="section text-center" style="display: none;">
-                        <h2 class="section-title mb-4">Bem-vindo(a)!</h2>
-                        <p class="text-gray-600 mb-6">Por favor, faça login com sua conta Google para acessar e gerenciar a agenda.</p>
-                        <div id="auth-buttons" class="flex justify-center"></div>
-                    </div>
-        
-                    <div id="main-app-content" style="display: none;">
-                        <section class="section">
-                            <h2 class="section-title mb-6">Agendar Novo Atendimento</h2>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label for="collaboratorName" class="block mb-2">Nome da Colaboradora</label>
-                                    <input type="text" id="collaboratorName" placeholder="Ex: Maria" class="form-input">
-                                </div>
-                                <div>
-                                    <label for="clientName" class="block mb-2">Nome da Cliente</label>
-                                    <input type="text" id="clientName" placeholder="Ex: Joana" class="form-input">
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                <div>
-                                    <label for="appointmentValue" class="block mb-2">Valor (R$)</label>
-                                    <input type="number" step="0.01" min="0" id="appointmentValue" placeholder="50,00" class="form-input text-right">
-                                </div>
-                                <div>
-                                    <label for="appointmentDate" class="block mb-2">Dia</label>
-                                    <input type="date" id="appointmentDate" class="form-input">
-                                </div>
-                                <div>
-                                    <label for="appointmentTime" class="block mb-2">Horário</label>
-                                    <input type="time" id="appointmentTime" class="form-input">
-                                </div>
-                            </div>
-                            <div class="mt-6 flex justify-end">
-                                <button id="addAppointmentBtn" onclick="window.agendaApp.addAppointment()" class="btn btn-primary text-lg font-bold">
-                                    Adicionar Agendamento
-                                </button>
-                            </div>
-                        </section>
-        
-                        <section class="section">
-                            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                                <h2 class="section-title">Agenda do Dia</h2>
-                                <div class="flex items-center gap-2">
-                                    <input type="date" id="currentDateInput" class="form-input w-48 text-center" onchange="window.agendaApp.changeDate()">
-                                    <button onclick="window.agendaApp.navigateDate(-1)" class="btn btn-gray p-2">&lt;</button>
-                                    <button onclick="window.agendaApp.navigateDate(1)" class="btn btn-gray p-2">&gt;</button>
-                                </div>
-                            </div>
-                            
-                            <div id="agenda-grid" class="agenda-grid mt-4"></div>
-        
-                            <div class="mt-6 flex flex-col sm:flex-row gap-3">
-                                <button id="refreshAgendaBtn" onclick="window.agendaApp.loadAppointmentsFromFirestore()" class="btn btn-primary w-full">
-                                    Atualizar Agenda
-                                </button>
-                            </div>
-                        </section>
-                        
-                        <section class="section">
-                            <h2 class="section-title mb-4">Fechamento da Semana</h2>
-                            <div class="flex flex-col sm:flex-row items-center gap-4">
-                                <button id="calculateWeeklyBtn" onclick="window.agendaApp.calculateWeeklyTotal()" class="btn btn-secondary w-full sm:w-auto">Calcular Total da Semana</button>
-                                <div class="bg-white p-4 rounded-lg shadow-inner w-full sm:flex-1 text-center sm:text-left">
-                                    <p class="text-gray-600">Total apurado na semana atual (Seg-Dom):</p>
-                                    <p id="weeklyTotalDisplay" class="text-2xl font-bold text-green-600">R$ 0,00</p>
-                                </div>
-                            </div>
-                        </section>
-                    </div>
-                </main>
+
+        <!-- Main App Wrapper (hidden by default) -->
+        <div id="app-wrapper" class="hidden">
+            <header class="main-container mb-4">
+                <div class="header">
+                    <h1>Sistema de Gestão do Salão</h1>
+                    <p class="text-lg mt-2 opacity-90">Tudo em um só lugar</p>
+                </div>
+                <div class="p-4 bg-white flex justify-between items-center">
+                    <p id="global-user-display" class="text-gray-600"></p>
+                    <button id="global-sign-out-btn" onclick="window.agendaApp.signOutUser()" class="btn btn-danger hidden">Sair</button>
+                </div>
+            </header>
+
+            <!-- Abas Superiores -->
+            <div class="flex flex-wrap space-x-2 sm:space-x-4 border-b mb-4 bg-white p-2 rounded-t-lg">
+                <button class="py-2 px-4 text-purple-600 border-b-2 border-purple-600 font-semibold" data-tab="agenda">Agenda</button>
+                <button class="py-2 px-4 text-gray-500 hover:text-purple-600 font-semibold" data-tab="fechamento">Fechamento Semanal</button>
+                <button class="py-2 px-4 text-gray-500 hover:text-purple-600 font-semibold" data-tab="fechas_clientes">Fichas Clientes</button>
+                <button class="py-2 px-4 text-gray-500 hover:text-purple-600 font-semibold" data-tab="estoque">Controle de Estoque</button>
             </div>
-        
+            
+            <!-- Conteúdos das Abas -->
+            <div id="content-agenda">
+                <div id="app-message" class="message" style="display: none;"></div>
+                <section class="section">
+                    <h2 class="section-title mb-6">Agendar Novo Atendimento</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="collaboratorName" class="block mb-2">Nome da Colaboradora</label>
+                            <input type="text" id="collaboratorName" placeholder="Ex: Maria" class="form-input">
+                        </div>
+                        <div>
+                            <label for="clientName" class="block mb-2">Nome da Cliente</label>
+                            <input type="text" id="clientName" placeholder="Ex: Joana" class="form-input">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label for="appointmentValue" class="block mb-2">Valor (R$)</label>
+                            <input type="number" step="0.01" min="0" id="appointmentValue" placeholder="50,00" class="form-input text-right">
+                        </div>
+                        <div>
+                            <label for="appointmentDate" class="block mb-2">Dia</label>
+                            <input type="date" id="appointmentDate" class="form-input">
+                        </div>
+                        <div>
+                            <label for="appointmentTime" class="block mb-2">Horário</label>
+                            <input type="time" id="appointmentTime" class="form-input">
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end">
+                        <button id="addAppointmentBtn" onclick="window.agendaApp.addAppointment()" class="btn btn-primary text-lg font-bold">
+                            Adicionar Agendamento
+                        </button>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <h2 class="section-title">Agenda do Dia</h2>
+                        <div class="flex items-center gap-2">
+                            <input type="date" id="currentDateInput" class="form-input w-48 text-center" onchange="window.agendaApp.changeDate()">
+                            <button onclick="window.agendaApp.navigateDate(-1)" class="btn btn-gray p-2">&lt;</button>
+                            <button onclick="window.agendaApp.navigateDate(1)" class="btn btn-gray p-2">&gt;</button>
+                        </div>
+                    </div>
+                    
+                    <div id="agenda-grid" class="agenda-grid mt-4"></div>
+
+                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                        <button id="refreshAgendaBtn" onclick="window.agendaApp.loadAppointmentsFromFirestore()" class="btn btn-primary w-full">
+                            Atualizar Agenda
+                        </button>
+                    </div>
+                </section>
+                
+                <section class="section">
+                    <h2 class="section-title mb-4">Fechamento da Semana</h2>
+                    <div class="flex flex-col sm:flex-row items-center gap-4">
+                        <button id="calculateWeeklyBtn" onclick="window.agendaApp.calculateWeeklyTotal()" class="btn btn-secondary w-full sm:w-auto">Calcular Total da Semana</button>
+                        <div class="bg-white p-4 rounded-lg shadow-inner w-full sm:flex-1 text-center sm:text-left">
+                            <p class="text-gray-600">Total apurado na semana atual (Seg-Dom):</p>
+                            <p id="weeklyTotalDisplay" class="text-2xl font-bold text-green-600">R$ 0,00</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="content-fechamento" class="hidden">
+                 <div class="section">
+                    <h2 class="section-title mb-6">Informações do Fechamento</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Dia</label>
+                            <input type="text" value="20" class="mt-1 form-input" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Mês</label>
+                            <input type="text" value="Julho" class="mt-1 form-input" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Ano</label>
+                            <input type="text" value="2025" class="mt-1 form-input" readonly>
+                        </div>
+                    </div>
+                    <p class="text-center mt-4 text-gray-600 font-semibold">Fechamento semanal do dia 20 de Julho de 2025</p>
+                </div>
+                <div class="section">
+                    <h2 class="section-title mb-6">Opções de Dados</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <button class="btn btn-primary">Exportar Dados</button>
+                        <button class="btn btn-primary">Salvar na Nuvem</button>
+                        <button class="btn btn-secondary">Importar Dados</button>
+                        <button class="btn btn-secondary">Carregar da Nuvem</button>
+                        <button class="btn btn-primary">Imprimir Fichas</button>
+                        <button class="btn bg-orange-500 text-white hover:bg-orange-600">Carregar do Mês</button>
+                        <button class="btn btn-danger">Limpar Tudo</button>
+                    </div>
+                </div>
+                 <div class="section">
+                    <h2 class="section-title mb-6">Colaboradoras</h2>
+                    <!-- Fran -->
+                    <div class="grid grid-cols-3 gap-4 items-end p-4 border rounded-lg mb-4">
+                        <h3 class="col-span-3 text-lg font-medium">Fran</h3>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Parte Salão (%)</label>
+                            <input type="number" value="50" class="mt-1 form-input">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Clientes</label>
+                            <input type="number" value="0" class="mt-1 form-input">
+                        </div>
+                        <button class="btn btn-danger self-end">Remover</button>
+                    </div>
+                    <!-- LIZA -->
+                    <div class="grid grid-cols-4 gap-4 items-end p-4 border rounded-lg">
+                        <h3 class="col-span-4 text-lg font-medium">LIZA</h3>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Clientes</label>
+                            <input type="number" value="0" class="mt-1 form-input">
+                        </div>
+                         <div>
+                            <label class="block text-sm font-medium text-gray-700">Valor</label>
+                            <input type="number" value="100" class="mt-1 form-input">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Crédito</label>
+                            <input type="number" value="0" class="mt-1 form-input">
+                        </div>
+                        <button class="btn btn-danger self-end">Remover</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="content-fechas_clientes" class="hidden">
+                <div class="section">
+                    <h2 class="section-title">Fichas de Clientes</h2>
+                    <p class="mt-4">O conteúdo para as fichas de clientes será adicionado aqui.</p>
+                </div>
+            </div>
+
+            <div id="content-estoque" class="hidden">
+                <div class="section">
+                    <h2 class="section-title">Controle de Estoque</h2>
+                    <p class="mt-4">O conteúdo para o controle de estoque será adicionado aqui.</p>
+                </div>
+            </div>
+            
             <div id="edit-appointment-modal" class="modal">
                 <div class="modal-content">
                     <h3 class="text-lg font-semibold text-gray-800 mb-4">Editar Agendamento</h3>
@@ -632,42 +699,6 @@
                 </div>
             </div>
         </div>
-
-        <div id="content-estoque" class="hidden">
-            <div class="main-container">
-                <header class="header">
-                  <h1>Controle de Produtos do Salão</h1>
-                  <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Gerencie seu estoque de produtos em tempo real.</p>
-                </header>
-                <main class="content">
-                    <p>O conteúdo para o controle de estoque será adicionado aqui.</p>
-                </main>
-            </div>
-        </div>
-
-        <div id="content-fechas_clientes" class="hidden">
-            <div class="main-container">
-                <header class="header">
-                  <h1>Registro de Fichas de Cliente</h1>
-                  <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Gerencie seus atendimentos e histórico de clientes.</p>
-                </header>
-                <main class="content">
-                    <p>O conteúdo para as fichas de clientes será adicionado aqui.</p>
-                </main>
-            </div>
-        </div>
-
-        <div id="content-fechamento" class="hidden">
-             <div class="main-container">
-                <header class="header">
-                  <h1>Espaço Fran Kokott</h1>
-                  <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Fechamento Semanal</p>
-                </header>
-                <main class="content">
-                    <p>O conteúdo para o fechamento semanal será adicionado aqui.</p>
-                </main>
-            </div>
-        </div>
     </div>
 
     <!-- Script de troca de abas -->
@@ -683,7 +714,6 @@
 
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => {
-                    // Atualiza estilos das abas
                     tabs.forEach(t => {
                         t.classList.remove('border-purple-600', 'text-purple-600');
                         t.classList.add('text-gray-500', 'border-transparent');
@@ -691,27 +721,17 @@
                     tab.classList.add('border-purple-600', 'text-purple-600');
                     tab.classList.remove('text-gray-500', 'border-transparent');
                     
-                    // Esconde todos os conteúdos
                     Object.values(contents).forEach(c => {
                         if(c) c.classList.add('hidden');
                     });
                     
-                    // Mostra o conteúdo da aba selecionada
                     const activeContent = contents[tab.dataset.tab];
                     if(activeContent) {
                         activeContent.classList.remove('hidden');
                     }
                 });
             });
-            
-            // Renomeia o data-tab 'index' para 'fechamento' para consistência
-            const fechamentoTab = document.querySelector('[data-tab="index"]');
-            if(fechamentoTab) fechamentoTab.dataset.tab = 'fechamento';
         });
     </script>
 </body>
 </html>
-
-
-
-
