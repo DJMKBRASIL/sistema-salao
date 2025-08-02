@@ -13,7 +13,7 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Firebase SDKs and App Logic (from Agenda) -->
+    <!-- Firebase SDKs and App Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
@@ -628,43 +628,37 @@
         </div>
 
         <div id="content-estoque" class="hidden">
-            <div class="main-container" style="background: transparent; box-shadow: none;">
+            <div class="main-container">
                 <header class="header">
-                    <h1>Controle de Estoque</h1>
-                    <p class="text-sm mt-2 opacity-80">Gerencie seu estoque de produtos em tempo real.</p>
+                  <h1>Controle de Produtos do Salão</h1>
+                  <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Gerencie seu estoque de produtos em tempo real.</p>
                 </header>
-                <main class="content" style="padding: 0; padding-top: 1rem;">
-                     <div class="section">
-                        <p>O conteúdo para o controle de estoque será adicionado aqui.</p>
-                    </div>
+                <main class="content">
+                    <p>O conteúdo para o controle de estoque será adicionado aqui.</p>
                 </main>
             </div>
         </div>
 
         <div id="content-fechas_clientes" class="hidden">
-            <div class="main-container" style="background: transparent; box-shadow: none;">
+            <div class="main-container">
                 <header class="header">
-                    <h1>Fichas de Clientes</h1>
-                    <p class="text-sm mt-2 opacity-80">Gerencie seus atendimentos e histórico de clientes.</p>
+                  <h1>Registro de Fichas de Cliente</h1>
+                  <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Gerencie seus atendimentos e histórico de clientes.</p>
                 </header>
-                <main class="content" style="padding: 0; padding-top: 1rem;">
-                     <div class="section">
-                        <p>O conteúdo para as fichas de clientes será adicionado aqui.</p>
-                    </div>
+                <main class="content">
+                    <p>O conteúdo para as fichas de clientes será adicionado aqui.</p>
                 </main>
             </div>
         </div>
 
         <div id="content-fechamento" class="hidden">
-             <div class="main-container" style="background: transparent; box-shadow: none;">
+             <div class="main-container">
                 <header class="header">
-                    <h1>Fechamento Semanal</h1>
-                    <p class="text-sm mt-2 opacity-80">Visualize o fechamento semanal aqui.</p>
+                  <h1>Espaço Fran Kokott</h1>
+                  <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Fechamento Semanal</p>
                 </header>
-                <main class="content" style="padding: 0; padding-top: 1rem;">
-                     <div class="section">
-                        <p>O conteúdo para o fechamento semanal será adicionado aqui.</p>
-                    </div>
+                <main class="content">
+                    <p>O conteúdo para o fechamento semanal será adicionado aqui.</p>
                 </main>
             </div>
         </div>
@@ -703,9 +697,14 @@
                     }
                 });
             });
+            
+            // Renomeia o data-tab 'index' para 'fechamento' para consistência
+            const fechamentoTab = document.querySelector('[data-tab="index"]');
+            if(fechamentoTab) fechamentoTab.dataset.tab = 'fechamento';
         });
     </script>
 </body>
 </html>
+
 
 
