@@ -106,11 +106,13 @@
             
             showMessage(message, type = 'success') {
                 const msgDiv = document.getElementById('app-message');
-                msgDiv.textContent = message;
-                msgDiv.className = 'message';
-                msgDiv.classList.add(`message-${type}`);
-                msgDiv.style.display = 'block'; 
-                setTimeout(() => { msgDiv.style.display = 'none'; }, 5000);
+                if(msgDiv) {
+                    msgDiv.textContent = message;
+                    msgDiv.className = 'message';
+                    msgDiv.classList.add(`message-${type}`);
+                    msgDiv.style.display = 'block'; 
+                    setTimeout(() => { msgDiv.style.display = 'none'; }, 5000);
+                }
             },
 
             openEditModal(appointmentId) {
@@ -333,8 +335,12 @@
 
             updateDateInput() {
                 const formattedDate = this.formatDateForInput(this.currentDate);
-                document.getElementById('currentDateInput').value = formattedDate;
-                document.getElementById('appointmentDate').value = formattedDate;
+                if(document.getElementById('currentDateInput')) {
+                    document.getElementById('currentDateInput').value = formattedDate;
+                }
+                if(document.getElementById('appointmentDate')) {
+                    document.getElementById('appointmentDate').value = formattedDate;
+                }
             },
             
             formatDateForInput(dateObj) {
@@ -705,6 +711,7 @@
     </script>
 </body>
 </html>
+
 
 
 
