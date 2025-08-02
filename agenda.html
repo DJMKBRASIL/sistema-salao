@@ -37,7 +37,6 @@
 
         // --- Configuração do Firebase ---
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // CORREÇÃO: As credenciais do Firebase foram atualizadas com os valores corretos.
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
             authDomain: "sistema-do-salao.firebaseapp.com",
@@ -255,18 +254,34 @@
                 
                 const startHour = 8, endHour = 20;
 
-                for (let h = startHour; h <= endHour; h++) {
-                    const time = `${h.toString().padStart(2, '0')}:00`;
-                    listContainer.innerHTML += `<div class="agenda-time">${time}</div><div class="agenda-slot" id="slot-${h}"></div>`;
+                // Loop para criar slots de 30 em 30 minutos
+                for (let h = startHour; h < endHour; h++) {
+                    // Cria slot para :00
+                    const time00 = `${h.toString().padStart(2, '0')}:00`;
+                    listContainer.innerHTML += `<div class="agenda-time">${time00}</div><div class="agenda-slot" id="slot-${h}-00"></div>`;
+
+                    // Cria slot para :30
+                    const time30 = `${h.toString().padStart(2, '0')}:30`;
+                    listContainer.innerHTML += `<div class="agenda-time">${time30}</div><div class="agenda-slot" id="slot-${h}-30"></div>`;
                 }
+                // Adiciona o último horário cheio
+                 const lastTime = `${endHour.toString().padStart(2, '0')}:00`;
+                 listContainer.innerHTML += `<div class="agenda-time">${lastTime}</div><div class="agenda-slot" id="slot-${endHour}-00"></div>`;
+
 
                 const todayAppointments = this.appointments
                     .filter(app => app.date === this.formatDateForInput(this.currentDate))
                     .sort((a, b) => a.time.localeCompare(b.time));
 
                 todayAppointments.forEach((app) => {
-                    const hour = parseInt(app.time.split(':')[0]);
-                    const slotDiv = document.getElementById(`slot-${hour}`);
+                    const [hour, minute] = app.time.split(':').map(Number);
+                    
+                    // Determina o slot de 30 minutos
+                    const slotMinute = minute < 30 ? '00' : '30';
+                    const slotId = `slot-${hour}-${slotMinute}`;
+                    
+                    const slotDiv = document.getElementById(slotId);
+
                     if (slotDiv) {
                         const itemCard = document.createElement('div');
                         itemCard.className = 'agenda-card';
@@ -442,8 +457,19 @@
             border: 1px solid var(--gray-200); border-radius: var(--border-radius);
             padding: 1rem; background: #fff;
         }
-        .agenda-time { padding: 0.5rem; text-align: right; color: var(--gray-500); border-right: 1px solid var(--gray-200); }
-        .agenda-slot { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.5rem; min-height: 2rem; }
+        .agenda-time { 
+            padding-top: 0.5rem;
+            text-align: right; 
+            color: var(--gray-500); 
+            border-right: 1px solid var(--gray-200); 
+        }
+        .agenda-slot { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 0.25rem; 
+            padding: 0.5rem; 
+            min-height: 3rem; 
+        }
         .agenda-card {
             background-color: var(--primary-color); color: white; padding: 0.75rem;
             border-radius: 0.5rem; cursor: pointer; word-break: break-word;
@@ -474,25 +500,7 @@
             </div>
 
             <div id="main-app-content" style="display: none;">
-                <section class="section">
-                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                        <h2 class="section-title">Agenda do Dia</h2>
-                        <div class="flex items-center gap-2">
-                            <input type="date" id="currentDateInput" class="form-input w-48 text-center" onchange="window.agendaApp.changeDate()">
-                            <button onclick="window.agendaApp.navigateDate(-1)" class="btn btn-gray p-2">&lt;</button>
-                            <button onclick="window.agendaApp.navigateDate(1)" class="btn btn-gray p-2">&gt;</button>
-                        </div>
-                    </div>
-                    
-                    <div id="agenda-grid" class="agenda-grid mt-4"></div>
-
-                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
-                        <button id="refreshAgendaBtn" onclick="window.agendaApp.loadAppointmentsFromFirestore()" class="btn btn-primary w-full">
-                            Atualizar Agenda
-                        </button>
-                    </div>
-                </section>
-
+                <!-- SEÇÃO MOVIDA PARA CIMA -->
                 <section class="section">
                     <h2 class="section-title mb-6">Agendar Novo Atendimento</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -522,6 +530,26 @@
                     <div class="mt-6 flex justify-end">
                         <button id="addAppointmentBtn" onclick="window.agendaApp.addAppointment()" class="btn btn-primary text-lg font-bold">
                             Adicionar Agendamento
+                        </button>
+                    </div>
+                </section>
+
+                <!-- SEÇÃO MOVIDA PARA BAIXO -->
+                <section class="section">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <h2 class="section-title">Agenda do Dia</h2>
+                        <div class="flex items-center gap-2">
+                            <input type="date" id="currentDateInput" class="form-input w-48 text-center" onchange="window.agendaApp.changeDate()">
+                            <button onclick="window.agendaApp.navigateDate(-1)" class="btn btn-gray p-2">&lt;</button>
+                            <button onclick="window.agendaApp.navigateDate(1)" class="btn btn-gray p-2">&gt;</button>
+                        </div>
+                    </div>
+                    
+                    <div id="agenda-grid" class="agenda-grid mt-4"></div>
+
+                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                        <button id="refreshAgendaBtn" onclick="window.agendaApp.loadAppointmentsFromFirestore()" class="btn btn-primary w-full">
+                            Atualizar Agenda
                         </button>
                     </div>
                 </section>
@@ -566,6 +594,7 @@
     </div>
 </body>
 </html>
+
 
 
 
