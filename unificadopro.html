@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Unificado do Salão</title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDKs and App Logic (from Agenda) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            GoogleAuthProvider, 
+            signInWithPopup, 
+            signOut, 
+            setPersistence, 
+            browserLocalPersistence 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            deleteDoc, 
+            collection, 
+            getDocs, 
+            addDoc 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Configuração do Firebase ---
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
+            authDomain: "sistema-do-salao.firebaseapp.com",
+            projectId: "sistema-do-salao",
+            storageBucket: "sistema-do-salao.firebasestorage.app",
+            messagingSenderId: "395887083088",
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
+            measurementId: "G-1D996M5FKZ"
+        };
+
+        // --- Variáveis globais do Firebase ---
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = 'Carregando...'; 
+        window.agendaCollectionRef = null; 
+
+        // --- Objeto principal da aplicação de Agenda ---
+        window.agendaApp = {
+            appointments: [], 
+            currentEditAppointmentId: null,
+            currentDate: new Date(),
+
+            init() {
+                this.loadAppointmentsFromFirestore(); 
+                this.enableButtons();
+                this.updateDateInput();
+                document.getElementById('appointmentDate').value = this.formatDateForInput(new Date());
+                console.log("Agenda App inicializado.");
+            },
+
+            enableButtons() {
+                ['addAppointmentBtn', 'refreshAgendaBtn', 'calculateWeeklyBtn'].forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = false;
+                });
+            },
+
+            disableButtons() {
+                 ['addAppointmentBtn', 'refreshAgendaBtn', 'calculateWeeklyBtn'].forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = true;
+                });
+            },
+
+            async signInWithGoogle() {
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(window.auth, provider);
+                    this.showMessage('Autenticado com Google!', 'success');
+                } catch (error) {
+                    console.error("Erro ao autenticar com Google:", error);
+                    this.showMessage(`Erro ao autenticar: ${error.message}`, 'error');
+                }
+            },
+
+            async signOutUser() {
+                try {
+                    await signOut(window.auth);
+                    this.showMessage('Sessão encerrada.', 'info');
+                    this.appointments = [];
+                    this.renderAppointmentsList();
+                } catch (error) {
+                    this.showMessage(`Erro ao sair: ${error.message}`, 'error');
+                }
+            },
+            
+            showMessage(message, type = 'success') {
+                const msgDiv = document.getElementById('app-message');
+                msgDiv.textContent = message;
+                msgDiv.className = 'message';
+                msgDiv.classList.add(`message-${type}`);
+                msgDiv.style.display = 'block'; 
+                setTimeout(() => { msgDiv.style.display = 'none'; }, 5000);
+            },
+
+            openEditModal(appointmentId) {
+                const appointment = this.appointments.find(app => app.id === appointmentId);
+                if (!appointment) return;
+
+                this.currentEditAppointmentId = appointmentId;
+                document.getElementById('editCollaboratorName').value = appointment.collaboratorName;
+                document.getElementById('editClientName').value = appointment.clientName;
+                document.getElementById('editAppointmentValue').value = appointment.value;
+                document.getElementById('editAppointmentDate').value = appointment.date;
+                document.getElementById('editAppointmentTime').value = appointment.time;
+
+                document.getElementById('edit-appointment-modal').style.display = 'flex';
+            },
+
+            closeEditModal() {
+                document.getElementById('edit-appointment-modal').style.display = 'none';
+                this.currentEditAppointmentId = null;
+            },
+
+            async saveEditedAppointment() {
+                if (!this.currentEditAppointmentId) return;
+                const updatedData = {
+                    collaboratorName: document.getElementById('editCollaboratorName').value.trim(),
+                    clientName: document.getElementById('editClientName').value.trim(),
+                    value: parseFloat(document.getElementById('editAppointmentValue').value) || 0,
+                    date: document.getElementById('editAppointmentDate').value,
+                    time: document.getElementById('editAppointmentTime').value
+                };
+
+                if (!updatedData.collaboratorName || !updatedData.clientName || !updatedData.date || !updatedData.time) {
+                    this.showMessage('Por favor, preencha todos os campos.', 'error');
+                    return;
+                }
+
+                try {
+                    const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`, this.currentEditAppointmentId);
+                    await setDoc(docRef, updatedData, { merge: true });
+                    this.showMessage('Agendamento atualizado!', 'success');
+                    this.closeEditModal();
+                    this.loadAppointmentsFromFirestore();
+                } catch (error) {
+                    this.showMessage('Erro ao salvar alterações.', 'error');
+                }
+            },
+
+            async deleteAppointment() {
+                if (!this.currentEditAppointmentId) return;
+                if (confirm('Tem certeza que deseja excluir este agendamento?')) {
+                    try {
+                        const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`, this.currentEditAppointmentId);
+                        await deleteDoc(docRef);
+                        this.showMessage('Agendamento excluído.', 'info');
+                        this.closeEditModal();
+                        this.loadAppointmentsFromFirestore();
+                    } catch (error) {
+                        this.showMessage('Erro ao excluir agendamento.', 'error');
+                    }
+                }
+            },
+
+            async saveAppointmentToFirestore(appointmentData) {
+                if (!window.agendaCollectionRef) {
+                    this.showMessage('Erro: Referência da coleção não encontrada.', 'error');
+                    return null;
+                }
+                try {
+                    const docRef = await addDoc(window.agendaCollectionRef, appointmentData);
+                    this.showMessage('Agendamento salvo na nuvem!', 'success');
+                    return docRef.id;
+                } catch (e) {
+                    this.showMessage(`Erro ao salvar na nuvem: ${e.message}`, 'error');
+                    return null;
+                }
+            },
+
+            async loadAppointmentsFromFirestore() {
+                if (!window.agendaCollectionRef) return;
+                this.showMessage('Carregando agendamentos...', 'info');
+                try {
+                    this.appointments = []; 
+                    const querySnapshot = await getDocs(window.agendaCollectionRef);
+                    querySnapshot.forEach((docSnap) => {
+                        this.appointments.push({ id: docSnap.id, ...docSnap.data() });
+                    });
+                    this.renderAppointmentsList();
+                    this.deleteExpiredAppointments();
+                } catch (e) {
+                    this.showMessage(`Erro ao carregar da nuvem: ${e.message}`, 'error');
+                }
+            },
+
+            async deleteExpiredAppointments() {
+                const now = new Date();
+                const expired = this.appointments.filter(app => new Date(`${app.date}T${app.time}`) < now);
+                if (expired.length === 0) return;
+
+                const deletePromises = expired.map(app => 
+                    deleteDoc(doc(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`, app.id))
+                );
+                await Promise.all(deletePromises);
+                this.loadAppointmentsFromFirestore();
+            },
+
+            async addAppointment() {
+                const newAppointment = {
+                    collaboratorName: document.getElementById('collaboratorName').value.trim(),
+                    clientName: document.getElementById('clientName').value.trim(),
+                    value: parseFloat(document.getElementById('appointmentValue').value) || 0,
+                    date: document.getElementById('appointmentDate').value,
+                    time: document.getElementById('appointmentTime').value,
+                    timestamp: new Date().toISOString() 
+                };
+
+                if (!newAppointment.collaboratorName || !newAppointment.clientName || !newAppointment.date || !newAppointment.time) {
+                    this.showMessage('Por favor, preencha todos os campos obrigatórios.', 'error');
+                    return;
+                }
+
+                const appointmentId = await this.saveAppointmentToFirestore(newAppointment);
+                if (appointmentId) {
+                    this.appointments.push({ id: appointmentId, ...newAppointment });
+                    this.renderAppointmentsList();
+                    this.clearInputFields();
+                }
+            },
+            
+            clearInputFields() {
+                document.getElementById('collaboratorName').value = '';
+                document.getElementById('clientName').value = '';
+                document.getElementById('appointmentValue').value = '';
+                document.getElementById('appointmentTime').value = '';
+                document.getElementById('appointmentDate').value = this.formatDateForInput(this.currentDate);
+            },
+
+            renderAppointmentsList() {
+                const listContainer = document.getElementById('agenda-grid');
+                if (!listContainer) return;
+                listContainer.innerHTML = '';
+                
+                const startHour = 8, endHour = 20;
+
+                for (let h = startHour; h < endHour; h++) {
+                    const time00 = `${h.toString().padStart(2, '0')}:00`;
+                    listContainer.innerHTML += `<div class="agenda-time">${time00}</div><div class="agenda-slot" id="slot-${h}-00"></div>`;
+                    const time30 = `${h.toString().padStart(2, '0')}:30`;
+                    listContainer.innerHTML += `<div class="agenda-time">${time30}</div><div class="agenda-slot" id="slot-${h}-30"></div>`;
+                }
+                 const lastTime = `${endHour.toString().padStart(2, '0')}:00`;
+                 listContainer.innerHTML += `<div class="agenda-time">${lastTime}</div><div class="agenda-slot" id="slot-${endHour}-00"></div>`;
+
+                const todayAppointments = this.appointments
+                    .filter(app => app.date === this.formatDateForInput(this.currentDate))
+                    .sort((a, b) => a.time.localeCompare(b.time));
+
+                todayAppointments.forEach((app) => {
+                    const [hour, minute] = app.time.split(':').map(Number);
+                    const slotMinute = minute < 30 ? '00' : '30';
+                    const slotId = `slot-${hour}-${slotMinute}`;
+                    const slotDiv = document.getElementById(slotId);
+
+                    if (slotDiv) {
+                        const itemCard = document.createElement('div');
+                        itemCard.className = 'agenda-card';
+                        itemCard.onclick = () => this.openEditModal(app.id);
+                        
+                        if (new Date(`${app.date}T${app.time}`) < new Date()) {
+                            itemCard.classList.add('expired');
+                        }
+                        
+                        itemCard.innerHTML = `
+                            <p class="font-semibold">${app.collaboratorName}</p>
+                            <p class="text-xs">Cliente: ${app.clientName}</p>
+                            <p class="text-xs">${app.time} - R$ ${app.value.toFixed(2).replace('.', ',')}</p>
+                        `;
+                        slotDiv.appendChild(itemCard);
+                    }
+                });
+            },
+            
+            calculateWeeklyTotal() {
+                const now = new Date();
+                const today = now.getDay();
+                const firstDayOfWeek = new Date(now);
+                firstDayOfWeek.setDate(now.getDate() - (today === 0 ? 6 : today - 1));
+                firstDayOfWeek.setHours(0, 0, 0, 0);
+
+                const lastDayOfWeek = new Date(firstDayOfWeek);
+                lastDayOfWeek.setDate(firstDayOfWeek.getDate() + 6);
+                lastDayOfWeek.setHours(23, 59, 59, 999);
+
+                const startStr = this.formatDateForInput(firstDayOfWeek);
+                const endStr = this.formatDateForInput(lastDayOfWeek);
+
+                const weeklyAppointments = this.appointments.filter(app => {
+                    return app.date >= startStr && app.date <= endStr;
+                });
+
+                const total = weeklyAppointments.reduce((sum, app) => sum + (app.value || 0), 0);
+
+                const display = document.getElementById('weeklyTotalDisplay');
+                display.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+                this.showMessage(`Total da semana (Segunda a Domingo) calculado.`, 'success');
+            },
+
+            navigateDate(days) {
+                this.currentDate.setDate(this.currentDate.getDate() + days);
+                this.updateDateInput();
+                this.renderAppointmentsList();
+            },
+
+            changeDate() {
+                const dateInput = document.getElementById('currentDateInput');
+                if (dateInput.value) {
+                    this.currentDate = new Date(dateInput.value + 'T00:00:00'); 
+                    this.renderAppointmentsList();
+                }
+            },
+
+            updateDateInput() {
+                const formattedDate = this.formatDateForInput(this.currentDate);
+                document.getElementById('currentDateInput').value = formattedDate;
+                document.getElementById('appointmentDate').value = formattedDate;
+            },
+            
+            formatDateForInput(dateObj) {
+                const year = dateObj.getFullYear();
+                const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+                const day = dateObj.getDate().toString().padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            },
+        };
+
+        async function initializeFirebase() {
+            try {
+                window.app = initializeApp(window.firebaseConfig);
+                window.db = getFirestore(window.app);
+                window.auth = getAuth(window.app);
+                
+                await setPersistence(window.auth, browserLocalPersistence);
+                console.log("Firebase inicializado com sucesso");
+
+                onAuthStateChanged(window.auth, async (user) => {
+                    const loginPrompt = document.getElementById('login-prompt');
+                    const mainAppContent = document.getElementById('main-app-content');
+                    const authButtonsContainer = document.getElementById('auth-buttons');
+                    const userIdDisplay = document.getElementById('user-id-display');
+
+                    if (user) {
+                        if(loginPrompt) loginPrompt.style.display = 'none';
+                        if(mainAppContent) mainAppContent.style.display = 'block';
+
+                        window.userId = user.uid;
+                        const displayInfo = user.displayName ? `${user.displayName}` : `${user.uid}`;
+                        
+                        if(userIdDisplay) userIdDisplay.textContent = `Usuário: ${displayInfo}`;
+                        if(authButtonsContainer) authButtonsContainer.innerHTML = `
+                            <button onclick="window.agendaApp.signOutUser()" class="btn btn-danger">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                                Sair
+                            </button>
+                        `;
+                        
+                        console.log("Usuário autenticado:", window.userId);
+                        window.agendaCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/agenda`);
+                        
+                        if (window.db) {
+                            window.agendaApp.init();
+                        } else {
+                            window.agendaApp.showMessage('Erro: Banco de dados não disponível.', 'error');
+                        }
+                    } else {
+                        if(loginPrompt) loginPrompt.style.display = 'block';
+                        if(mainAppContent) mainAppContent.style.display = 'none';
+
+                        window.userId = 'Não autenticado';
+                        if(userIdDisplay) userIdDisplay.textContent = '';
+                        if(authButtonsContainer) authButtonsContainer.innerHTML = `
+                            <button onclick="window.agendaApp.signInWithGoogle()" class="btn btn-primary">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                                Entrar com Google
+                            </button>
+                        `;
+                        
+                        window.agendaApp.disableButtons();
+                    }
+                });
+
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                if(window.agendaApp && window.agendaApp.showMessage) {
+                    window.agendaApp.showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
+    </script>
+
+    <style>
+        :root {
+            --primary-color: #6366f1; --primary-hover: #4f46e5;
+            --secondary-color: #8b5cf6; --secondary-hover: #7c3aed; 
+            --danger-color: #ef4444;
+            --gray-50: #f9fafb; --gray-200: #e5e7eb; --gray-500: #6b7280;
+            --gray-600: #4b5563; --gray-800: #1f2937;
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --border-radius: 0.75rem; --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--gray-50);
+        }
+        .main-container {
+            max-width: 1200px; margin: 0 auto; background: white;
+            border-radius: var(--border-radius); box-shadow: var(--shadow-xl);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white; padding: 2rem; text-align: center;
+        }
+        .header h1 { margin: 0; font-size: 2.5rem; font-weight: 700; }
+        .content { padding: 1rem; md:padding: 2rem; }
+        .section {
+            background: var(--gray-50); border-radius: var(--border-radius);
+            padding: 1.5rem; margin-bottom: 2rem; border: 1px solid var(--gray-200);
+        }
+        .section-title { font-size: 1.5rem; font-weight: 600; color: var(--gray-800); margin: 0; }
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500;
+            border: none; cursor: pointer; transition: var(--transition);
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); }
+        .btn-secondary { background-color: var(--secondary-color); color: white; }
+        .btn-secondary:hover:not(:disabled) { background-color: var(--secondary-hover); }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-danger:hover:not(:disabled) { background-color: #dc2626; }
+        .btn-gray { background-color: #e5e7eb; color: #374151; }
+        .btn-gray:hover:not(:disabled) { background-color: #d1d5db; }
+        .form-input {
+            width: 100%; padding: 0.75rem; border: 1px solid var(--gray-200);
+            border-radius: 0.5rem; transition: var(--transition);
+        }
+        .form-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+        .modal {
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+            width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px); justify-content: center; align-items: center;
+        }
+        .modal-content { background: white; border-radius: var(--border-radius); padding: 2rem; max-width: 500px; width: 100%; }
+        .agenda-grid {
+            display: grid; grid-template-columns: auto 1fr; gap: 0.5rem;
+            border: 1px solid var(--gray-200); border-radius: var(--border-radius);
+            padding: 1rem; background: #fff;
+        }
+        .agenda-time { 
+            padding-top: 0.5rem;
+            text-align: right; 
+            color: var(--gray-500); 
+            border-right: 1px solid var(--gray-200); 
+        }
+        .agenda-slot { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 0.25rem; 
+            padding: 0.5rem; 
+            min-height: 3rem; 
+        }
+        .agenda-card {
+            background-color: var(--primary-color); color: white; padding: 0.75rem;
+            border-radius: 0.5rem; cursor: pointer; word-break: break-word;
+        }
+        .agenda-card.expired { background-color: var(--gray-500); }
+        .message { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 500; }
+        .message-success { background-color: #d1fae5; color: #065f46; }
+        .message-error { background-color: #fee2e2; color: #991b1b; }
+        .message-info { background-color: #dbeafe; color: #1e40af; }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+
+    <div class="container mx-auto">
+        <!-- Abas Superiores -->
+        <div class="flex flex-wrap space-x-2 sm:space-x-4 border-b mb-4">
+            <button class="py-2 px-4 text-purple-600 border-b-2 border-purple-600 font-semibold" data-tab="agenda">Agenda</button>
+            <button class="py-2 px-4 text-gray-500 hover:text-purple-600 font-semibold" data-tab="estoque">Estoque</button>
+            <button class="py-2 px-4 text-gray-500 hover:text-purple-600 font-semibold" data-tab="fechas_clientes">Fichas Clientes</button>
+            <button class="py-2 px-4 text-gray-500 hover:text-purple-600 font-semibold" data-tab="fechamento">Fechamento</button>
+        </div>
+        
+        <!-- Conteúdos das Abas -->
+        <div id="content-agenda">
+            <!-- Conteúdo de agenda.html -->
+            <div class="main-container" style="background: transparent; box-shadow: none;">
+                <header class="header">
+                    <h1>Sistema de Agenda</h1>
+                    <p id="user-id-display" class="text-sm mt-2 opacity-80"></p>
+                </header>
+        
+                <main class="content" style="padding: 0; padding-top: 1rem;">
+                    <div id="app-message" class="message" style="display: none;"></div>
+                    
+                    <div id="login-prompt" class="section text-center" style="display: none;">
+                        <h2 class="section-title mb-4">Bem-vindo(a)!</h2>
+                        <p class="text-gray-600 mb-6">Por favor, faça login com sua conta Google para acessar e gerenciar a agenda.</p>
+                        <div id="auth-buttons" class="flex justify-center"></div>
+                    </div>
+        
+                    <div id="main-app-content" style="display: none;">
+                        <section class="section">
+                            <h2 class="section-title mb-6">Agendar Novo Atendimento</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label for="collaboratorName" class="block mb-2">Nome da Colaboradora</label>
+                                    <input type="text" id="collaboratorName" placeholder="Ex: Maria" class="form-input">
+                                </div>
+                                <div>
+                                    <label for="clientName" class="block mb-2">Nome da Cliente</label>
+                                    <input type="text" id="clientName" placeholder="Ex: Joana" class="form-input">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                    <label for="appointmentValue" class="block mb-2">Valor (R$)</label>
+                                    <input type="number" step="0.01" min="0" id="appointmentValue" placeholder="50,00" class="form-input text-right">
+                                </div>
+                                <div>
+                                    <label for="appointmentDate" class="block mb-2">Dia</label>
+                                    <input type="date" id="appointmentDate" class="form-input">
+                                </div>
+                                <div>
+                                    <label for="appointmentTime" class="block mb-2">Horário</label>
+                                    <input type="time" id="appointmentTime" class="form-input">
+                                </div>
+                            </div>
+                            <div class="mt-6 flex justify-end">
+                                <button id="addAppointmentBtn" onclick="window.agendaApp.addAppointment()" class="btn btn-primary text-lg font-bold">
+                                    Adicionar Agendamento
+                                </button>
+                            </div>
+                        </section>
+        
+                        <section class="section">
+                            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                                <h2 class="section-title">Agenda do Dia</h2>
+                                <div class="flex items-center gap-2">
+                                    <input type="date" id="currentDateInput" class="form-input w-48 text-center" onchange="window.agendaApp.changeDate()">
+                                    <button onclick="window.agendaApp.navigateDate(-1)" class="btn btn-gray p-2">&lt;</button>
+                                    <button onclick="window.agendaApp.navigateDate(1)" class="btn btn-gray p-2">&gt;</button>
+                                </div>
+                            </div>
+                            
+                            <div id="agenda-grid" class="agenda-grid mt-4"></div>
+        
+                            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                                <button id="refreshAgendaBtn" onclick="window.agendaApp.loadAppointmentsFromFirestore()" class="btn btn-primary w-full">
+                                    Atualizar Agenda
+                                </button>
+                            </div>
+                        </section>
+                        
+                        <section class="section">
+                            <h2 class="section-title mb-4">Fechamento da Semana</h2>
+                            <div class="flex flex-col sm:flex-row items-center gap-4">
+                                <button id="calculateWeeklyBtn" onclick="window.agendaApp.calculateWeeklyTotal()" class="btn btn-secondary w-full sm:w-auto">Calcular Total da Semana</button>
+                                <div class="bg-white p-4 rounded-lg shadow-inner w-full sm:flex-1 text-center sm:text-left">
+                                    <p class="text-gray-600">Total apurado na semana atual (Seg-Dom):</p>
+                                    <p id="weeklyTotalDisplay" class="text-2xl font-bold text-green-600">R$ 0,00</p>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </main>
+            </div>
+        
+            <div id="edit-appointment-modal" class="modal">
+                <div class="modal-content">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Editar Agendamento</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="editCollaboratorName" class="block mb-2">Colaboradora</label>
+                            <input type="text" id="editCollaboratorName" class="form-input">
+                        </div>
+                        <div>
+                            <label for="editClientName" class="block mb-2">Cliente</label>
+                            <input type="text" id="editClientName" class="form-input">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label for="editAppointmentValue" class="block mb-2">Valor (R$)</label>
+                            <input type="number" step="0.01" id="editAppointmentValue" class="form-input text-right">
+                        </div>
+                        <div>
+                            <label for="editAppointmentDate" class="block mb-2">Dia</label>
+                            <input type="date" id="editAppointmentDate" class="form-input">
+                        </div>
+                        <div>
+                            <label for="editAppointmentTime" class="block mb-2">Horário</label>
+                            <input type="time" id="editAppointmentTime" class="form-input">
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button class="btn btn-gray" onclick="window.agendaApp.closeEditModal()">Cancelar</button>
+                        <button class="btn btn-danger" onclick="window.agendaApp.deleteAppointment()">Excluir</button>
+                        <button class="btn btn-primary" onclick="window.agendaApp.saveEditedAppointment()">Salvar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="content-estoque" class="hidden">
+            <div class="p-6 bg-white rounded-lg shadow">
+                <h2 class="text-2xl font-bold mb-4">Controle de Estoque</h2>
+                <p>O conteúdo para o controle de estoque será adicionado aqui.</p>
+            </div>
+        </div>
+
+        <div id="content-fechas_clientes" class="hidden">
+            <div class="p-6 bg-white rounded-lg shadow">
+                <h2 class="text-2xl font-bold mb-4">Fichas de Clientes</h2>
+                <p>O conteúdo para as fichas de clientes será adicionado aqui.</p>
+            </div>
+        </div>
+
+        <div id="content-fechamento" class="hidden">
+             <div class="p-6 bg-white rounded-lg shadow">
+                <h2 class="text-2xl font-bold mb-4">Fechamento Semanal</h2>
+                <p>O conteúdo para o fechamento semanal será adicionado aqui.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de troca de abas -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('[data-tab]');
+            const contents = {
+                agenda: document.getElementById('content-agenda'),
+                estoque: document.getElementById('content-estoque'),
+                fechas_clientes: document.getElementById('content-fechas_clientes'),
+                fechamento: document.getElementById('content-fechamento')
+            };
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // Atualiza estilos das abas
+                    tabs.forEach(t => {
+                        t.classList.remove('border-purple-600', 'text-purple-600');
+                        t.classList.add('text-gray-500', 'border-transparent');
+                    });
+                    tab.classList.add('border-purple-600', 'text-purple-600');
+                    tab.classList.remove('text-gray-500', 'border-transparent');
+                    
+                    // Esconde todos os conteúdos
+                    Object.values(contents).forEach(c => {
+                        if(c) c.classList.add('hidden');
+                    });
+                    
+                    // Mostra o conteúdo da aba selecionada
+                    const activeContent = contents[tab.dataset.tab];
+                    if(activeContent) {
+                        activeContent.classList.remove('hidden');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
