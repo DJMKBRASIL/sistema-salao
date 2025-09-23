@@ -64,8 +64,8 @@
         window.app = initializeApp(firebaseConfig);
         window.db = getFirestore(window.app);
         window.auth = getAuth(window.app);
-        window.currentUser = null; // Armazenará o objeto do usuário logado
-        window.userId = null; // Manter para compatibilidade com o código original
+        window.currentUser = null;
+        window.userId = null; 
 
         async function initializeFirebase() {
             try {
@@ -79,12 +79,10 @@
 
                     if (user && authorizedEmails.includes(user.email)) {
                         window.currentUser = user;
-                        window.userId = user.uid; // Definindo o userId para o app original
-
+                        window.userId = user.uid; 
                         appContainer.style.display = 'block';
                         loginContainer.style.display = 'none';
                         deniedContainer.style.display = 'none';
-
                         if (window.db) {
                             initializeAppLogic();
                         } else {
@@ -121,7 +119,7 @@
             } catch (error) {
                 console.error("Erro ao fazer login com Google:", error);
                 if (error.code === 'auth/unauthorized-domain') {
-                    alert('ERRO DE CONFIGURAÇÃO: O domínio deste site não está autorizado no seu projeto Firebase. Por favor, acesse o painel do Firebase > Authentication > Settings > Authorized domains e adicione o domínio a partir do qual você está acessando esta aplicação.');
+                    alert('ERRO DE CONFIGURAÇÃO: O domínio deste site não está autorizado no seu projeto Firebase. Por favor, acesse o painel do Firebase > Authentication > Settings > Authorized domains e adicione o domínio.');
                 } else if (window.showMessage) {
                     showMessage('Erro ao autenticar: ' + error.message, 'error');
                 } else {
@@ -133,7 +131,6 @@
         async function signOutUser() {
             try {
                 await signOut(window.auth);
-                // O listener onAuthStateChanged cuidará do resto
             } catch (error) {
                 console.error("Erro ao sair:", error);
                 if (window.salonApp) {
@@ -149,8 +146,7 @@
         window.addDoc = addDoc; window.signInWithGoogle = signInWithGoogle; window.signOutUser = signOutUser;
     </script>
     
-    <!-- O CSS original completo -->
-     <style>
+    <style>
         :root {
             --primary-color: #6366f1;
             --primary-hover: #4f46e5;
@@ -843,20 +839,26 @@
             <button onclick="signOutUser()" class="btn btn-danger">Tentar com outra conta</button>
         </div>
     </div>
-    
+
     <div id="app-container" class="main-container" style="display:none;">
         <header class="header">
             <h1>Espaço Fran Kokott</h1>
             <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Fechamento Semanal</p>
         </header>
         <main class="content">
+            <!-- Seção de Autenticação do Usuário (ORIGINAL) -->
             <div class="section">
                 <div class="flex items-center justify-between mb-4">
                     <p id="user-id-display" class="text-sm text-gray-500">Usuário: Carregando...</p>
-                    <div id="auth-buttons" class="flex gap-2"></div>
+                    <div id="auth-buttons" class="flex gap-2">
+                        <!-- Botões de autenticação serão injetados aqui -->
+                    </div>
                 </div>
             </div>
+            <!-- Área de Mensagens (ORIGINAL) -->
             <div id="app-message" class="message" style="display: none;"></div>
+
+            <!-- Seção de Data e Opções (ORIGINAL) -->
             <section class="section">
                 <div class="section-header">
                     <h2 class="section-title">Informações do Fechamento</h2>
@@ -872,7 +874,18 @@
                             <label for="month" class="form-label">Mês</label>
                             <select id="month" class="form-input" onchange="window.salonApp.updateDateDisplay(); window.salonApp.saveLocalData()">
                                 <option value="">Selecione o Mês</option>
-                                <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+                                <option value="1">Janeiro</option>
+                                <option value="2">Fevereiro</option>
+                                <option value="3">Março</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Maio</option>
+                                <option value="6">Junho</option>
+                                <option value="7">Julho</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -894,19 +907,31 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Seção de Colaboradoras (ORIGINAL) -->
             <section class="section">
-                <div class="section-header"><h2 class="section-title">Colaboradoras</h2></div>
+                <div class="section-header">
+                    <h2 class="section-title">Colaboradoras</h2>
+                </div>
                 <div id="collaborators-container"></div>
                 <button onclick="window.salonApp.addCollaborator()" class="btn btn-primary btn-full mt-4">Adicionar Colaboradora</button>
             </section>
+
+            <!-- Seção de Produtos (ORIGINAL) -->
             <section class="section">
-                <div class="section-header"><h2 class="section-title">Produtos Vendidos</h2></div>
+                <div class="section-header">
+                    <h2 class="section-title">Produtos Vendidos</h2>
+                </div>
                 <div id="products-container"></div>
                 <button onclick="window.salonApp.addProductRow()" class="btn btn-success btn-full mt-4">Adicionar Produto</button>
                 <div class="mt-4 text-right"><p class="text-lg font-bold text-gray-800">Total Produtos: <span id="products-total">R$ 0,00</span></p></div>
             </section>
+
+            <!-- Seção de Resumo (ORIGINAL) -->
             <section class="section">
-                <div class="section-header"><h2 class="section-title">Resumo Geral</h2></div>
+                <div class="section-header">
+                    <h2 class="section-title">Resumo Geral</h2>
+                </div>
                 <div class="text-right mb-4">
                     <p class="text-lg font-bold text-gray-800">Total Bruto Geral: <span id="overall-gross-total">R$ 0,00</span></p>
                     <p class="text-lg font-bold text-red-600">Total Desconto Cartão: <span id="total-card-discount">R$ 0,00</span></p>
@@ -917,11 +942,13 @@
                     <div id="detailed-contribution" class="text-gray-700"></div>
                 </div>
             </section>
+
+            <!-- Botão Gerar PDF (ORIGINAL) -->
             <button onclick="window.salonApp.generatePDF()" class="btn btn-secondary btn-full text-lg font-bold">Gerar PDF do Fechamento</button>
         </main>
     </div>
 
-    <!-- Modals -->
+    <!-- Modals (ORIGINAL) -->
     <div id="custom-confirm-modal" class="modal"> <div class="modal-content"> <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirmar Ação</h3> <p class="text-gray-600 mb-4" id="confirm-message">Tem certeza?</p> <p class="text-sm text-gray-500 mb-6">Esta ação não pode ser desfeita.</p> <div class="modal-buttons"> <button class="btn btn-gray" onclick="window.salonApp.handleConfirm(false)">Cancelar</button> <button class="btn btn-danger" onclick="window.salonApp.handleConfirm(true)">Confirmar</button> </div> </div> </div>
     <div id="saved-reports-modal" class="modal"> <div class="modal-content" style="max-width: 600px;"> <h3 class="text-xl font-semibold text-gray-800 mb-4">Escolha um Fechamento Salvo</h3> <div id="saved-reports-list" class="saved-reports-list"></div> <div class="modal-buttons"> <button class="btn btn-gray" onclick="window.salonApp.closeSavedReportsModal()">Fechar</button> <button class="btn btn-primary" onclick="window.salonApp.loadSelectedReport()">Carregar Selecionado</button> </div> </div> </div>
     <div id="attach-receipt-modal" class="modal"> <div class="modal-content"> <h3 class="text-lg font-semibold text-gray-800 mb-4">Anexar Comprovante?</h3> <p class="text-gray-600 mb-4">Deseja anexar um comprovante de pagamento ao PDF desta colaboradora?</p> <div class="modal-buttons"> <button class="btn btn-gray" onclick="window.salonApp.handleAttachReceiptChoice(false)">Não</button> <button class="btn btn-primary" onclick="window.salonApp.handleAttachReceiptChoice(true)">Sim</button> </div> </div> </div>
@@ -929,13 +956,7 @@
     <script>
         // Objeto principal da aplicação (código original completo)
         window.salonApp = {
-            collaborators: [],
-            products: [],
-            salonName: "Espaço Fran Kokott",
-            savedReports: [],
-            selectedReportId: null,
-            currentCollaboratorIndexForPdf: null,
-            cardDiscountRates: { 'pix': 0, 'dinheiro': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
+             collaborators: [], products: [], salonName: "Espaço Fran Kokott", savedReports: [], selectedReportId: null, currentCollaboratorIndexForPdf: null, cardDiscountRates: { 'pix': 0, 'dinheiro': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
             init() { this.loadLocalData(); if (this.collaborators.length === 0) { this.collaborators.push({ name: '', clients: [{ name: '', value: 0, paymentMethod: 'pix' }], discountPercentage: 0.30, observations: '' }); } if (this.products.length === 0) { this.products.push({ clientName: '', value: 0, paymentMethod: 'pix' }); } this.renderAllUI(); this.updateDateDisplay(); this.calculateAllTotals(); this.enableButtons(); },
             enableButtons() { const authRequiredButtons = [ 'loadDataFromFichasSystemBtn', 'clearAllDataBtn', 'saveToFirestoreBtn', 'loadFromFirestoreBtn' ]; authRequiredButtons.forEach(id => { const btn = document.getElementById(id); if (btn) btn.disabled = false; }); },
             disableAuthRequiredButtons() { const authRequiredButtons = [ 'loadDataFromFichasSystemBtn', 'clearAllDataBtn', 'saveToFirestoreBtn', 'loadFromFirestoreBtn' ]; authRequiredButtons.forEach(id => { const btn = document.getElementById(id); if (btn) btn.disabled = true; }); },
@@ -1032,7 +1053,19 @@
         
         window.updateDateDisplay = () => window.salonApp.updateDateDisplay();
         window.addCollaborator = () => window.salonApp.addCollaborator();
-        // ... (todos os outros aliases originais)
+        window.addProductRow = () => window.salonApp.addProductRow();
+        window.generatePDF = () => window.salonApp.generatePDF();
+        window.exportDataToFile = () => window.salonApp.exportDataToFile();
+        window.importDataFromFile = () => window.salonApp.importDataFromFile();
+        window.saveWeeklyClosingToFirestore = () => window.salonApp.saveWeeklyClosingToFirestore();
+        window.openSavedReportsModal = () => window.salonApp.openSavedReportsModal();
+        window.closeSavedReportsModal = () => window.salonApp.closeSavedReportsModal();
+        window.loadSelectedReport = () => window.salonApp.loadSelectedReport();
+        window.deleteSavedReport = (id) => window.salonApp.deleteSavedReport(id);
+        window.loadDataFromFichasSystem = () => window.salonApp.loadDataFromFichasSystem();
+        window.showClearConfirm = () => window.salonApp.showClearConfirm();
+        window.handleConfirm = (confirmed) => window.salonApp.handleConfirm(confirmed);
+        window.showMessage = (message, type) => window.salonApp.showMessage(message, type);
     </script>
 </body>
 </html>
