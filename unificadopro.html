@@ -36,6 +36,7 @@
             deleteDoc, 
             collection, 
             query, 
+            where,
             getDocs, 
             addDoc 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -340,7 +341,7 @@
                     // ... (resto da lógica de carregar relatórios)
                 } catch (error) {
                     console.error('Erro ao carregar relatórios:', error);
-                    this.showMessage('Erro ao carregar: ' + error.message, 'error');
+                    this.showMessage('Erro ao carregar relatórios: ' + error.message, 'error');
                 } finally {
                     this.toggleLoadingSpinner('load', false);
                 }
@@ -370,6 +371,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
