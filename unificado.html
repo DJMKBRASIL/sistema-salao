@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fechamento Semanal do Salão</title>
+    <title>Registro de Fichas de Cliente</title>
     
     <!-- Preload critical resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -35,8 +35,8 @@
             setDoc, 
             deleteDoc, 
             collection, 
-            query,
-            where,
+            query, 
+            where, 
             getDocs, 
             addDoc 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -52,20 +52,20 @@
         
         // Configuração do Firebase
         const firebaseConfig = {
-            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
-            authDomain: "sistema-do-salao.firebaseapp.com",
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
+            authDomain: "sistema-do-salao.firebaseapp.com", 
             projectId: "sistema-do-salao",   
-            storageBucket: "sistema-do-salao.firebasestorage.app",
-            messagingSenderId: "395887083088",
-            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
+            storageBucket: "sistema-do-salao.firebasestorage.app", 
+            messagingSenderId: "395887083088", 
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55", 
         };
         
-        window.appId = 'salao-fechamento-app'; // ID Fixo para o app compartilhado
+        window.appId = 'fichas-clientes-shared'; // ID Fixo para o app compartilhado
         window.app = initializeApp(firebaseConfig);
         window.db = getFirestore(window.app);
         window.auth = getAuth(window.app);
         window.currentUser = null;
-        window.fichasAppId = 'fichas-clientes-shared'; // appId do sistema de fichas
+        window.fichasCollectionRef = null; 
 
         async function initializeFirebase() {
             try {
@@ -79,27 +79,24 @@
 
                     if (user && authorizedEmails.includes(user.email)) {
                         window.currentUser = user;
-                        document.getElementById('user-id-display').textContent = `Usuário: ${user.displayName || user.email}`;
-                        document.getElementById('auth-buttons').innerHTML = `<button onclick="signOutUser()" class="btn btn-danger">Sair</button>`;
+                        window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/public/data/fichas`);
                         
                         appContainer.style.display = 'block';
                         loginContainer.style.display = 'none';
                         deniedContainer.style.display = 'none';
 
                         if (window.db) {
-                            initializeAppLogic();
+                            initializeAppLogic(); // Chama a inicialização do app original
                         } else {
                             console.error("Banco de dados não disponível.");
-                            showMessage('Erro: Banco de dados não disponível.', 'error');
+                            window.fichasApp.showMessage('Erro: Banco de dados não disponível.', 'error');
                         }
-
                     } else if (user && !authorizedEmails.includes(user.email)) {
                         window.currentUser = null;
                         appContainer.style.display = 'none';
                         loginContainer.style.display = 'none';
                         deniedContainer.style.display = 'block';
                         document.getElementById('denied-user-email').textContent = user.email;
-
                     } else {
                         window.currentUser = null;
                         appContainer.style.display = 'none';
@@ -109,35 +106,8 @@
                 });
             } catch (error) {
                 console.error("Erro ao inicializar Firebase:", error);
-                if(window.showMessage){
-                    showMessage('Erro ao inicializar o Firebase.', 'error');
-                }
-            }
-        }
-
-        async function signInWithGoogle() {
-            const provider = new GoogleAuthProvider();
-            try {
-                await signInWithPopup(window.auth, provider);
-            } catch (error) {
-                console.error("Erro ao fazer login com Google:", error);
-                if (window.showMessage) {
-                    showMessage('Erro ao autenticar: ' + error.message, 'error');
-                }
-            }
-        }
-
-        async function signOutUser() {
-            try {
-                await signOut(window.auth);
-                if (window.salonApp) {
-                    window.salonApp.showMessage('Sessão encerrada.', 'info');
-                    window.salonApp.clearAllData();
-                }
-            } catch (error) {
-                console.error("Erro ao sair:", error);
-                if (window.salonApp) {
-                   window.salonApp.showMessage('Erro ao sair: ' + error.message, 'error');
+                if(window.fichasApp){
+                    window.fichasApp.showMessage('Erro ao inicializar o Firebase.', 'error');
                 }
             }
         }
@@ -146,46 +116,218 @@
 
         window.doc = doc; window.getDoc = getDoc; window.setDoc = setDoc; window.deleteDoc = deleteDoc;
         window.collection = collection; window.query = query; window.where = where; window.getDocs = getDocs;
-        window.addDoc = addDoc; window.signInWithGoogle = signInWithGoogle; window.signOutUser = signOutUser;
+        window.addDoc = addDoc; 
     </script>
-    
+
     <style>
         :root {
-            --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #8b5cf6;
-            --success-color: #10b981; --warning-color: #f59e0b; --danger-color: #ef4444;
-            --info-color: #3b82f6; --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
-            --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280; --gray-600: #4b5563;
-            --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05); --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --primary-color: #6366f1;
+            --primary-hover: #4f46e5;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #3b82f6;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            --border-radius: 0.75rem; --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --border-radius: 0.75rem;
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1rem; }
-        .main-container { max-width: 1200px; margin: 0 auto; background: white; border-radius: var(--border-radius); box-shadow: var(--shadow-xl); overflow: hidden; }
-        .header { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); color: white; padding: 2rem; text-align: center; }
-        .content { padding: 2rem; }
-        .section { background: var(--gray-50); border-radius: var(--border-radius); padding: 1.5rem; margin-bottom: 2rem; border: 1px solid var(--gray-200); }
-        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; transition: all 0.2s; border: none; cursor: pointer; }
-        .btn-primary { background-color: var(--primary-color); color: white; }
-        .btn-danger { background-color: var(--danger-color); color: white; }
-        .message { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 500; }
-        .message-success { background-color: #d1fae5; color: #065f46; }
-        .message-error { background-color: #fee2e2; color: #991b1b; }
-        .message-info { background-color: #dbeafe; color: #1e40af; }
-        .form-input { width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 0.5rem; }
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; }
-        .modal-content { background: white; padding: 2rem; border-radius: var(--border-radius); max-width: 500px; width: 90%; }
-        /* Outros estilos omitidos para brevidade para manter o foco na correção */
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+            line-height: 1.6;
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .section {
+            background: var(--gray-50);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--gray-200);
+            transition: var(--transition);
+        }
+
+        .section:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between; 
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin: 0;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
+            min-height: 44px; /* Touch-friendly minimum */
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background-color: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: var(--transition);
+            background-color: white;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            animation: slideInDown 0.3s ease-out;
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .message-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .message-info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
     </style>
 </head>
 <body>
-
     <div id="login-container" class="main-container" style="display: none; justify-content: center; align-items:center; padding: 4rem;">
         <div class="content text-center">
-            <h1 class="text-2xl font-bold mb-2">Acesso ao Fechamento Semanal</h1>
-            <p class="text-gray-600 mb-6">Por favor, faça login com uma conta autorizada para continuar.</p>
-            <button onclick="signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>
+            <h1 class="text-2xl font-bold mb-2">Acesso ao Sistema de Fichas</h1>
+            <p class="text-gray-600 mb-6">Por favor, faça login com uma conta autorizada.</p>
+            <button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>
         </div>
     </div>
     
@@ -193,15 +335,15 @@
         <div class="content text-center">
             <h1 class="text-2xl font-bold text-red-600">Acesso Negado</h1>
             <p class="text-gray-600 my-4">O e-mail <b id="denied-user-email"></b> não tem permissão para acessar este sistema.</p>
-            <button onclick="signOutUser()" class="btn btn-danger">Tentar com outra conta</button>
+            <button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">Tentar com outra conta</button>
         </div>
     </div>
 
     <div id="app-container" class="main-container" style="display:none;">
         <!-- Todo o HTML original da aplicação vai aqui dentro -->
         <header class="header">
-            <h1>Espaço Fran Kokott</h1>
-            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Fechamento Semanal</p>
+            <h1>Registro de Fichas de Cliente</h1>
+            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Gerencie seus atendimentos</p>
         </header>
         <main class="content">
             <div class="section">
@@ -211,94 +353,131 @@
                 </div>
             </div>
             <div id="app-message" class="message" style="display: none;"></div>
-            <!-- Restante do HTML original aqui -->
+            <!-- Colar aqui o conteúdo do <main class="content"> do arquivo original -->
+            <!-- ... -->
         </main>
     </div>
 
     <script>
-        // O objeto window.salonApp permanece exatamente como no original
-        window.salonApp = {
-            // ... (todo o código original do salonApp)
-             collaborators: [], products: [], salonName: "Espaço Fran Kokott", savedReports: [],
-            selectedReportId: null, currentCollaboratorIndexForPdf: null,
-            cardDiscountRates: { 'pix': 0, 'dinheiro': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
-            init() { /* ... Lógica init completa ... */ },
-            enableButtons() { /* ... Lógica enableButtons completa ... */ },
-            disableAuthRequiredButtons() { /* ... Lógica disable completa ... */ },
+        window.fichasApp = {
+            fichas: [],
+            init() {
+                this.loadLocalData();
+                this.loadFichasFromFirestore();
+                if (document.querySelectorAll('.service-row').length === 0) this.addServiceRow();
+                if (document.querySelectorAll('.product-sold-row').length === 0) this.addProductSoldRow();
+                this.enableButtons();
+                console.log("Fichas App inicializado.");
+            },
+            enableButtons() {
+                if (window.currentUser) {
+                    ['addFichaBtn', 'clearAllFichasBtn', 'exportWeeklyDataBtn'].forEach(id => {
+                        const btn = document.getElementById(id);
+                        if(btn) btn.disabled = false;
+                    });
+                }
+            },
+            disableAuthRequiredButtons() {
+                ['addFichaBtn', 'clearAllFichasBtn', 'exportWeeklyDataBtn'].forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = true;
+                });
+            },
+            async signInWithGoogle() {
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(window.auth, provider);
+                } catch (error) {
+                    this.showMessage('Erro ao autenticar: ' + error.message, 'error');
+                }
+            },
+            async signOutUser() {
+                await signOut(window.auth);
+                this.fichas = [];
+                this.renderFichasTable();
+                this.clearInputFields();
+            },
             showMessage(message, type = 'success') {
                 const msgDiv = document.getElementById('app-message');
+                if(!msgDiv) return;
                 msgDiv.textContent = message;
                 msgDiv.className = `message message-${type}`;
                 msgDiv.style.display = 'block';
                 setTimeout(() => { msgDiv.style.display = 'none'; }, 5000);
             },
-            clearAllData() { /* ... Lógica clearAllData completa ... */ },
-            renderAllUI() { /* ... Lógica renderAllUI completa ... */ },
-            addCollaboratorUI(data, index) { /* ... Lógica addCollaboratorUI completa ... */ },
-             // ... TODOS os outros métodos do objeto original devem ser incluídos aqui ...
-
-            // --- MÉTODOS DO FIRESTORE ATUALIZADOS PARA O CAMINHO COMPARTILHADO ---
-            async saveWeeklyClosingToFirestore() {
-                if (!window.currentUser) return this.showMessage('Faça login para salvar.', 'error');
-                // Lógica de validação de data...
-                
-                this.toggleLoadingSpinner('save', true);
-                const dataToSave = {
-                    // ... Lógica para coletar dados da UI
-                    savedBy: window.currentUser.email
-                };
-
+            showClearAllFichasConfirm() {
+                const modal = document.getElementById('custom-confirm-modal');
+                if(modal) modal.style.display = 'flex';
+                this.confirmAction = 'clearAllFichas';
+            },
+            handleConfirm(confirmed) {
+                const modal = document.getElementById('custom-confirm-modal');
+                if(modal) modal.style.display = 'none';
+                if (confirmed && this.confirmAction === 'clearAllFichas') {
+                    this.clearAllFichas();
+                }
+            },
+            async saveFichaToFirestore(fichaData) {
+                if (!window.fichasCollectionRef) return null;
+                this.toggleLoadingSpinner('add-ficha', true);
                 try {
-                    const collectionRef = collection(db, `artifacts/${window.appId}/public/data/salonWeeklySaves`);
-                    await addDoc(collectionRef, dataToSave);
-                    this.showMessage('Dados salvos na nuvem com sucesso!', 'success');
+                    const docRef = await window.addDoc(window.fichasCollectionRef, fichaData);
+                    this.showMessage('Ficha registrada e salva na nuvem!', 'success');
+                    return docRef.id;
                 } catch (e) {
-                    this.showMessage('Erro ao salvar: ' + e.message, 'error');
+                    this.showMessage('Erro ao salvar ficha na nuvem: ' + e.message, 'error');
+                    return null;
                 } finally {
-                    this.toggleLoadingSpinner('save', false);
+                    this.toggleLoadingSpinner('add-ficha', false);
                 }
             },
-            async openSavedReportsModal() {
-                if (!window.currentUser) return this.showMessage('Faça login para carregar.', 'error');
-                this.toggleLoadingSpinner('load', true);
-                
+            async loadFichasFromFirestore() {
+                if (!window.fichasCollectionRef) return;
+                this.toggleLoadingSpinner('clear-fichas', true);
                 try {
-                    const collectionRef = collection(db, `artifacts/${window.appId}/public/data/salonWeeklySaves`);
-                    const querySnapshot = await getDocs(collectionRef);
-                    // ... Lógica para popular o modal
-                } catch (error) {
-                    this.showMessage('Erro ao carregar: ' + error.message, 'error');
+                    const querySnapshot = await window.getDocs(window.fichasCollectionRef);
+                    this.fichas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    this.renderFichasTable();
+                    this.showMessage('Fichas carregadas com sucesso!', 'success');
+                } catch (e) {
+                    this.showMessage('Erro ao carregar fichas da nuvem: ' + e.message, 'error');
                 } finally {
-                    this.toggleLoadingSpinner('load', false);
+                    this.toggleLoadingSpinner('clear-fichas', false);
                 }
             },
-            async deleteSavedReport(reportId) {
-                if (!window.currentUser) return this.showMessage('Faça login para excluir.', 'error');
-                const docRef = doc(db, `artifacts/${window.appId}/public/data/salonWeeklySaves`, reportId);
-                // ... Lógica para deletar
-            },
-            async loadDataFromFichasSystem() {
-                if (!window.currentUser) return this.showMessage('Faça login para importar.', 'error');
-                this.toggleLoadingSpinner('fichas', true);
+            async removeFichaFromFirestore(fichaId) {
+                if (!window.fichasCollectionRef) return false;
                 try {
-                    const docRef = doc(db, `artifacts/${window.fichasAppId}/public/data/weeklyReportsAggregated/currentWeek`);
-                    // ... Lógica para buscar e carregar os dados
-                } catch (error) {
-                     this.showMessage('Erro ao importar das fichas: ' + error.message, 'error');
-                } finally {
-                    this.toggleLoadingSpinner('fichas', false);
+                    await window.deleteDoc(window.doc(window.fichasCollectionRef, fichaId));
+                    return true;
+                } catch (e) {
+                    this.showMessage('Erro ao remover ficha da nuvem: ' + e.message, 'error');
+                    return false;
                 }
-            }
+            },
+            async addFicha() {
+                // ... (código original de addFicha)
+            },
+            async removeFicha(index) {
+                // ... (código original de removeFicha)
+            },
+            async clearAllFichas() {
+                // ... (código original de clearAllFichas)
+            },
+            renderFichasTable() {
+                // ... (código original de renderFichasTable)
+            },
+            // ... Incluir todas as outras funções do fichasApp original
         };
-
-        function initializeAppLogic() {
-            window.salonApp.init();
-        }
         
-        // Aliases globais originais
-        window.updateDateDisplay = () => window.salonApp.updateDateDisplay();
-        window.addCollaborator = () => window.salonApp.addCollaborator();
-        // ... (todos os outros aliases)
+        function initializeAppLogic() {
+            // Este innerHTML deve ser substituído pelo conteúdo original do <main>
+            document.querySelector('#app-container main.content').innerHTML = `
+                <!-- HTML Original do Corpo da Aplicação -->
+            `;
+            window.fichasApp.init();
+        }
+
     </script>
 </body>
 </html>
