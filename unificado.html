@@ -63,8 +63,9 @@
         window.appId = 'salao-fechamento-app'; // ID Fixo para o app compartilhado
         window.app = initializeApp(firebaseConfig);
         window.db = getFirestore(window.app);
-        window.auth = getAuth(window.auth);
+        window.auth = getAuth(window.app);
         window.currentUser = null; // Armazenará o objeto do usuário logado
+        window.userId = null; // Manter para compatibilidade com o código original
 
         async function initializeFirebase() {
             try {
@@ -78,6 +79,8 @@
 
                     if (user && authorizedEmails.includes(user.email)) {
                         window.currentUser = user;
+                        window.userId = user.uid; // Definindo o userId para o app original
+
                         appContainer.style.display = 'block';
                         loginContainer.style.display = 'none';
                         deniedContainer.style.display = 'none';
@@ -90,12 +93,14 @@
                         }
                     } else if (user && !authorizedEmails.includes(user.email)) {
                         window.currentUser = null;
+                        window.userId = null;
                         appContainer.style.display = 'none';
                         loginContainer.style.display = 'none';
                         deniedContainer.style.display = 'block';
                         document.getElementById('denied-user-email').textContent = user.email;
                     } else {
                         window.currentUser = null;
+                        window.userId = null;
                         appContainer.style.display = 'none';
                         deniedContainer.style.display = 'none';
                         loginContainer.style.display = 'flex';
@@ -128,7 +133,7 @@
         async function signOutUser() {
             try {
                 await signOut(window.auth);
-                // O listener onAuthStateChanged cuidará de mostrar a tela de login
+                // O listener onAuthStateChanged cuidará do resto
             } catch (error) {
                 console.error("Erro ao sair:", error);
                 if (window.salonApp) {
@@ -815,12 +820,19 @@
     </style>
 </head>
 <body>
-
     <div id="login-container" class="main-container" style="display: flex; justify-content: center; align-items:center; padding: 4rem;">
         <div class="content text-center">
             <h1 class="text-2xl font-bold mb-2">Acesso ao Fechamento Semanal</h1>
             <p class="text-gray-600 mb-6">Por favor, faça login com uma conta autorizada para continuar.</p>
-            <button onclick="signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>
+            <button onclick="signInWithGoogle()" class="btn btn-primary">
+                 <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Entrar com Google
+            </button>
         </div>
     </div>
     
@@ -917,8 +929,12 @@
     <script>
         // Objeto principal da aplicação (código original completo)
         window.salonApp = {
-            collaborators: [], products: [], salonName: "Espaço Fran Kokott", savedReports: [],
-            selectedReportId: null, currentCollaboratorIndexForPdf: null,
+            collaborators: [],
+            products: [],
+            salonName: "Espaço Fran Kokott",
+            savedReports: [],
+            selectedReportId: null,
+            currentCollaboratorIndexForPdf: null,
             cardDiscountRates: { 'pix': 0, 'dinheiro': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
             init() { this.loadLocalData(); if (this.collaborators.length === 0) { this.collaborators.push({ name: '', clients: [{ name: '', value: 0, paymentMethod: 'pix' }], discountPercentage: 0.30, observations: '' }); } if (this.products.length === 0) { this.products.push({ clientName: '', value: 0, paymentMethod: 'pix' }); } this.renderAllUI(); this.updateDateDisplay(); this.calculateAllTotals(); this.enableButtons(); },
             enableButtons() { const authRequiredButtons = [ 'loadDataFromFichasSystemBtn', 'clearAllDataBtn', 'saveToFirestoreBtn', 'loadFromFirestoreBtn' ]; authRequiredButtons.forEach(id => { const btn = document.getElementById(id); if (btn) btn.disabled = false; }); },
@@ -958,27 +974,47 @@
             async saveWeeklyClosingToFirestore() {
                 if (!window.currentUser) { this.showMessage('Por favor, faça login para salvar na nuvem.', 'error'); return; }
                 const collectionRef = collection(db, `artifacts/${window.appId}/public/data/salonWeeklySaves`);
-                // Restante da lógica de salvar
+                const day = document.getElementById('day').value;
+                const month = document.getElementById('month').value;
+                const year = document.getElementById('year').value;
+                if (!day || !month || !year) { this.showMessage('Por favor, preencha o dia, mês e ano para salvar o fechamento.', 'error'); return; }
+                this.showMessage('Salvando dados na nuvem...', 'info');
+                this.toggleLoadingSpinner('save', true);
+                const dataToSave = { salonName: this.salonName, collaborators: this.collaborators, products: this.products, date: { day, month, year }, notes: "", lastSaved: new Date().toISOString(), savedBy: window.currentUser.email };
+                try {
+                    await addDoc(collectionRef, dataToSave);
+                    this.showMessage('Dados salvos na nuvem com sucesso!', 'success');
+                } catch (e) {
+                    console.error("Erro ao salvar no Firestore: ", e);
+                    this.showMessage('Erro ao salvar dados na nuvem: ' + e.message, 'error');
+                } finally {
+                    this.toggleLoadingSpinner('save', false);
+                }
             },
             async openSavedReportsModal() {
                  if (!window.currentUser) { this.showMessage('Por favor, faça login para carregar dados da nuvem.', 'error'); return; }
                  const collectionRef = collection(db, `artifacts/${window.appId}/public/data/salonWeeklySaves`);
-                 // Restante da lógica de carregar
+                 // ... Lógica original de openSavedReportsModal, mas usando o collectionRef compartilhado
+            },
+            async loadSelectedReport() {
+                 // ... Lógica original de loadSelectedReport
+            },
+            async deleteSavedReportConfirmation(reportId) {
+                // ... Lógica original de deleteSavedReportConfirmation
             },
             async deleteSavedReport(reportId) {
                 if (!window.currentUser) { this.showMessage('Por favor, faça login para excluir relatórios.', 'error'); return; }
                 const docRef = doc(db, `artifacts/${window.appId}/public/data/salonWeeklySaves`, reportId);
-                 // Restante da lógica de deletar
+                // ... Lógica original de deleteSavedReport, mas com o caminho compartilhado
             },
             async loadDataFromFichasSystem() {
                  if (!window.currentUser) { this.showMessage('Por favor, faça login para importar dados das fichas.', 'error'); return; }
                  const fichasAppId = 'fichas-clientes-shared'; // ID do outro app
                  const docRef = doc(db, `artifacts/${fichasAppId}/public/data/weeklyReportsAggregated/currentWeek`);
-                 // Restante da lógica de importar
+                 // ... Lógica original de loadDataFromFichasSystem, mas com o caminho compartilhado
             },
             async clearAllDataFromFirestoreAndLocal() {
-                if (!window.currentUser) { this.showMessage('Por favor, faça login para limpar dados na nuvem.', 'error'); return; }
-                 // Restante da lógica de limpar tudo
+                // ... Lógica original de clearAllDataFromFirestoreAndLocal
             },
             toggleLoadingSpinner(type, show) {
                  const spinner = document.getElementById(`${type}-spinner`);
