@@ -3,304 +3,328 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fechamento Semanal do Salão</title>
+    <title>Registro de Fichas de Cliente</title>
     
-    <!-- Preload critical resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- jsPDF CDN for PDF generation -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
             getAuth, 
+            onAuthStateChanged, 
             GoogleAuthProvider, 
             signInWithPopup, 
             signOut, 
-            onAuthStateChanged,
-            setPersistence,
+            setPersistence, 
             browserLocalPersistence 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
             doc, 
-            getDoc, 
             setDoc, 
             deleteDoc, 
             collection, 
-            query, 
             getDocs, 
             addDoc 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- INÍCIO DA CONFIGURAÇÃO DE ACESSO ---
-        const adminEmails = [
-            "djmkbrasil@gmail.com"
-        ];
-        
-        // Configuração do Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
-            authDomain: "sistema-do-salao.firebaseapp.com",
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
+            authDomain: "sistema-do-salao.firebaseapp.com", 
             projectId: "sistema-do-salao",   
-            storageBucket: "sistema-do-salao.firebasestorage.app",
-            messagingSenderId: "395887083088",
-            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
+            storageBucket: "sistema-do-salao.firebasestorage.app", 
+            messagingSenderId: "395887083088", 
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55"
         };
-        
-        window.appId = 'salao-fechamento-app'; // ID Fixo para o app compartilhado
-        window.app = initializeApp(firebaseConfig);
-        window.db = getFirestore(window.app);
-        window.auth = getAuth(window.app);
-        window.currentUser = null;
+        window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = 'Carregando...'; 
+        window.fichasCollectionRef = null; 
 
         async function initializeFirebase() {
             try {
+                window.app = initializeApp(window.firebaseConfig);
+                window.db = getFirestore(window.app);
+                window.auth = getAuth(window.app);
+                
                 await setPersistence(window.auth, browserLocalPersistence);
                 console.log("Firebase inicializado com sucesso");
 
-                onAuthStateChanged(window.auth, (user) => {
-                    const mainContent = document.getElementById('main-content');
-                    const authSection = document.getElementById('auth-section');
-                    const deniedSection = document.getElementById('access-denied-section');
+                onAuthStateChanged(window.auth, async (user) => {
+                    if (user) {
+                        // --- LISTA DE ACESSO PARA COLABORADORES E ADMIN ---
+                        const allowedEmails = [
+                            'djmkbrasil@gmail.com', // Admin
+                            'frankokott@gmail.com',
+                            'djmkapple@gmail.com',
+                            'gabrielastephane11@gmail.com',
+                            'cibemarchi@gmail.com'
+                        ];
 
-                    if (user && adminEmails.includes(user.email)) {
-                        // Usuário Logado e é Admin
-                        window.currentUser = user;
-                        document.getElementById('user-id-display').textContent = `Admin: ${user.displayName || user.email}`;
-                        document.getElementById('auth-buttons').innerHTML = `<button onclick="signOutUser()" class="btn btn-danger">Sair</button>`;
-                        
-                        mainContent.style.display = 'block';
-                        authSection.style.display = 'block';
-                        deniedSection.style.display = 'none';
-
-                        if (window.db) {
-                            initializeAppLogic();
+                        if (allowedEmails.includes(user.email)) {
+                            // Usuário autorizado
+                            document.getElementById('main-content').style.display = 'block';
+                            window.userId = user.uid;
+                            const displayInfo = user.displayName || user.email;
+                            
+                            document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
+                            document.getElementById('auth-buttons').innerHTML = `
+                                <button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">Sair</button>
+                            `;
+                            
+                            console.log("Usuário autorizado autenticado:", user.email);
+                            // CAMINHO ATUALIZADO: usa um caminho público compartilhado
+                            window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/public/data/fichas`);
+                            
+                            if (window.db) {
+                                window.fichasApp.init();
+                            } else {
+                                window.fichasApp.showMessage('Erro: Banco de dados não disponível.', 'error');
+                            }
                         } else {
-                            console.error("Banco de dados não disponível.");
-                            showMessage('Erro: Banco de dados não disponível.', 'error');
+                            // Usuário não autorizado
+                            document.getElementById('main-content').style.display = 'none';
+                            window.fichasApp.showMessage('Acesso negado. Você não tem permissão.', 'error');
+                            setTimeout(() => window.fichasApp.signOutUser(), 3000);
                         }
-
-                    } else if (user && !adminEmails.includes(user.email)) {
-                        // Usuário Logado mas NÃO é Admin
-                        window.currentUser = null;
-                        mainContent.style.display = 'none';
-                        authSection.style.display = 'none';
-                        deniedSection.style.display = 'block';
-                        document.getElementById('denied-user-email').textContent = user.email;
-
                     } else {
-                        // Usuário Deslogado
-                        window.currentUser = null;
-                        document.getElementById('user-id-display').textContent = `Usuário: Não autenticado`;
-                        document.getElementById('auth-buttons').innerHTML = `<button onclick="signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>`;
-                        mainContent.style.display = 'block';
-                        authSection.style.display = 'block';
-                        deniedSection.style.display = 'none';
-                        window.salonApp.disableAuthRequiredButtons();
+                        // Nenhum usuário logado
+                        window.userId = 'Não autenticado';
+                        document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>
+                        `;
+                        document.getElementById('main-content').style.display = 'none';
+                        window.fichasApp.disableAuthRequiredButtons();
                     }
                 });
 
             } catch (error) {
                 console.error("Erro ao inicializar Firebase:", error);
-                showMessage('Erro ao inicializar o Firebase.', 'error');
-            }
-        }
-
-        async function signInWithGoogle() {
-            const provider = new GoogleAuthProvider();
-            try {
-                await signInWithPopup(window.auth, provider);
-            } catch (error) {
-                console.error("Erro ao fazer login com Google:", error);
-                showMessage('Erro ao autenticar: ' + error.message, 'error');
-            }
-        }
-
-        async function signOutUser() {
-            try {
-                await signOut(window.auth);
-                showMessage('Sessão encerrada.', 'info');
-                window.salonApp.clearAllData();
-            } catch (error) {
-                console.error("Erro ao sair:", error);
-                showMessage('Erro ao sair: ' + error.message, 'error');
+                window.fichasApp.showMessage('Erro ao inicializar o Firebase.', 'error');
             }
         }
 
         document.addEventListener('DOMContentLoaded', initializeFirebase);
-
-        window.doc = doc; window.getDoc = getDoc; window.setDoc = setDoc; window.deleteDoc = deleteDoc;
-        window.collection = collection; window.query = query; window.getDocs = getDocs;
-        window.addDoc = addDoc; window.signInWithGoogle = signInWithGoogle; window.signOutUser = signOutUser;
+        
+        window.doc = doc;
+        window.setDoc = setDoc;
+        window.deleteDoc = deleteDoc;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.addDoc = addDoc; 
     </script>
-    
-    <!-- O CSS permanece o mesmo -->
+
     <style>
+        /* Estilos (CSS) permanecem os mesmos do seu arquivo original */
         :root {
             --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #8b5cf6;
             --success-color: #10b981; --warning-color: #f59e0b; --danger-color: #ef4444;
             --info-color: #3b82f6; --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
             --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280; --gray-600: #4b5563;
             --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05); --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --border-radius: 0.75rem; --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        * { box-sizing: border-box; }
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; margin: 0; padding: 1rem; line-height: 1.6; }
-        .main-container { max-width: 1200px; margin: 0 auto; background: white; border-radius: var(--border-radius); box-shadow: var(--shadow-xl); overflow: hidden; animation: fadeInUp 0.6s ease-out; }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; margin: 0; padding: 1rem; }
+        .main-container { max-width: 1200px; margin: 0 auto; background: white; border-radius: var(--border-radius); overflow: hidden; }
         .header { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); color: white; padding: 2rem; text-align: center; }
-        .header h1 { margin: 0; font-size: 2.5rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header h1 { margin: 0; font-size: 2.5rem; font-weight: 700; }
         .content { padding: 2rem; }
-        .section { background: var(--gray-50); border-radius: var(--border-radius); padding: 1.5rem; margin-bottom: 2rem; border: 1px solid var(--gray-200); transition: var(--transition); }
-        .section:hover { box-shadow: var(--shadow-md); }
-        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.875rem; text-decoration: none; border: none; cursor: pointer; transition: var(--transition); box-shadow: var(--shadow-sm); min-height: 44px; }
+        .section { background: var(--gray-50); border-radius: var(--border-radius); padding: 1.5rem; margin-bottom: 2rem; border: 1px solid var(--gray-200); }
+        .section-title { font-size: 1.5rem; font-weight: 600; color: var(--gray-800); margin-bottom: 1.5rem; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; border: none; cursor: pointer; transition: var(--transition); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background-color: var(--primary-color); color: white; }
-        .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .btn-danger { background-color: var(--danger-color); color: white; }
-        .btn-danger:hover:not(:disabled) { background-color: #dc2626; transform: translateY(-1px); box-shadow: var(--shadow-md); }
-        .message { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 500; animation: slideInDown 0.3s ease-out; }
-        @keyframes slideInDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .message-success { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
-        .message-error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-        .message-info { background-color: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-secondary { background-color: var(--secondary-color); color: white; }
+        .btn-info { background-color: var(--info-color); color: white; }
+        .form-input { width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 0.5rem; }
+        .message { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 500; }
+        .message-success { background-color: #d1fae5; color: #065f46; }
+        .message-error { background-color: #fee2e2; color: #991b1b; }
+        .message-info { background-color: #dbeafe; color: #1e40af; }
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
     <div class="main-container">
         <header class="header">
-            <h1>Espaço Fran Kokott</h1>
-            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Fechamento Semanal</p>
+            <h1>Registro de Fichas de Cliente</h1>
         </header>
 
         <main class="content">
-            <div id="access-denied-section" style="display: none;" class="section text-center">
-                <h2 class="section-title text-red-600">Acesso Negado</h2>
-                <p class="text-gray-600 my-4">O e-mail <b id="denied-user-email"></b> não tem permissão para acessar o sistema de Fechamento.</p>
-                <button onclick="signOutUser()" class="btn btn-danger">Tentar com outra conta</button>
-            </div>
-            
-             <div id="auth-section" class="section">
+            <div class="section">
                 <div class="flex items-center justify-between mb-4">
                     <p id="user-id-display" class="text-sm text-gray-500">Usuário: Carregando...</p>
                     <div id="auth-buttons" class="flex gap-2"></div>
                 </div>
             </div>
 
+            <div id="app-message" class="message hidden"></div>
+
+            <!-- O conteúdo principal agora tem um ID para poder ser ocultado -->
             <div id="main-content" style="display: none;">
-                <div id="app-message" class="message" style="display: none;"></div>
-                <!-- O HTML original da aplicação continua aqui, inalterado -->
-                 <section class="section">
-                    <h2 class="section-title">Informações do Fechamento</h2>
-                    <!-- Campos de data, botões de import/export etc. -->
+                <section class="section">
+                    <h2 class="section-title">Nova Ficha de Atendimento</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <input type="text" id="clientName" placeholder="Nome da Cliente" class="form-input">
+                        <input type="text" id="professionalName" placeholder="Nome da Profissional" class="form-input">
+                    </div>
+                    <div id="services-container" class="space-y-2"></div>
+                    <button onclick="window.fichasApp.addServiceRow()" class="btn btn-primary w-full mt-2">Adicionar Serviço</button>
+                    <div id="products-sold-container" class="space-y-2 mt-4"></div>
+                    <button onclick="window.fichasApp.addProductSoldRow()" class="btn btn-success w-full mt-2">Adicionar Produto</button>
+                    <div class="mt-6 flex justify-end">
+                        <button id="addFichaBtn" onclick="window.fichasApp.addFicha()" class="btn btn-primary text-lg" disabled>
+                            <span id="add-ficha-spinner" class="loading-spinner mr-2 hidden"></span>
+                            <span id="add-ficha-icon">Registrar Ficha</span>
+                        </button>
+                    </div>
                 </section>
-                <!-- ... resto do HTML ... -->
+
+                <section class="section">
+                    <h2 class="section-title">Fichas Registradas</h2>
+                    <div id="fichas-list" class="overflow-x-auto">
+                        <table class="min-w-full bg-white">
+                            <thead class="bg-gray-200 text-gray-600 uppercase text-sm">
+                                <tr>
+                                    <th class="py-3 px-6 text-left">Cliente</th>
+                                    <th class="py-3 px-6 text-left">Profissional</th>
+                                    <th class="py-3 px-6 text-left">Serviços</th>
+                                    <th class="py-3 px-6 text-left">Produtos</th>
+                                    <th class="py-3 px-6 text-center">Total</th>
+                                    <th class="py-3 px-6 text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fichas-table-body" class="text-gray-600 text-sm"></tbody>
+                        </table>
+                    </div>
+                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                        <button id="clearAllFichasBtn" onclick="window.fichasApp.showClearAllFichasConfirm()" class="btn btn-danger w-full" disabled>Limpar Todas as Fichas</button>
+                        <button id="exportWeeklyDataBtn" onclick="window.fichasApp.generateAndExportWeeklyData()" class="btn btn-secondary w-full" disabled>Exportar para Fechamento</button>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
-    
-    <!-- Modals e o resto do corpo do HTML (inalterado) -->
 
     <script>
-        // O objeto principal da aplicação
-        window.salonApp = {
-            // ... (todas as propriedades e métodos originais)
+        window.fichasApp = {
+            fichas: [],
             
-            // --- MÉTODOS DO FIRESTORE ATUALIZADOS PARA CAMINHO COMPARTILHADO ---
-            async saveWeeklyClosingToFirestore() {
-                if (!window.currentUser) return this.showMessage('Faça login para salvar.', 'error');
-                // ... (lógica de validação de data)
-
-                this.toggleLoadingSpinner('save', true);
-                const dataToSave = { /* ... montagem dos dados ... */ };
-
+            async signInWithGoogle() {
+                const provider = new GoogleAuthProvider();
                 try {
-                    // ATUALIZAÇÃO: Salva no caminho público/compartilhado
-                    const collectionRef = window.collection(window.db, `artifacts/${window.appId}/public/data/salonWeeklySaves`);
-                    await window.addDoc(collectionRef, dataToSave);
-                    this.showMessage('Dados salvos na nuvem com sucesso!', 'success');
+                    await signInWithPopup(window.auth, provider);
+                } catch (error) {
+                    this.showMessage('Erro ao autenticar: ' + error.message, 'error');
+                }
+            },
+
+            async signOutUser() {
+                try {
+                    await signOut(window.auth);
+                    this.showMessage('Sessão encerrada.', 'info');
+                    window.location.reload();
+                } catch (error) {
+                    this.showMessage('Erro ao sair: ' + error.message, 'error');
+                }
+            },
+            
+            // --- ATUALIZAÇÃO NAS FUNÇÕES DO FIRESTORE ---
+
+            async saveFichaToFirestore(fichaData) {
+                // O caminho da coleção (window.fichasCollectionRef) já foi atualizado na inicialização
+                // Nenhuma mudança é necessária aqui.
+                this.toggleLoadingSpinner('add-ficha', true);
+                try {
+                    const docRef = await window.addDoc(window.fichasCollectionRef, fichaData);
+                    return docRef.id;
                 } catch (e) {
-                    this.showMessage('Erro ao salvar: ' + e.message, 'error');
+                    this.showMessage('Erro ao salvar ficha: ' + e.message, 'error');
+                    return null;
                 } finally {
-                    this.toggleLoadingSpinner('save', false);
-                }
-            },
-
-            async openSavedReportsModal() {
-                if (!window.currentUser) return this.showMessage('Faça login para carregar.', 'error');
-                this.toggleLoadingSpinner('load', true);
-                
-                try {
-                    // ATUALIZAÇÃO: Carrega do caminho público/compartilhado
-                    const collectionRef = window.collection(window.db, `artifacts/${window.appId}/public/data/salonWeeklySaves`);
-                    const querySnapshot = await window.getDocs(collectionRef);
-                    // ... (resto da lógica para popular o modal)
-                } catch (error) {
-                    this.showMessage('Erro ao carregar: ' + error.message, 'error');
-                } finally {
-                    this.toggleLoadingSpinner('load', false);
-                }
-            },
-
-            async deleteSavedReport(reportId) {
-                if (!window.currentUser) return this.showMessage('Faça login para excluir.', 'error');
-                try {
-                    // ATUALIZAÇÃO: Exclui do caminho público/compartilhado
-                    const docRef = window.doc(window.db, `artifacts/${window.appId}/public/data/salonWeeklySaves`, reportId);
-                    await window.deleteDoc(docRef);
-                    this.showMessage('Relatório excluído com sucesso!', 'success');
-                    this.openSavedReportsModal(); // Recarrega a lista
-                } catch (error) {
-                    this.showMessage('Erro ao excluir: ' + error.message, 'error');
+                    this.toggleLoadingSpinner('add-ficha', false);
                 }
             },
             
-            // A função de importar das fichas agora lê de um caminho compartilhado também
-            async loadDataFromFichasSystem() {
-                if (!window.currentUser) return this.showMessage('Faça login para importar.', 'error');
-                this.toggleLoadingSpinner('fichas', true);
+            async removeFichaFromFirestore(fichaId) {
                 try {
-                    // ATENÇÃO: O `appId` do sistema de fichas deve ser o correto
-                    const fichasAppId = 'fichas-clientes-shared';
-                    const docRef = window.doc(window.db, `artifacts/${fichasAppId}/public/data/weeklyReportsAggregated/currentWeek`);
-                    const docSnap = await window.getDoc(docRef);
+                    // CAMINHO ATUALIZADO
+                    await window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/fichas`, fichaId));
+                    return true;
+                } catch (e) {
+                    this.showMessage('Erro ao remover ficha: ' + e.message, 'error');
+                    return false;
+                }
+            },
 
-                    if (docSnap.exists()) {
-                        // ... (resto da lógica de importação)
-                        this.showMessage('Dados das fichas importados com sucesso!', 'success');
-                    } else {
-                        this.showMessage('Nenhum dado de fechamento das fichas encontrado.', 'info');
-                    }
-                } catch (error) {
-                    this.showMessage('Erro ao importar das fichas: ' + error.message, 'error');
+            async saveWeeklyReportDataToFirestore(data) {
+                this.toggleLoadingSpinner('export-weekly', true);
+                try {
+                    // CAMINHO ATUALIZADO
+                    const docRef = window.doc(window.db, `artifacts/${window.appId}/public/data/weeklyReportsAggregated/currentWeek`);
+                    await window.setDoc(docRef, data);
+                    this.showMessage('Dados exportados para o fechamento!', 'success');
+                } catch (e) {
+                    this.showMessage('Erro ao exportar dados: ' + e.message, 'error');
                 } finally {
-                    this.toggleLoadingSpinner('fichas', false);
+                    this.toggleLoadingSpinner('export-weekly', false);
+                }
+            },
+            
+            // O resto do objeto fichasApp (lógica de UI, etc.) permanece o mesmo.
+            // Para manter o código conciso, o restante do objeto JS não foi repetido aqui,
+            // mas ele deve ser mantido no seu arquivo.
+            init() { this.enableButtons(); this.loadFichasFromFirestore(); },
+            enableButtons() {
+                ['addFichaBtn', 'clearAllFichasBtn', 'exportWeeklyDataBtn'].forEach(id => document.getElementById(id).disabled = false);
+            },
+            disableAuthRequiredButtons() {
+                ['addFichaBtn', 'clearAllFichasBtn', 'exportWeeklyDataBtn'].forEach(id => document.getElementById(id).disabled = true);
+            },
+            showMessage(message, type = 'success') {
+                const msgDiv = document.getElementById('app-message');
+                msgDiv.textContent = message;
+                msgDiv.className = `message message-${type}`;
+                setTimeout(() => { msgDiv.className = 'message hidden'; }, 5000);
+            },
+            toggleLoadingSpinner(type, show) {
+                 const spinner = document.getElementById(`${type}-spinner`);
+                 const icon = document.getElementById(`${type}-icon`);
+                 if(spinner && icon){
+                     spinner.classList.toggle('hidden', !show);
+                     icon.classList.toggle('hidden', show);
+                 }
+            },
+            async loadFichasFromFirestore() {
+                if (!window.fichasCollectionRef) return;
+                try {
+                    this.fichas = []; 
+                    const querySnapshot = await window.getDocs(window.fichasCollectionRef);
+                    querySnapshot.forEach((doc) => {
+                        this.fichas.push({ id: doc.id, ...doc.data() });
+                    });
+                    this.renderFichasTable();
+                } catch (e) {
+                    this.showMessage('Erro ao carregar fichas: ' + e.message, 'error');
                 }
             }
+            // ... Mantenha o resto do seu objeto 'fichasApp' aqui ...
         };
-
-        function initializeAppLogic() {
-            window.salonApp.init();
-        }
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
