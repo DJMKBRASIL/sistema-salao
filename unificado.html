@@ -5,18 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fechamento Semanal do Salão</title>
     
-    <!-- Preload critical resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- jsPDF CDN for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
@@ -39,7 +34,6 @@
             addDoc 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuração do Firebase
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
@@ -313,11 +307,17 @@
             products: [],
             savedReports: [],
             selectedReportId: null,
+            salonName: "Espaço Fran Kokott",
             cardDiscountRates: { 'pix': 0, 'dinheiro': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
-                this.addCollaborator();
-                this.addProductRow();
+                this.loadLocalData();
+                 if (this.collaborators.length === 0) {
+                    this.addCollaborator();
+                }
+                if (this.products.length === 0) {
+                    this.addProductRow();
+                }
                 this.renderAllUI();
                 this.enableButtons();
             },
@@ -345,6 +345,7 @@
                 this.addCollaborator();
                 this.addProductRow();
                 this.renderAllUI();
+                this.saveLocalData();
             },
             
             renderAllUI() {
@@ -418,53 +419,64 @@
 
             updateDateDisplay() {
                 const day = document.getElementById('day').value;
-                const month = document.getElementById('month').options[document.getElementById('month').selectedIndex]?.text;
+                const month = document.getElementById('month').value;
                 const year = document.getElementById('year').value;
-                document.getElementById('dateDisplay').textContent = (day && month && year) ? `Fechamento: ${day} de ${month} de ${year}` : 'Preencha a data';
+                const monthName = document.getElementById('month').options[document.getElementById('month').selectedIndex]?.text || '';
+                document.getElementById('dateDisplay').textContent = (day && month && year) ? `Fechamento: ${day} de ${monthName} de ${year}` : 'Preencha a data';
+                this.saveLocalData();
             },
 
             addCollaborator() {
                 this.collaborators.push({ name: '', clients: [{ name: '', value: 0, paymentMethod: 'pix' }], discountPercentage: 0.30, observations: '' });
                 this.renderAllUI();
+                this.saveLocalData();
             },
 
             removeCollaborator(index) {
                 this.collaborators.splice(index, 1);
                 this.renderAllUI();
+                this.saveLocalData();
             },
             
             updateCollaboratorName(index, name) {
                 if (this.collaborators[index]) this.collaborators[index].name = name;
+                this.saveLocalData();
             },
 
             addClientRow(collaboratorIndex) {
                 this.collaborators[collaboratorIndex].clients.push({ name: '', value: 0, paymentMethod: 'pix' });
                 this.renderAllUI();
+                this.saveLocalData();
             },
 
             removeClientRow(collaboratorIndex, clientIndex) {
                 this.collaborators[collaboratorIndex].clients.splice(clientIndex, 1);
                 this.renderAllUI();
+                this.saveLocalData();
             },
             
             updateClientData(collabIndex, clientIndex, field, value) {
                 this.collaborators[collabIndex].clients[clientIndex][field] = value;
                 this.calculateAllTotals();
+                this.saveLocalData();
             },
 
             addProductRow() {
                 this.products.push({ clientName: '', value: 0, paymentMethod: 'pix' });
                 this.renderAllUI();
+                this.saveLocalData();
             },
 
             removeProductRow(index) {
                 this.products.splice(index, 1);
                 this.renderAllUI();
+                this.saveLocalData();
             },
 
             updateProductData(index, field, value) {
                 this.products[index][field] = value;
                 this.calculateAllTotals();
+                this.saveLocalData();
             },
             
             calculateCardDiscount(value, paymentMethod) {
@@ -481,7 +493,7 @@
                         totalCardDiscount += this.calculateCardDiscount(client.value, client.paymentMethod);
                     });
                     
-                    const salonShare = collabGross * 0.30;
+                    const salonShare = collabGross * 0.30; // Considerando 30% fixo para o salão
                     const collabNet = collabGross - salonShare;
                     totalCollabNet += collabNet;
                     overallGross += collabGross;
@@ -502,6 +514,36 @@
                 document.getElementById('overall-gross-total').textContent = `R$ ${overallGross.toFixed(2).replace('.', ',')}`;
                 document.getElementById('total-card-discount').textContent = `R$ ${totalCardDiscount.toFixed(2).replace('.', ',')}`;
                 document.getElementById('overall-net-total').textContent = `R$ ${salonNetProfit.toFixed(2).replace('.', ',')}`;
+            },
+            
+             saveLocalData() {
+                const dataToSave = {
+                    collaborators: this.collaborators,
+                    products: this.products,
+                    date: {
+                        day: document.getElementById('day').value,
+                        month: document.getElementById('month').value,
+                        year: document.getElementById('year').value
+                    }
+                };
+                localStorage.setItem('salonWeeklyClosingData', JSON.stringify(dataToSave));
+            },
+
+            loadLocalData() {
+                const savedData = localStorage.getItem('salonWeeklyClosingData');
+                if (savedData) {
+                    try {
+                        const parsedData = JSON.parse(savedData);
+                        this.collaborators = parsedData.collaborators || [];
+                        this.products = parsedData.products || [];
+                        document.getElementById('day').value = parsedData.date?.day || '';
+                        document.getElementById('month').value = parsedData.date?.month || '';
+                        document.getElementById('year').value = parsedData.date?.year || '';
+                    } catch (e) {
+                        console.error("Erro ao carregar dados locais:", e);
+                        localStorage.removeItem('salonWeeklyClosingData');
+                    }
+                }
             },
             
             async saveWeeklyClosingToFirestore() {
@@ -525,7 +567,7 @@
                 if (!window.db || !window.userId) return showMessage('Não autenticado.', 'error');
                 this.toggleLoadingSpinner('load', true);
                 const reportsListDiv = document.getElementById('saved-reports-list');
-                reportsListDiv.innerHTML = 'Carregando...';
+                reportsListDiv.innerHTML = '<p class="p-4 text-center">Carregando...</p>';
                 this.selectedReportId = null;
 
                 try {
@@ -534,9 +576,10 @@
                     this.savedReports = [];
                     reportsListDiv.innerHTML = '';
                     if (querySnapshot.empty) {
-                        reportsListDiv.innerHTML = '<p>Nenhum relatório salvo.</p>';
+                        reportsListDiv.innerHTML = '<p class="p-4 text-center">Nenhum relatório salvo.</p>';
                         return;
                     }
+                    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
                     querySnapshot.forEach(doc => {
                         const data = doc.data();
                         this.savedReports.push({ id: doc.id, ...data });
@@ -544,7 +587,8 @@
                         item.className = 'report-item';
                         item.setAttribute('data-report-id', doc.id);
                         const d = data.date;
-                        item.textContent = `Fechamento de ${d.day}/${d.month}/${d.year}`;
+                        const monthName = monthNames[parseInt(d.month) - 1] || 'Mês Inválido';
+                        item.textContent = `Fechamento de ${d.day} de ${monthName} de ${d.year}`;
                         item.onclick = (e) => this.selectReport(e, doc.id);
                         reportsListDiv.appendChild(item);
                     });
@@ -574,11 +618,13 @@
                     document.getElementById('year').value = report.date?.year || '';
                     this.renderAllUI();
                     this.closeSavedReportsModal();
+                    this.saveLocalData();
                     showMessage('Relatório carregado!', 'success');
                 }
             },
             
             showClearConfirm() {
+                document.getElementById('confirm-message').textContent = 'Tem certeza que deseja limpar todos os dados?';
                 document.getElementById('custom-confirm-modal').style.display = 'flex';
             },
 
@@ -586,17 +632,48 @@
                 document.getElementById('custom-confirm-modal').style.display = 'none';
                 if(confirmed) this.clearAllData();
             },
+
+            toggleLoadingSpinner(type, show) {
+                const spinner = document.getElementById(`${type}-spinner`);
+                const icon = document.getElementById(`${type}-icon`);
+                if(spinner && icon) {
+                    spinner.classList.toggle('hidden', !show);
+                    icon.classList.toggle('hidden', show);
+                }
+            },
             
-            // Generate PDF and other functions would be here...
              generatePDF() {
                 showMessage('Função PDF ainda não implementada completamente.', 'info');
             }
         };
         
-        function showMessage(message, type) { window.salonApp.showMessage(message, type); }
+        function showMessage(message, type) { 
+            const msgDiv = document.getElementById('app-message');
+            msgDiv.textContent = message;
+            msgDiv.className = `message message-${type}`;
+            setTimeout(() => { msgDiv.className = 'message hidden'; }, 5000);
+        }
         function openSavedReportsModal() { window.salonApp.openSavedReportsModal(); }
         function saveWeeklyClosingToFirestore() { window.salonApp.saveWeeklyClosingToFirestore(); }
-        function loadDataFromFichasSystem() { showMessage('Função não implementada.', 'info'); }
+        async function loadDataFromFichasSystem() {
+            if (!window.db || !window.userId) return showMessage('Não autenticado.', 'error');
+            window.salonApp.toggleLoadingSpinner('fichas', true);
+            try {
+                const docRef = doc(window.db, `artifacts/${window.appId}/public/data/weeklyReportsAggregated/currentWeek`);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    window.salonApp.collaborators = data.collaborators || [];
+                    window.salonApp.products = data.products || [];
+                    window.salonApp.renderAllUI();
+                    window.salonApp.saveLocalData();
+                    showMessage('Dados importados das fichas com sucesso!', 'success');
+                } else {
+                    showMessage('Nenhum dado de ficha para importar.', 'info');
+                }
+            } catch (error) { showMessage('Erro ao importar das fichas: ' + error.message, 'error'); }
+            finally { window.salonApp.toggleLoadingSpinner('fichas', false); }
+        }
         function showClearConfirm() { window.salonApp.showClearConfirm(); }
         
         function initializeAppLogic() {
