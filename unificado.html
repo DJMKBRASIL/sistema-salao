@@ -5,13 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fechamento Semanal do Salão</title>
     
+    <!-- Preload critical resources -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- jsPDF CDN for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
+    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
@@ -30,26 +35,69 @@
             setDoc, 
             deleteDoc, 
             collection, 
+            query, 
+            where, 
             getDocs, 
             addDoc 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // --- INÍCIO DA SEÇÃO DE CONFIGURAÇÃO DE ACESSO ---
+        const adminEmail = "djmkbrasil@gmail.com";
+        // --- FIM DA SEÇÃO DE CONFIGURAÇÃO DE ACESSO ---
+
+        // Configuração do Firebase
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config ) : {
             apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
             authDomain: "sistema-do-salao.firebaseapp.com",
-            projectId: "sistema-do-salao",  
+            projectId: "sistema-do-salao",
             storageBucket: "sistema-do-salao.firebasestorage.app",
             messagingSenderId: "395887083088",
-            appId: "1:395887083088:web:3a41fd836cc59a976ddb55"
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
         };
         window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
+        // Variáveis globais do Firebase
         window.app = null;
         window.db = null;
         window.auth = null;
         window.userId = 'Carregando...';
 
+        /**
+         * Verifica se o usuário tem permissão de administrador.
+         * @param {object|null} user - O objeto de usuário do Firebase.
+         * @returns {boolean} - True se o acesso for permitido, false caso contrário.
+         */
+        function checkAdminAccess(user) {
+            const mainContent = document.getElementById('main-content');
+            const accessDenied = document.getElementById('access-denied');
+
+            if (user && user.email === adminEmail) {
+                mainContent.style.display = 'block';
+                accessDenied.style.display = 'none';
+                return true;
+            } else {
+                mainContent.style.display = 'none';
+                accessDenied.style.display = 'block';
+                if (user) {
+                    accessDenied.innerHTML = `
+                        <h2 class="text-xl font-bold text-red-700">Acesso Negado</h2>
+                        <p>O usuário <strong>${user.email}</strong> não tem permissão para acessar esta página.</p>
+                        <p>Esta área é restrita ao administrador.</p>
+                    `;
+                } else {
+                    accessDenied.innerHTML = `
+                        <h2 class="text-xl font-bold text-red-700">Acesso Negado</h2>
+                        <p>Você precisa estar autenticado como administrador para ver esta página.</p>
+                    `;
+                }
+                return false;
+            }
+        }
+
+        /**
+         * Inicializa o Firebase e configura o listener de autenticação.
+         */
         async function initializeFirebase() {
             try {
                 window.app = initializeApp(window.firebaseConfig);
@@ -61,38 +109,42 @@
 
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
-                        const adminEmail = 'djmkbrasil@gmail.com';
+                        window.userId = user.uid;
+                        const displayInfo = user.displayName ? `${user.displayName} (${user.email})` : user.email;
+                        
+                        document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="signOutUser()" class="btn btn-danger">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                                Sair
+                            </button>
+                        `;
+                        
+                        console.log("Usuário autenticado:", user.email);
 
-                        if (user.email === adminEmail) {
-                            document.getElementById('main-content').style.display = 'block';
-                            window.userId = user.uid;
-                            const displayInfo = user.displayName || user.email;
-                            
-                            document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo} (Admin)`;
-                            document.getElementById('auth-buttons').innerHTML = `
-                                <button onclick="signOutUser()" class="btn btn-danger">Sair</button>
-                            `;
-                            
-                            console.log("Administrador autenticado:", user.email);
+                        // Chama a verificação de acesso
+                        if (checkAdminAccess(user)) {
                             if (window.db) {
                                 initializeAppLogic();
                             } else {
+                                console.error("Banco de dados Firebase não disponível após autenticação");
                                 showMessage('Erro: Banco de dados não disponível. Recarregue a página.', 'error');
                             }
-                        } else {
-                            document.getElementById('main-content').style.display = 'none';
-                            showMessage('Acesso restrito ao administrador.', 'error');
-                            setTimeout(() => signOutUser(), 3000);
                         }
                     } else {
                         window.userId = 'Não autenticado';
                         document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
                         document.getElementById('auth-buttons').innerHTML = `
-                            <button onclick="signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>
+                            <button onclick="signInWithGoogle()" class="btn btn-primary">
+                                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                                Entrar com Google
+                            </button>
                         `;
-                        document.getElementById('main-content').style.display = 'none';
+                        
+                        // Chama a verificação para usuários deslogados e desabilita botões
+                        checkAdminAccess(null);
                         if (window.salonApp) {
-                           window.salonApp.disableAuthRequiredButtons();
+                            window.salonApp.disableAuthRequiredButtons();
                         }
                     }
                 });
@@ -107,6 +159,7 @@
             const provider = new GoogleAuthProvider();
             try {
                 await signInWithPopup(window.auth, provider);
+                showMessage('Autenticado com Google!', 'success');
             } catch (error) {
                 console.error("Erro ao fazer login com Google:", error);
                 showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
@@ -117,7 +170,8 @@
             try {
                 await signOut(window.auth);
                 showMessage('Sessão encerrada.', 'info');
-                window.location.reload();
+                window.salonApp.clearAllData();
+                window.salonApp.disableAuthRequiredButtons();
             } catch (error) {
                 console.error("Erro ao sair:", error);
                 showMessage('Erro ao sair: ' + error.message, 'error');
@@ -131,6 +185,8 @@
         window.setDoc = setDoc;
         window.deleteDoc = deleteDoc;
         window.collection = collection;
+        window.query = query;
+        window.where = where;
         window.getDocs = getDocs;
         window.addDoc = addDoc;
         window.signInWithGoogle = signInWithGoogle;
@@ -139,44 +195,91 @@
 
     <style>
         :root {
-            --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #8b5cf6;
-            --success-color: #10b981; --warning-color: #f59e0b; --danger-color: #ef4444;
-            --info-color: #3b82f6; --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
-            --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280; --gray-600: #4b5563;
-            --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --border-radius: 0.75rem; --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #8b5cf6; --success-color: #10b981; --warning-color: #f59e0b; --danger-color: #ef4444; --info-color: #3b82f6; --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280; --gray-600: #4b5563; --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827; --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05); --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); --border-radius: 0.75rem; --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; margin: 0; padding: 1rem; }
-        .main-container { max-width: 1200px; margin: 0 auto; background: white; border-radius: var(--border-radius); overflow: hidden; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; margin: 0; padding: 1rem; line-height: 1.6; }
+        .main-container { max-width: 1200px; margin: 0 auto; background: white; border-radius: var(--border-radius); box-shadow: var(--shadow-xl); overflow: hidden; animation: fadeInUp 0.6s ease-out; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         .header { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); color: white; padding: 2rem; text-align: center; }
-        .header h1 { margin: 0; font-size: 2.5rem; font-weight: 700; }
+        .header h1 { margin: 0; font-size: 2.5rem; font-weight: 700; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
         .content { padding: 2rem; }
-        .section { background: var(--gray-50); border-radius: var(--border-radius); padding: 1.5rem; margin-bottom: 2rem; border: 1px solid var(--gray-200); }
-        .section-title { font-size: 1.5rem; font-weight: 600; color: var(--gray-800); margin-bottom: 1.5rem; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; border: none; cursor: pointer; transition: var(--transition); }
+        .section { background: var(--gray-50); border-radius: var(--border-radius); padding: 1.5rem; margin-bottom: 2rem; border: 1px solid var(--gray-200); transition: var(--transition); }
+        .section:hover { box-shadow: var(--shadow-md); }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .section-title { font-size: 1.5rem; font-weight: 600; color: var(--gray-800); margin: 0; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.875rem; text-decoration: none; border: none; cursor: pointer; transition: var(--transition); box-shadow: var(--shadow-sm); min-height: 44px; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background-color: var(--primary-color); color: white; }
-        .btn-danger { background-color: var(--danger-color); color: white; }
-        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .btn-secondary { background-color: var(--secondary-color); color: white; }
+        .btn-secondary:hover:not(:disabled) { background-color: #7c3aed; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-success:hover:not(:disabled) { background-color: #059669; transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .btn-warning { background-color: var(--warning-color); color: white; }
+        .btn-warning:hover:not(:disabled) { background-color: #d97706; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-danger:hover:not(:disabled) { background-color: #dc2626; transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .btn-info { background-color: var(--info-color); color: white; }
+        .btn-info:hover:not(:disabled) { background-color: #2563eb; transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .btn-gray { background-color: var(--gray-300); color: var(--gray-800); }
-        .form-input, .form-select { width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 0.5rem; }
-        .message { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 500; }
-        .message-success { background-color: #d1fae5; color: #065f46; }
-        .message-error { background-color: #fee2e2; color: #991b1b; }
-        .message-info { background-color: #dbeafe; color: #1e40af; }
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
-        .modal-content { background: white; border-radius: var(--border-radius); padding: 2rem; max-width: 500px; width: 100%; }
-        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .hidden { display: none; }
-        .report-item { padding: 1rem; border-bottom: 1px solid var(--gray-200); cursor: pointer; }
+        .btn-gray:hover:not(:disabled) { background-color: var(--gray-400); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .btn-full { width: 100%; }
+        .form-group { margin-bottom: 1rem; }
+        .form-label { display: block; font-weight: 500; color: var(--gray-700); margin-bottom: 0.5rem; font-size: 0.875rem; }
+        .form-input { width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 0.5rem; font-size: 1rem; transition: var(--transition); background-color: white; }
+        .form-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+        .form-input::-webkit-outer-spin-button, .form-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .form-input[type=number] { -moz-appearance: textfield; }
+        .form-textarea { width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 0.5rem; font-size: 1rem; transition: var(--transition); background-color: white; resize: vertical; min-height: 80px; }
+        .form-textarea:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+        .grid { display: grid; gap: 1rem; }
+        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+        .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
+        .gap-4 { gap: 1rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .mt-4 { margin-top: 1rem; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-sm { font-size: 0.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        .font-semibold { font-weight: 600; }
+        .font-bold { font-weight: 700; }
+        .text-gray-500 { color: var(--gray-500); }
+        .text-gray-700 { color: var(--gray-700); }
+        .text-gray-800 { color: var(--gray-800); }
+        .collaborator-block { background: white; border-radius: var(--border-radius); padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); transition: var(--transition); }
+        .collaborator-block:hover { box-shadow: var(--shadow-md); }
+        .client-row { background: var(--gray-50); padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border: 1px solid var(--gray-200); }
+        .product-row { background: var(--gray-50); padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border: 1px solid var(--gray-200); }
+        .observation-area { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 0.5rem; padding: 1rem; margin-top: 1rem; display: none; }
+        .observation-area.visible { display: block; }
+        .message { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 500; animation: slideInDown 0.3s ease-out; }
+        @keyframes slideInDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .message-success { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .message-error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .message-info { background-color: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); justify-content: center; align-items: center; padding: 1rem; animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-content { background: white; border-radius: var(--border-radius); padding: 2rem; max-width: 500px; width: 100%; box-shadow: var(--shadow-xl); animation: scaleIn 0.3s ease-out; }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        .modal-buttons { display: flex; gap: 1rem; margin-top: 1.5rem; }
+        .saved-reports-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--gray-200); border-radius: 0.5rem; margin-bottom: 1rem; }
+        .report-item { padding: 1rem; border-bottom: 1px solid var(--gray-200); cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: var(--transition); }
+        .report-item:last-child { border-bottom: none; }
         .report-item:hover { background-color: var(--gray-50); }
         .report-item.selected { background-color: #e0e7ff; font-weight: 600; }
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 768px) { body { padding: 0.5rem; } .header { padding: 1.5rem 1rem; } .header h1 { font-size: 2rem; } .content { padding: 1rem; } .section { padding: 1rem; } .grid-cols-3, .grid-cols-2 { grid-template-columns: repeat(1, minmax(0, 1fr)); } .flex { flex-direction: column; } .flex > * { width: 100%; } .btn { padding: 1rem; font-size: 1rem; } .modal-content { margin: 1rem; padding: 1.5rem; } .modal-buttons { flex-direction: column; } }
+        @media print { body { background: white; padding: 0; } .main-container { box-shadow: none; border-radius: 0; } .header { background: white !important; color: black !important; } .btn, .modal { display: none !important; } }
     </style>
 </head>
 <body>
@@ -194,492 +297,40 @@
                 </div>
             </div>
 
-            <div id="app-message" class="message hidden"></div>
+            <div id="app-message" class="message" style="display: none;"></div>
+
+            <div id="access-denied" class="section text-center" style="display: none; background-color: #fee2e2;"></div>
 
             <div id="main-content" style="display: none;">
                 <section class="section">
-                    <h2 class="section-title">Informações do Fechamento</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div>
-                            <label for="day" class="block text-sm font-medium text-gray-700">Dia</label>
-                            <input type="number" id="day" min="1" max="31" placeholder="DD" class="form-input mt-1" oninput="window.salonApp.updateDateDisplay()">
-                        </div>
-                        <div>
-                            <label for="month" class="block text-sm font-medium text-gray-700">Mês</label>
-                            <select id="month" class="form-select mt-1" onchange="window.salonApp.updateDateDisplay()">
-                                <option value="">Selecione</option>
-                                <option value="1">Janeiro</option> <option value="2">Fevereiro</option> <option value="3">Março</option>
-                                <option value="4">Abril</option> <option value="5">Maio</option> <option value="6">Junho</option>
-                                <option value="7">Julho</option> <option value="8">Agosto</option> <option value="9">Setembro</option>
-                                <option value="10">Outubro</option> <option value="11">Novembro</option> <option value="12">Dezembro</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="year" class="block text-sm font-medium text-gray-700">Ano</label>
-                            <input type="number" id="year" min="2000" max="2100" placeholder="AAAA" class="form-input mt-1" oninput="window.salonApp.updateDateDisplay()">
-                        </div>
+                    <div class="section-header">
+                        <h2 class="section-title">Informações do Fechamento</h2>
                     </div>
-                    <p id="dateDisplay" class="text-center text-lg font-medium text-gray-800 mt-4"></p>
-                    
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-4">Data do Fechamento Semanal</h3>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="form-group">
+                                <label for="day" class="form-label">Dia</label>
+                                <input type="number" id="day" min="1" max="31" placeholder="Dia" class="form-input" oninput="window.salonApp.updateDateDisplay(); window.salonApp.saveLocalData()">
+                            </div>
+                            <div class="form-group">
+                                <label for="month" class="form-label">Mês</label>
+                                <select id="month" class="form-input" onchange="window.salonApp.updateDateDisplay(); window.salonApp.saveLocalData()">
+                                    <option value="">Selecione o Mês</option>
+                                    <option value="1">Janeiro</option> <option value="2">Fevereiro</option> <option value="3">Março</option> <option value="4">Abril</option> <option value="5">Maio</option> <option value="6">Junho</option> <option value="7">Julho</option> <option value="8">Agosto</option> <option value="9">Setembro</option> <option value="10">Outubro</option> <option value="11">Novembro</option> <option value="12">Dezembro</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="year" class="form-label">Ano</label>
+                                <input type="number" id="year" min="2000" max="2100" placeholder="Ano" class="form-input" oninput="window.salonApp.updateDateDisplay(); window.salonApp.saveLocalData()">
+                            </div>
+                        </div>
+                        <p id="dateDisplay" class="text-center text-lg font-medium text-gray-800 mt-4"></p>
+                    </div>
                     <div class="mt-6">
                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Opções de Dados</h3>
                         <div class="grid grid-cols-2 gap-3">
-                            <button id="saveToFirestoreBtn" onclick="saveWeeklyClosingToFirestore()" class="btn btn-success w-full" disabled>
-                                <span id="save-spinner" class="loading-spinner mr-2 hidden"></span><span id="save-icon">Salvar na Nuvem</span>
-                            </button>
-                            <button id="loadFromFirestoreBtn" onclick="openSavedReportsModal()" class="btn btn-warning w-full" disabled>
-                                <span id="load-spinner" class="loading-spinner mr-2 hidden"></span><span id="load-icon">Carregar da Nuvem</span>
-                            </button>
-                            <button id="loadDataFromFichasSystemBtn" onclick="loadDataFromFichasSystem()" class="btn btn-info w-full" disabled>
-                                <span id="fichas-spinner" class="loading-spinner mr-2 hidden"></span><span id="fichas-icon">Importar das Fichas</span>
-                            </button>
-                            <button id="clearAllDataBtn" onclick="showClearConfirm()" class="btn btn-gray w-full" disabled>
-                                <span id="clear-spinner" class="loading-spinner mr-2 hidden"></span><span id="clear-icon">Limpar Tudo</span>
-                            </button>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="section">
-                    <h2 class="section-title">Colaboradoras</h2>
-                    <div id="collaborators-container"></div>
-                    <button onclick="window.salonApp.addCollaborator()" class="btn btn-primary w-full mt-4">Adicionar Colaboradora</button>
-                </section>
-
-                <section class="section">
-                    <h2 class="section-title">Produtos Vendidos</h2>
-                    <div id="products-container"></div>
-                    <button onclick="window.salonApp.addProductRow()" class="btn btn-success w-full mt-4">Adicionar Produto</button>
-                    <div class="mt-4 text-right">
-                        <p class="text-lg font-bold text-gray-800">Total Produtos: <span id="products-total">R$ 0,00</span></p>
-                    </div>
-                </section>
-
-                <section class="section">
-                    <h2 class="section-title">Resumo Geral</h2>
-                    <div class="text-right mb-4">
-                        <p class="text-lg font-bold text-gray-800">Total Bruto Geral: <span id="overall-gross-total">R$ 0,00</span></p>
-                        <p class="text-lg font-bold text-red-600">Total Desconto Cartão: <span id="total-card-discount">R$ 0,00</span></p>
-                        <p class="text-xl font-bold text-gray-900">Lucro Líquido do Salão: <span id="overall-net-total">R$ 0,00</span></p>
-                    </div>
-                    <div id="detailed-contribution" class="text-gray-700"></div>
-                </section>
-
-                <button onclick="window.salonApp.generatePDF()" class="btn btn-secondary w-full text-lg font-bold">Gerar PDF do Fechamento</button>
-            </div>
-        </main>
-    </div>
-
-    <div id="custom-confirm-modal" class="modal">
-        <div class="modal-content">
-            <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirmar Ação</h3>
-            <p class="text-gray-600 mb-4" id="confirm-message">Tem certeza?</p>
-            <div class="flex justify-end gap-4 mt-6">
-                <button class="btn btn-gray" onclick="window.salonApp.handleConfirm(false)">Cancelar</button>
-                <button class="btn btn-danger" onclick="window.salonApp.handleConfirm(true)">Confirmar</button>
-            </div>
-        </div>
-    </div>
-    <div id="saved-reports-modal" class="modal">
-        <div class="modal-content">
-            <h3 class="text-xl font-semibold text-gray-800 mb-4">Escolha um Fechamento Salvo</h3>
-            <div id="saved-reports-list" class="max-h-80 overflow-y-auto border rounded-lg"></div>
-             <div class="flex justify-end gap-4 mt-6">
-                <button class="btn btn-gray" onclick="window.salonApp.closeSavedReportsModal()">Fechar</button>
-                <button class="btn btn-primary" onclick="window.salonApp.loadSelectedReport()">Carregar</button>
-            </div>
-        </div>
-    </div>
-     <div id="attach-receipt-modal" class="modal">
-        <div class="modal-content">
-            <h3 class="text-lg font-semibold text-gray-800 mb-4">Anexar Comprovante?</h3>
-            <p class="text-gray-600 mb-4">Deseja anexar um comprovante de pagamento ao PDF desta colaboradora?</p>
-            <div class="flex justify-end gap-4 mt-6">
-                <button class="btn btn-gray" onclick="window.salonApp.handleAttachReceiptChoice(false)">Não</button>
-                <button class="btn btn-primary" onclick="window.salonApp.handleAttachReceiptChoice(true)">Sim</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        window.salonApp = {
-            collaborators: [],
-            products: [],
-            savedReports: [],
-            selectedReportId: null,
-            salonName: "Espaço Fran Kokott",
-            cardDiscountRates: { 'pix': 0, 'dinheiro': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
-
-            init() {
-                this.loadLocalData();
-                 if (this.collaborators.length === 0) {
-                    this.addCollaborator();
-                }
-                if (this.products.length === 0) {
-                    this.addProductRow();
-                }
-                this.renderAllUI();
-                this.enableButtons();
-            },
-            
-            enableButtons() {
-                ['saveToFirestoreBtn', 'loadFromFirestoreBtn', 'loadDataFromFichasSystemBtn', 'clearAllDataBtn'].forEach(id => {
-                    const btn = document.getElementById(id);
-                    if (btn) btn.disabled = false;
-                });
-            },
-            
-            disableAuthRequiredButtons() {
-                ['saveToFirestoreBtn', 'loadFromFirestoreBtn', 'loadDataFromFichasSystemBtn', 'clearAllDataBtn'].forEach(id => {
-                    const btn = document.getElementById(id);
-                    if (btn) btn.disabled = true;
-                });
-            },
-
-            clearAllData() {
-                this.collaborators = [];
-                this.products = [];
-                document.getElementById('day').value = '';
-                document.getElementById('month').value = '';
-                document.getElementById('year').value = '';
-                this.addCollaborator();
-                this.addProductRow();
-                this.renderAllUI();
-                this.saveLocalData();
-            },
-            
-            renderAllUI() {
-                document.getElementById('collaborators-container').innerHTML = '';
-                this.collaborators.forEach((collab, index) => this.addCollaboratorUI(collab, index));
-                document.getElementById('products-container').innerHTML = '';
-                this.products.forEach((prod, index) => this.addProductRowUI(prod, index));
-                this.updateDateDisplay();
-                this.calculateAllTotals();
-            },
-
-            addCollaboratorUI(collabData, index) {
-                const container = document.getElementById('collaborators-container');
-                const div = document.createElement('div');
-                div.className = 'collaborator-block border p-4 rounded-lg mb-4';
-                div.setAttribute('data-index', index);
-                div.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
-                        <input type="text" placeholder="Nome da Colaboradora" value="${collabData.name}" class="form-input font-bold" oninput="window.salonApp.updateCollaboratorName(${index}, this.value)">
-                        <button onclick="window.salonApp.removeCollaborator(${index})" class="btn btn-danger">Remover</button>
-                    </div>
-                    <div id="clients-container-${index}"></div>
-                    <button onclick="window.salonApp.addClientRow(${index})" class="btn btn-primary w-full mt-2">Adicionar Cliente</button>
-                    <div class="text-right mt-2">
-                         <p class="text-md font-bold text-gray-800">Total Líquido Colaboradora: <span id="collab-net-total-display-${index}">R$ 0,00</span></p>
-                    </div>
-                `;
-                container.appendChild(div);
-                collabData.clients.forEach((client, clientIndex) => this.addClientRowUI(client, index, clientIndex));
-            },
-
-            addClientRowUI(clientData, collaboratorIndex, clientIndex) {
-                const container = document.getElementById(`clients-container-${collaboratorIndex}`);
-                const div = document.createElement('div');
-                div.className = 'client-row flex items-center gap-2 mb-2';
-                div.innerHTML = `
-                    <input type="text" placeholder="Nome do Cliente" value="${clientData.name}" class="form-input flex-grow" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)">
-                    <input type="number" placeholder="Valor" value="${clientData.value}" class="form-input w-28 text-right" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)">
-                    <select class="form-select w-32" onchange="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'paymentMethod', this.value)">
-                        <option value="pix" ${clientData.paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
-                        <option value="debito" ${clientData.paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
-                        <option value="credito_1x" ${clientData.paymentMethod === 'credito_1x' ? 'selected' : ''}>Crédito 1x</option>
-                        <option value="credito_2x" ${clientData.paymentMethod === 'credito_2x' ? 'selected' : ''}>Crédito 2x</option>
-                        <option value="credito_3x" ${clientData.paymentMethod === 'credito_3x' ? 'selected' : ''}>Crédito 3x</option>
-                        <option value="dinheiro" ${clientData.paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
-                    </select>
-                    <button onclick="window.salonApp.removeClientRow(${collaboratorIndex}, ${clientIndex})" class="btn btn-danger p-2">X</button>
-                `;
-                container.appendChild(div);
-            },
-
-            addProductRowUI(productData, index) {
-                const container = document.getElementById('products-container');
-                const div = document.createElement('div');
-                div.className = 'product-row flex items-center gap-2 mb-2';
-                div.innerHTML = `
-                    <input type="text" placeholder="Nome do Cliente/Produto" value="${productData.clientName}" class="form-input flex-grow" oninput="window.salonApp.updateProductData(${index}, 'clientName', this.value)">
-                    <input type="number" placeholder="Valor" value="${productData.value}" class="form-input w-28 text-right" oninput="window.salonApp.updateProductData(${index}, 'value', parseFloat(this.value) || 0)">
-                     <select class="form-select w-32" onchange="window.salonApp.updateProductData(${index}, 'paymentMethod', this.value)">
-                        <option value="pix" ${productData.paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
-                        <option value="debito" ${productData.paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
-                        <option value="credito_1x" ${productData.paymentMethod === 'credito_1x' ? 'selected' : ''}>Crédito 1x</option>
-                        <option value="credito_2x" ${productData.paymentMethod === 'credito_2x' ? 'selected' : ''}>Crédito 2x</option>
-                        <option value="credito_3x" ${productData.paymentMethod === 'credito_3x' ? 'selected' : ''}>Crédito 3x</option>
-                        <option value="dinheiro" ${productData.paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
-                    </select>
-                    <button onclick="window.salonApp.removeProductRow(${index})" class="btn btn-danger p-2">X</button>
-                `;
-                container.appendChild(div);
-            },
-
-            updateDateDisplay() {
-                const day = document.getElementById('day').value;
-                const month = document.getElementById('month').value;
-                const year = document.getElementById('year').value;
-                const monthName = document.getElementById('month').options[document.getElementById('month').selectedIndex]?.text || '';
-                document.getElementById('dateDisplay').textContent = (day && month && year) ? `Fechamento: ${day} de ${monthName} de ${year}` : 'Preencha a data';
-                this.saveLocalData();
-            },
-
-            addCollaborator() {
-                this.collaborators.push({ name: '', clients: [{ name: '', value: 0, paymentMethod: 'pix' }], discountPercentage: 0.30, observations: '' });
-                this.renderAllUI();
-                this.saveLocalData();
-            },
-
-            removeCollaborator(index) {
-                this.collaborators.splice(index, 1);
-                this.renderAllUI();
-                this.saveLocalData();
-            },
-            
-            updateCollaboratorName(index, name) {
-                if (this.collaborators[index]) this.collaborators[index].name = name;
-                this.saveLocalData();
-            },
-
-            addClientRow(collaboratorIndex) {
-                this.collaborators[collaboratorIndex].clients.push({ name: '', value: 0, paymentMethod: 'pix' });
-                this.renderAllUI();
-                this.saveLocalData();
-            },
-
-            removeClientRow(collaboratorIndex, clientIndex) {
-                this.collaborators[collaboratorIndex].clients.splice(clientIndex, 1);
-                this.renderAllUI();
-                this.saveLocalData();
-            },
-            
-            updateClientData(collabIndex, clientIndex, field, value) {
-                this.collaborators[collabIndex].clients[clientIndex][field] = value;
-                this.calculateAllTotals();
-                this.saveLocalData();
-            },
-
-            addProductRow() {
-                this.products.push({ clientName: '', value: 0, paymentMethod: 'pix' });
-                this.renderAllUI();
-                this.saveLocalData();
-            },
-
-            removeProductRow(index) {
-                this.products.splice(index, 1);
-                this.renderAllUI();
-                this.saveLocalData();
-            },
-
-            updateProductData(index, field, value) {
-                this.products[index][field] = value;
-                this.calculateAllTotals();
-                this.saveLocalData();
-            },
-            
-            calculateCardDiscount(value, paymentMethod) {
-                return value * (this.cardDiscountRates[paymentMethod] || 0);
-            },
-
-            calculateAllTotals() {
-                let overallGross = 0, totalCardDiscount = 0, totalCollabNet = 0;
-                
-                this.collaborators.forEach((collab, index) => {
-                    let collabGross = 0;
-                    collab.clients.forEach(client => {
-                        collabGross += client.value;
-                        totalCardDiscount += this.calculateCardDiscount(client.value, client.paymentMethod);
-                    });
-                    
-                    const salonShare = collabGross * 0.30; // Considerando 30% fixo para o salão
-                    const collabNet = collabGross - salonShare;
-                    totalCollabNet += collabNet;
-                    overallGross += collabGross;
-                    
-                    document.getElementById(`collab-net-total-display-${index}`).textContent = `R$ ${collabNet.toFixed(2).replace('.', ',')}`;
-                });
-                
-                let productsTotal = 0;
-                this.products.forEach(p => {
-                    productsTotal += p.value;
-                    totalCardDiscount += this.calculateCardDiscount(p.value, p.paymentMethod);
-                });
-                overallGross += productsTotal;
-
-                const salonNetProfit = overallGross - totalCardDiscount - totalCollabNet;
-
-                document.getElementById('products-total').textContent = `R$ ${productsTotal.toFixed(2).replace('.', ',')}`;
-                document.getElementById('overall-gross-total').textContent = `R$ ${overallGross.toFixed(2).replace('.', ',')}`;
-                document.getElementById('total-card-discount').textContent = `R$ ${totalCardDiscount.toFixed(2).replace('.', ',')}`;
-                document.getElementById('overall-net-total').textContent = `R$ ${salonNetProfit.toFixed(2).replace('.', ',')}`;
-            },
-            
-             saveLocalData() {
-                const dataToSave = {
-                    collaborators: this.collaborators,
-                    products: this.products,
-                    date: {
-                        day: document.getElementById('day').value,
-                        month: document.getElementById('month').value,
-                        year: document.getElementById('year').value
-                    }
-                };
-                localStorage.setItem('salonWeeklyClosingData', JSON.stringify(dataToSave));
-            },
-
-            loadLocalData() {
-                const savedData = localStorage.getItem('salonWeeklyClosingData');
-                if (savedData) {
-                    try {
-                        const parsedData = JSON.parse(savedData);
-                        this.collaborators = parsedData.collaborators || [];
-                        this.products = parsedData.products || [];
-                        document.getElementById('day').value = parsedData.date?.day || '';
-                        document.getElementById('month').value = parsedData.date?.month || '';
-                        document.getElementById('year').value = parsedData.date?.year || '';
-                    } catch (e) {
-                        console.error("Erro ao carregar dados locais:", e);
-                        localStorage.removeItem('salonWeeklyClosingData');
-                    }
-                }
-            },
-            
-            async saveWeeklyClosingToFirestore() {
-                if (!window.db || !window.userId) return showMessage('Não autenticado.', 'error');
-                this.toggleLoadingSpinner('save', true);
-                const dataToSave = {
-                    collaborators: this.collaborators,
-                    products: this.products,
-                    date: { day: document.getElementById('day').value, month: document.getElementById('month').value, year: document.getElementById('year').value },
-                    lastSaved: new Date().toISOString()
-                };
-                try {
-                    const collectionRef = window.collection(window.db, `artifacts/${window.appId}/public/data/manualWeeklySaves`);
-                    await addDoc(collectionRef, dataToSave);
-                    showMessage('Salvo na nuvem com sucesso!', 'success');
-                } catch (e) { showMessage('Erro ao salvar: ' + e.message, 'error'); } 
-                finally { this.toggleLoadingSpinner('save', false); }
-            },
-
-            async openSavedReportsModal() {
-                if (!window.db || !window.userId) return showMessage('Não autenticado.', 'error');
-                this.toggleLoadingSpinner('load', true);
-                const reportsListDiv = document.getElementById('saved-reports-list');
-                reportsListDiv.innerHTML = '<p class="p-4 text-center">Carregando...</p>';
-                this.selectedReportId = null;
-
-                try {
-                    const collectionRef = collection(window.db, `artifacts/${window.appId}/public/data/manualWeeklySaves`);
-                    const querySnapshot = await getDocs(collectionRef);
-                    this.savedReports = [];
-                    reportsListDiv.innerHTML = '';
-                    if (querySnapshot.empty) {
-                        reportsListDiv.innerHTML = '<p class="p-4 text-center">Nenhum relatório salvo.</p>';
-                        return;
-                    }
-                    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-                    querySnapshot.forEach(doc => {
-                        const data = doc.data();
-                        this.savedReports.push({ id: doc.id, ...data });
-                        const item = document.createElement('div');
-                        item.className = 'report-item';
-                        item.setAttribute('data-report-id', doc.id);
-                        const d = data.date;
-                        const monthName = monthNames[parseInt(d.month) - 1] || 'Mês Inválido';
-                        item.textContent = `Fechamento de ${d.day} de ${monthName} de ${d.year}`;
-                        item.onclick = (e) => this.selectReport(e, doc.id);
-                        reportsListDiv.appendChild(item);
-                    });
-                    document.getElementById('saved-reports-modal').style.display = 'flex';
-                } catch (error) { showMessage('Erro ao carregar relatórios: ' + error.message, 'error'); } 
-                finally { this.toggleLoadingSpinner('load', false); }
-            },
-
-            closeSavedReportsModal() {
-                document.getElementById('saved-reports-modal').style.display = 'none';
-            },
-
-            selectReport(event, reportId) {
-                document.querySelectorAll('#saved-reports-list .report-item').forEach(item => item.classList.remove('selected'));
-                event.currentTarget.classList.add('selected');
-                this.selectedReportId = reportId;
-            },
-
-            loadSelectedReport() {
-                if (!this.selectedReportId) return showMessage('Selecione um relatório.', 'info');
-                const report = this.savedReports.find(r => r.id === this.selectedReportId);
-                if (report) {
-                    this.collaborators = report.collaborators || [];
-                    this.products = report.products || [];
-                    document.getElementById('day').value = report.date?.day || '';
-                    document.getElementById('month').value = report.date?.month || '';
-                    document.getElementById('year').value = report.date?.year || '';
-                    this.renderAllUI();
-                    this.closeSavedReportsModal();
-                    this.saveLocalData();
-                    showMessage('Relatório carregado!', 'success');
-                }
-            },
-            
-            showClearConfirm() {
-                document.getElementById('confirm-message').textContent = 'Tem certeza que deseja limpar todos os dados?';
-                document.getElementById('custom-confirm-modal').style.display = 'flex';
-            },
-
-            handleConfirm(confirmed) {
-                document.getElementById('custom-confirm-modal').style.display = 'none';
-                if(confirmed) this.clearAllData();
-            },
-
-            toggleLoadingSpinner(type, show) {
-                const spinner = document.getElementById(`${type}-spinner`);
-                const icon = document.getElementById(`${type}-icon`);
-                if(spinner && icon) {
-                    spinner.classList.toggle('hidden', !show);
-                    icon.classList.toggle('hidden', show);
-                }
-            },
-            
-             generatePDF() {
-                showMessage('Função PDF ainda não implementada completamente.', 'info');
-            }
-        };
-        
-        function showMessage(message, type) { 
-            const msgDiv = document.getElementById('app-message');
-            msgDiv.textContent = message;
-            msgDiv.className = `message message-${type}`;
-            setTimeout(() => { msgDiv.className = 'message hidden'; }, 5000);
-        }
-        function openSavedReportsModal() { window.salonApp.openSavedReportsModal(); }
-        function saveWeeklyClosingToFirestore() { window.salonApp.saveWeeklyClosingToFirestore(); }
-        async function loadDataFromFichasSystem() {
-            if (!window.db || !window.userId) return showMessage('Não autenticado.', 'error');
-            window.salonApp.toggleLoadingSpinner('fichas', true);
-            try {
-                const docRef = doc(window.db, `artifacts/${window.appId}/public/data/weeklyReportsAggregated/currentWeek`);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    window.salonApp.collaborators = data.collaborators || [];
-                    window.salonApp.products = data.products || [];
-                    window.salonApp.renderAllUI();
-                    window.salonApp.saveLocalData();
-                    showMessage('Dados importados das fichas com sucesso!', 'success');
-                } else {
-                    showMessage('Nenhum dado de ficha para importar.', 'info');
-                }
-            } catch (error) { showMessage('Erro ao importar das fichas: ' + error.message, 'error'); }
-            finally { window.salonApp.toggleLoadingSpinner('fichas', false); }
-        }
-        function showClearConfirm() { window.salonApp.showClearConfirm(); }
-        
-        function initializeAppLogic() {
-            window.salonApp.init();
-        }
-    </script>
-</body>
-</html>
-
+                            <button onclick="exportDataToFile()" class="btn btn-secondary btn-full"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>Exportar Dados</button>
+                            <button onclick="importDataFromFile()" class="btn btn-secondary btn-full"><svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>Importar Dados</button>
+                            <button id="saveToFirestoreBtn" onclick="saveWeeklyClosingToFirestore()" class="btn btn-success btn-full" disabled><span id="save-spinner" class="loading-spinner mr-2 hidden"></span><svg id="save-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>Salvar na Nuvem</button>
+                            <button id="loadFromFirestoreBtn" onclick="openSavedReportsModal()" class="btn btn-warning btn-full" disabled><span id="load-spinner" class="loading-spinner mr-2 hidden"></span><svg id="load-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 
