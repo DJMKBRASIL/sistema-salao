@@ -37,9 +37,18 @@
             query, 
             where, 
             getDocs, 
-            addDoc,
-            orderBy 
+            addDoc 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- INÍCIO DA SEÇÃO DE CONFIGURAÇÃO DE ACESSO ---
+        const authorizedEmails = [
+            "djmkbrasil@gmail.com",
+            "frankokott@gmail.com",
+            "djmkapple@gmail.com",
+            "gabrielastephane11@gmail.com",
+            "cibemarchi@gmail.com"
+        ];
+        // --- FIM DA SEÇÃO DE CONFIGURAÇÃO DE ACESSO ---
 
         // Configuração do Firebase (usando as credenciais fornecidas ou placeholders)
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -59,23 +68,39 @@
         window.db = null;
         window.auth = null;
         window.userId = 'Carregando...'; 
-        window.userEmail = null;
         window.fichasCollectionRef = null; 
-
-        // Lista de emails autorizados
-        const AUTHORIZED_EMAILS = [
-            "djmkbrasil@gmail.com",
-            "frankokott@gmail.com",
-            "djmkapple@gmail.com",
-            "gabrielastephane11@gmail.com",
-            "cibemarchi@gmail.com"
-        ];
+        window.weeklyReportsCollectionRef = null;
 
         /**
-         * Verifica se o usuário atual é um colaborador autorizado
+         * Verifica se o usuário tem permissão de acesso.
+         * @param {object|null} user - O objeto de usuário do Firebase.
+         * @returns {boolean} - True se o acesso for permitido, false caso contrário.
          */
-        function isAuthorizedCollaborator() {
-            return window.userEmail && AUTHORIZED_EMAILS.includes(window.userEmail);
+        function checkUserAccess(user) {
+            const mainContent = document.getElementById('main-content');
+            const accessDenied = document.getElementById('access-denied');
+
+            if (user && authorizedEmails.includes(user.email)) {
+                mainContent.style.display = 'block';
+                accessDenied.style.display = 'none';
+                return true;
+            } else {
+                mainContent.style.display = 'none';
+                accessDenied.style.display = 'block';
+                if (user) {
+                    accessDenied.innerHTML = `
+                        <h2 class="text-xl font-bold text-red-700">Acesso Negado</h2>
+                        <p>O usuário <strong>${user.email}</strong> não tem permissão para acessar esta página.</p>
+                        <p>Esta área é restrita às colaboradoras autorizadas.</p>
+                    `;
+                } else {
+                    accessDenied.innerHTML = `
+                        <h2 class="text-xl font-bold text-red-700">Acesso Negado</h2>
+                        <p>Você precisa estar autenticado como colaboradora para ver esta página.</p>
+                    `;
+                }
+                return false;
+            }
         }
 
         /**
@@ -93,30 +118,26 @@
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
                         window.userId = user.uid;
-                        window.userEmail = user.email;
-                        
                         const authMethod = user.isAnonymous ? 'Anônimo' : 'Google';
-                        const displayInfo = user.displayName ? `${user.displayName} (${authMethod})` : `${window.userId} (${authMethod})`;
+                        const displayInfo = user.displayName ? `${user.displayName} (${user.email})` : user.email;
                         
                         document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                                Sair
+                            </button>
+                        `;
                         
-                        // Verifica se é um colaborador autorizado
-                        if (isAuthorizedCollaborator()) {
-                            document.getElementById('auth-status').innerHTML = `
-                                <span class="text-green-600 font-semibold">✓ Colaborador Autorizado</span>
-                            `;
-                            document.getElementById('auth-buttons').innerHTML = `
-                                <button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-                                    </svg>
-                                    Sair
-                                </button>
-                            `;
-                            
-                            console.log("Colaborador autorizado:", window.userEmail);
-                            // Usa a coleção compartilhada para colaboradores autorizados
+                        console.log("Usuário autenticado:", user.email);
+
+                        // Chama a verificação de acesso
+                        if (checkUserAccess(user)) {
+                            // NOVA ESTRUTURA: dados compartilhados entre colaboradores
                             window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/shared_data/fichas`);
+                            window.weeklyReportsCollectionRef = collection(window.db, `artifacts/${window.appId}/shared_data/weeklyReportsAggregated`);
                             
                             if (window.db) {
                                 window.fichasApp.init(); // Carregar dados iniciais após autenticação
@@ -124,26 +145,10 @@
                                 console.error("Banco de dados Firebase não disponível após autenticação.");
                                 window.fichasApp.showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
                             }
-                        } else {
-                            document.getElementById('auth-status').innerHTML = `
-                                <span class="text-red-600 font-semibold">✗ Acesso Negado - Email não autorizado</span>
-                            `;
-                            document.getElementById('auth-buttons').innerHTML = `
-                                <button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-                                    </svg>
-                                    Sair
-                                </button>
-                            `;
-                            window.fichasApp.showMessage('Acesso negado. Seu email não está autorizado para usar este sistema.', 'error');
-                            window.fichasApp.disableAuthRequiredButtons();
                         }
                     } else {
                         window.userId = 'Não autenticado';
-                        window.userEmail = null;
                         document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
-                        document.getElementById('auth-status').innerHTML = '';
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">
                                 <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
@@ -156,8 +161,11 @@
                             </button>
                         `;
                         
-                        // Desabilitar botões que dependem de autenticação completa
-                        window.fichasApp.disableAuthRequiredButtons();
+                        // Chama a verificação para usuários deslogados e desabilita botões
+                        checkUserAccess(null);
+                        if (window.fichasApp) {
+                            window.fichasApp.disableAuthRequiredButtons();
+                        }
                     }
                 });
 
@@ -179,8 +187,7 @@
         window.query = query;
         window.where = where;
         window.getDocs = getDocs;
-        window.addDoc = addDoc;
-        window.orderBy = orderBy;
+        window.addDoc = addDoc; 
     </script>
 
     <style>
@@ -430,449 +437,5 @@
 
         .form-textarea {
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--gray-300);
-            border-radius: 0.5rem;
-            font-size: 1rem;
-            transition: var(--transition);
-            background-color: white;
-            resize: vertical;
-            min-height: 80px;
-        }
-
-        .form-textarea:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .grid {
-            display: grid;
-            gap: 1rem;
-        }
-
-        .grid-cols-1 {
-            grid-template-columns: repeat(1, minmax(0, 1fr));
-        }
-
-        .grid-cols-2 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .grid-cols-3 {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-
-        .flex {
-            display: flex;
-        }
-
-        .flex-col {
-            flex-direction: column;
-        }
-
-        .flex-wrap {
-            flex-wrap: wrap;
-        }
-
-        .items-center {
-            align-items: center;
-        }
-
-        .justify-between {
-            justify-content: space-between;
-        }
-
-        .gap-2 {
-            gap: 0.5rem;
-        }
-
-        .gap-3 {
-            gap: 0.75rem;
-        }
-
-        .gap-4 {
-            gap: 1rem;
-        }
-
-        .mb-2 {
-            margin-bottom: 0.5rem;
-        }
-
-        .mb-4 {
-            margin-bottom: 1rem;
-        }
-
-        .mb-6 {
-            margin-bottom: 1.5rem;
-        }
-
-        .mt-4 {
-            margin-top: 1rem;
-        }
-
-        .p-4 {
-            padding: 1rem;
-        }
-
-        .text-center {
-            text-align: center;
-        }
-
-        .text-right {
-            text-align: right;
-        }
-
-        .text-sm {
-            font-size: 0.875rem;
-        }
-
-        .text-lg {
-            font-size: 1.125rem;
-        }
-
-        .text-xl {
-            font-size: 1.25rem;
-        }
-
-        .font-medium {
-            font-weight: 500;
-        }
-
-        .font-semibold {
-            font-weight: 600;
-        }
-
-        .font-bold {
-            font-weight: 700;
-        }
-
-        .text-gray-500 {
-            color: var(--gray-500);
-        }
-
-        .text-gray-600 {
-            color: var(--gray-600);
-        }
-
-        .text-gray-700 {
-            color: var(--gray-700);
-        }
-
-        .text-gray-800 {
-            color: var(--gray-800);
-        }
-
-        .collaborator-block {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            border: 1px solid var(--gray-200);
-            box-shadow: var(--shadow-sm);
-            transition: var(--transition);
-        }
-
-        .collaborator-block:hover {
-            box-shadow: var(--shadow-md);
-        }
-
-        .client-row {
-            background: var(--gray-50);
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            margin-bottom: 0.5rem;
-            border: 1px solid var(--gray-200);
-        }
-
-        .product-row {
-            background: var(--gray-50);
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            margin-bottom: 0.5rem;
-            border: 1px solid var(--gray-200);
-        }
-
-        .observation-area {
-            background: #fef3c7;
-            border: 1px solid #f59e0b;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-top: 1rem;
-            display: none;
-        }
-
-        .observation-area.visible {
-            display: block;
-        }
-
-        .message {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-            font-weight: 500;
-            animation: slideInDown 0.3s ease-out;
-        }
-
-        @keyframes slideInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .message-success {
-            background-color: #d1fae5;
-            color: #065f46;
-            border: 1px solid #a7f3d0;
-        }
-
-        .message-error {
-            background-color: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fca5a5;
-        }
-
-        .message-info {
-            background-color: #dbeafe;
-            color: #1e40af;
-            border: 1px solid #93c5fd;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-            justify-content: center;
-            align-items: center;
-            padding: 1rem;
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 2rem;
-            max-width: 500px;
-            width: 100%;
-            box-shadow: var(--shadow-xl);
-            animation: scaleIn 0.3s ease-out;
-        }
-
-        @keyframes scaleIn {
-            from {
-                opacity: 0;
-                transform: scale(0.9);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-
-        .modal-buttons {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1.5rem;
-        }
-
-        .saved-reports-list {
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid var(--gray-200);
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .report-item {
-            padding: 1rem;
-            border-bottom: 1px solid var(--gray-200);
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: var(--transition);
-        }
-
-        .report-item:last-child {
-            border-bottom: none;
-        }
-
-        .report-item:hover {
-            background-color: var(--gray-50);
-        }
-
-        .report-item.selected {
-            background-color: #e0e7ff;
-            font-weight: 600;
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            body {
-                padding: 0.5rem;
-            }
-
-            .header {
-                padding: 1.5rem 1rem;
-            }
-
-            .header h1 {
-                font-size: 2rem;
-            }
-
-            .content {
-                padding: 1rem;
-            }
-
-            .section {
-                padding: 1rem;
-            }
-
-            .grid-cols-3 {
-                grid-template-columns: repeat(1, minmax(0, 1fr));
-            }
-
-            .grid-cols-2 {
-                grid-template-columns: repeat(1, minmax(0, 1fr));
-            }
-
-            .flex {
-                flex-direction: column;
-            }
-
-            .flex > * {
-                width: 100%;
-            }
-
-            .btn {
-                padding: 1rem;
-                font-size: 1rem;
-            }
-
-            .modal-content {
-                margin: 1rem;
-                padding: 1.5rem;
-            }
-
-            .modal-buttons {
-                flex-direction: column;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .header h1 {
-                font-size: 1.75rem;
-            }
-
-            .section-title {
-                font-size: 1.25rem;
-            }
-
-            .collaborator-block {
-                padding: 1rem;
-            }
-
-            .client-row,
-            .product-row {
-                padding: 0.5rem;
-            }
-        }
-
-        /* Print styles */
-        @media print {
-            body {
-                background: white;
-                padding: 0;
-            }
-
-            .main-container {
-                box-shadow: none;
-                border-radius: 0;
-            }
-
-            .header {
-                background: white !important;
-                color: black !important;
-            }
-
-            .btn,
-            .modal {
-                display: none !important;
-            }
-        }
-
-        /* High contrast mode support */
-        @media (prefers-contrast: high) {
-            .section {
-                border: 2px solid var(--gray-400);
-            }
-
-            .btn {
-                border: 2px solid currentColor;
-            }
-        }
-
-        /* Reduced motion support */
-        @media (prefers-reduced-motion: reduce) {
-            *,
-            *::before,
-            *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="main-container">
-        <!-- Header -->
-        <header class="header">
-            <h1>Registro de Fichas de Cliente</h1>
-            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Gerencie seus atendimentos</p>
-        </header>
-
-        <!-- Main Content -->
-        <main class="content">
-            <!-- User Authentication Section -->
-            <div class="section">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <p id="user-id-display" class="text-sm text-gray-500">Usuário: Carregando...</p>
-                        <div id="auth-status" class="mt-2"></div>
-                    </div>
-                    <div id="auth-buttons" class="flex gap-2">
-                        <!-- Authentication buttons will be injected here -->
-                    </div>
-                </div>
-            </div>
+            padding:
+(Content truncated due to size limit. Use page ranges or line ranges to read remaining content)
