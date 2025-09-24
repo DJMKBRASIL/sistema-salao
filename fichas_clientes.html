@@ -809,6 +809,34 @@
     </style>
 </head>
 <body>
+    <!-- SHIM global de logout — garante que onclick="signOut()" funcione sempre -->
+<script>
+  (function () {
+    // deixa o botão funcionar mesmo se o módulo ainda não carregou:
+    window.signOut = window.logout = async function () {
+      try {
+        // 1) Se a sua app tiver a função oficial, usa ela
+        if (window.fichasApp && typeof window.fichasApp.signOutUser === 'function') {
+          return await window.fichasApp.signOutUser();
+        }
+        // 2) Se definimos um hardLogout em outro script, usa ele
+        if (typeof window.__hardLogout === 'function') {
+          return await window.__hardLogout();
+        }
+        // 3) Fallback: tenta o Firebase v8 compat (se existir)
+        if (window.firebase && firebase.auth) {
+          return await firebase.auth().signOut();
+        }
+        // 4) Fallback educado
+        alert('Finalizando sessão... aguarde 1 segundo e tente novamente.');
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao sair: ' + (e && e.message ? e.message : e));
+      }
+    };
+  })();
+</script>
+
     <div class="main-container">
         <!-- Header -->
         <header class="header">
