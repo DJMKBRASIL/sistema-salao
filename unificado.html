@@ -12,131 +12,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            onAuthStateChanged, 
-            GoogleAuthProvider, 
-            signInWithPopup, 
-            signOut, 
-            setPersistence, 
-            browserLocalPersistence 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            doc, 
-            getDoc, 
-            setDoc, 
-            deleteDoc, 
-            collection, 
-            getDocs, 
-            addDoc 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
-            authDomain: "sistema-do-salao.firebaseapp.com",
-            projectId: "sistema-do-salao",  
-            storageBucket: "sistema-do-salao.firebasestorage.app",
-            messagingSenderId: "395887083088",
-            appId: "1:395887083088:web:3a41fd836cc59a976ddb55"
-        };
-        window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        window.app = null;
-        window.db = null;
-        window.auth = null;
-        window.userId = 'Carregando...';
-
-        async function initializeFirebase() {
-            try {
-                window.app = initializeApp(window.firebaseConfig);
-                window.db = getFirestore(window.app);
-                window.auth = getAuth(window.app);
-                
-                await setPersistence(window.auth, browserLocalPersistence);
-                console.log("Firebase inicializado com sucesso");
-
-                onAuthStateChanged(window.auth, async (user) => {
-                    if (user) {
-                        const adminEmail = 'djmkbrasil@gmail.com';
-
-                        if (user.email === adminEmail) {
-                            document.getElementById('main-content').style.display = 'block';
-                            window.userId = user.uid;
-                            const displayInfo = user.displayName || user.email;
-                            
-                            document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo} (Admin)`;
-                            document.getElementById('auth-buttons').innerHTML = `
-                                <button onclick="signOutUser()" class="btn btn-danger">Sair</button>
-                            `;
-                            
-                            console.log("Administrador autenticado:", user.email);
-                            if (window.db) {
-                                initializeAppLogic();
-                            } else {
-                                showMessage('Erro: Banco de dados não disponível. Recarregue a página.', 'error');
-                            }
-                        } else {
-                            document.getElementById('main-content').style.display = 'none';
-                            showMessage('Acesso restrito ao administrador.', 'error');
-                            setTimeout(() => signOutUser(), 3000);
-                        }
-                    } else {
-                        window.userId = 'Não autenticado';
-                        document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
-                        document.getElementById('auth-buttons').innerHTML = `
-                            <button onclick="signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>
-                        `;
-                        document.getElementById('main-content').style.display = 'none';
-                        if (window.salonApp) {
-                           window.salonApp.disableAuthRequiredButtons();
-                        }
-                    }
-                });
-
-            } catch (error) {
-                console.error("Erro ao inicializar Firebase:", error);
-                showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
-            }
-        }
-
-        async function signInWithGoogle() {
-            const provider = new GoogleAuthProvider();
-            try {
-                await signInWithPopup(window.auth, provider);
-            } catch (error) {
-                console.error("Erro ao fazer login com Google:", error);
-                showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
-            }
-        }
-
-        async function signOutUser() {
-            try {
-                await signOut(window.auth);
-                showMessage('Sessão encerrada.', 'info');
-                window.location.reload();
-            } catch (error) {
-                console.error("Erro ao sair:", error);
-                showMessage('Erro ao sair: ' + error.message, 'error');
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', initializeFirebase);
-
-        window.doc = doc;
-        window.getDoc = getDoc;
-        window.setDoc = setDoc;
-        window.deleteDoc = deleteDoc;
-        window.collection = collection;
-        window.getDocs = getDocs;
-        window.addDoc = addDoc;
-        window.signInWithGoogle = signInWithGoogle;
-        window.signOutUser = signOutUser;
-    </script>
-
     <style>
         :root {
             --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #8b5cf6;
@@ -224,16 +99,16 @@
                     <div class="mt-6">
                         <h3 class="text-lg font-semibold text-gray-700 mb-3">Opções de Dados</h3>
                         <div class="grid grid-cols-2 gap-3">
-                            <button id="saveToFirestoreBtn" onclick="saveWeeklyClosingToFirestore()" class="btn btn-success w-full" disabled>
+                            <button id="saveToFirestoreBtn" onclick="window.salonApp.saveWeeklyClosingToFirestore()" class="btn btn-success w-full" disabled>
                                 <span id="save-spinner" class="loading-spinner mr-2 hidden"></span><span id="save-icon">Salvar na Nuvem</span>
                             </button>
-                            <button id="loadFromFirestoreBtn" onclick="openSavedReportsModal()" class="btn btn-warning w-full" disabled>
+                            <button id="loadFromFirestoreBtn" onclick="window.salonApp.openSavedReportsModal()" class="btn btn-warning w-full" disabled>
                                 <span id="load-spinner" class="loading-spinner mr-2 hidden"></span><span id="load-icon">Carregar da Nuvem</span>
                             </button>
-                            <button id="loadDataFromFichasSystemBtn" onclick="loadDataFromFichasSystem()" class="btn btn-info w-full" disabled>
+                            <button id="loadDataFromFichasSystemBtn" onclick="window.salonApp.loadDataFromFichasSystem()" class="btn btn-info w-full" disabled>
                                 <span id="fichas-spinner" class="loading-spinner mr-2 hidden"></span><span id="fichas-icon">Importar das Fichas</span>
                             </button>
-                            <button id="clearAllDataBtn" onclick="showClearConfirm()" class="btn btn-gray w-full" disabled>
+                            <button id="clearAllDataBtn" onclick="window.salonApp.showClearConfirm()" class="btn btn-gray w-full" disabled>
                                 <span id="clear-spinner" class="loading-spinner mr-2 hidden"></span><span id="clear-icon">Limpar Tudo</span>
                             </button>
                         </div>
@@ -301,7 +176,96 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            GoogleAuthProvider, 
+            signInWithPopup, 
+            signOut, 
+            setPersistence, 
+            browserLocalPersistence 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDoc, 
+            setDoc, 
+            deleteDoc, 
+            collection, 
+            getDocs, 
+            addDoc 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
+            authDomain: "sistema-do-salao.firebaseapp.com",
+            projectId: "sistema-do-salao",  
+            storageBucket: "sistema-do-salao.firebasestorage.app",
+            messagingSenderId: "395887083088",
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55"
+        };
+
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = 'Carregando...';
+
+        async function initializeFirebase() {
+            try {
+                window.app = initializeApp(window.firebaseConfig);
+                window.db = getFirestore(window.app);
+                window.auth = getAuth(window.app);
+                
+                await setPersistence(window.auth, browserLocalPersistence);
+                console.log("Firebase inicializado com sucesso");
+
+                onAuthStateChanged(window.auth, async (user) => {
+                    if (user) {
+                        const adminEmail = 'djmkbrasil@gmail.com';
+
+                        if (user.email === adminEmail) {
+                            document.getElementById('main-content').style.display = 'block';
+                            window.userId = user.uid;
+                            const displayInfo = user.displayName || user.email;
+                            
+                            document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo} (Admin)`;
+                            document.getElementById('auth-buttons').innerHTML = `
+                                <button onclick="window.salonApp.signOutUser()" class="btn btn-danger">Sair</button>
+                            `;
+                            
+                            console.log("Administrador autenticado:", user.email);
+                            if (window.db) {
+                                window.salonApp.init();
+                            } else {
+                                window.salonApp.showMessage('Erro: Banco de dados não disponível. Recarregue a página.', 'error');
+                            }
+                        } else {
+                            document.getElementById('main-content').style.display = 'none';
+                            window.salonApp.showMessage('Acesso restrito ao administrador.', 'error');
+                            setTimeout(() => window.salonApp.signOutUser(), 3000);
+                        }
+                    } else {
+                        window.userId = 'Não autenticado';
+                        document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="window.salonApp.signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>
+                        `;
+                        document.getElementById('main-content').style.display = 'none';
+                        if (window.salonApp) {
+                           window.salonApp.disableAuthRequiredButtons();
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                window.salonApp.showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
+            }
+        }
+        
         window.salonApp = {
             collaborators: [],
             products: [],
@@ -320,6 +284,24 @@
                 }
                 this.renderAllUI();
                 this.enableButtons();
+            },
+
+            async signInWithGoogle() {
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(window.auth, provider);
+                } catch (error) {
+                    this.showMessage('Erro ao autenticar: ' + error.message, 'error');
+                }
+            },
+
+            async signOutUser() {
+                try {
+                    await signOut(window.auth);
+                    window.location.reload();
+                } catch (error) {
+                    this.showMessage('Erro ao sair: ' + error.message, 'error');
+                }
             },
             
             enableButtons() {
@@ -363,20 +345,20 @@
                 div.className = 'collaborator-block border p-4 rounded-lg mb-4';
                 div.setAttribute('data-index', index);
                 div.innerHTML = `
-                    <div class="flex justify-between items-center mb-4">
+                    <div class="flex justify-between items-center mb-2">
                         <input type="text" placeholder="Nome da Colaboradora" value="${collabData.name}" class="form-input font-bold" oninput="window.salonApp.updateCollaboratorName(${index}, this.value)">
-                        <button onclick="window.salonApp.removeCollaborator(${index})" class="btn btn-danger ml-4">Remover</button>
+                        <button onclick="window.salonApp.removeCollaborator(${index})" class="btn btn-danger">Remover</button>
                     </div>
-                    <div class="hidden md:grid md:grid-cols-7 gap-2 items-center mb-2 text-sm font-bold text-gray-600 px-2">
+                    <div class="hidden md:grid md:grid-cols-6 gap-2 items-center mb-2 text-sm font-bold text-gray-600 px-2">
                         <span class="md:col-span-1">Data</span>
                         <span class="md:col-span-2">Cliente</span>
-                        <span class="md:col-span-2">Serviço</span>
+                        <span class="md:col-span-1">Serviço</span>
                         <span class="md:col-span-1 text-right">Valor</span>
                         <span class="md:col-span-1">Pagamento</span>
                     </div>
                     <div id="clients-container-${index}"></div>
-                    <button onclick="window.salonApp.addClientRow(${index})" class="btn btn-primary w-full mt-2">Adicionar Cliente/Serviço</button>
-                    <div class="text-right mt-4">
+                    <button onclick="window.salonApp.addClientRow(${index})" class="btn btn-primary w-full mt-2">Adicionar Cliente</button>
+                    <div class="text-right mt-2">
                          <p class="text-md font-bold text-gray-800">Total Líquido Colaboradora: <span id="collab-net-total-display-${index}">R$ 0,00</span></p>
                     </div>
                 `;
@@ -387,12 +369,13 @@
             addClientRowUI(clientData, collaboratorIndex, clientIndex) {
                 const container = document.getElementById(`clients-container-${collaboratorIndex}`);
                 const div = document.createElement('div');
-                div.className = 'client-row grid grid-cols-1 md:grid-cols-7 gap-2 items-center mb-2 p-2 border rounded-lg bg-white';
+                div.className = 'client-row grid grid-cols-1 md:grid-cols-6 gap-2 items-center mb-2';
+                const today = new Date().toISOString().split('T')[0];
                 div.innerHTML = `
-                    <input type="date" value="${clientData.date || ''}" class="form-input md:col-span-1" onchange="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'date', this.value)">
-                    <input type="text" placeholder="Nome Cliente" value="${clientData.name}" class="form-input md:col-span-2" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)">
-                    <input type="text" placeholder="Serviço" value="${clientData.service || ''}" class="form-input md:col-span-2" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'service', this.value)">
-                    <input type="number" placeholder="Valor" value="${clientData.value}" class="form-input text-right md:col-span-1" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)">
+                    <input type="date" value="${clientData.date || today}" class="form-input md:col-span-1" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'date', this.value)">
+                    <input type="text" placeholder="Nome do Cliente" value="${clientData.name || ''}" class="form-input md:col-span-2" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)">
+                    <input type="text" placeholder="Serviço" value="${clientData.service || ''}" class="form-input md:col-span-1" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'service', this.value)">
+                    <input type="number" placeholder="Valor" value="${clientData.value || 0}" class="form-input w-full text-right md:col-span-1" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)">
                     <div class="md:col-span-1 flex items-center gap-1">
                         <select class="form-select w-full" onchange="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'paymentMethod', this.value)">
                             <option value="pix" ${clientData.paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
@@ -438,8 +421,7 @@
             },
 
             addCollaborator() {
-                const today = new Date().toISOString().split('T')[0];
-                this.collaborators.push({ name: '', clients: [{ name: '', service: '', date: today, value: 0, paymentMethod: 'pix' }], discountPercentage: 0.30, observations: '' });
+                this.collaborators.push({ name: '', clients: [{ date: new Date().toISOString().split('T')[0], name: '', service: '', value: 0, paymentMethod: 'pix' }] });
                 this.renderAllUI();
                 this.saveLocalData();
             },
@@ -456,8 +438,7 @@
             },
 
             addClientRow(collaboratorIndex) {
-                const today = new Date().toISOString().split('T')[0];
-                this.collaborators[collaboratorIndex].clients.push({ name: '', service: '', date: today, value: 0, paymentMethod: 'pix' });
+                this.collaborators[collaboratorIndex].clients.push({ date: new Date().toISOString().split('T')[0], name: '', service: '', value: 0, paymentMethod: 'pix' });
                 this.renderAllUI();
                 this.saveLocalData();
             },
@@ -549,15 +530,6 @@
                         const parsedData = JSON.parse(savedData);
                         this.collaborators = parsedData.collaborators || [];
                         this.products = parsedData.products || [];
-
-                        const today = new Date().toISOString().split('T')[0];
-                        this.collaborators.forEach(collab => {
-                            collab.clients.forEach(client => {
-                                if (client.service === undefined) client.service = '';
-                                if (client.date === undefined) client.date = today;
-                            });
-                        });
-
                         document.getElementById('day').value = parsedData.date?.day || '';
                         document.getElementById('month').value = parsedData.date?.month || '';
                         document.getElementById('year').value = parsedData.date?.year || '';
@@ -569,7 +541,7 @@
             },
             
             async saveWeeklyClosingToFirestore() {
-                if (!window.db || !window.userId) return showMessage('Não autenticado.', 'error');
+                if (!window.db || !window.userId) return this.showMessage('Não autenticado.', 'error');
                 this.toggleLoadingSpinner('save', true);
                 const dataToSave = {
                     collaborators: this.collaborators,
@@ -578,15 +550,15 @@
                     lastSaved: new Date().toISOString()
                 };
                 try {
-                    const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
+                    const collectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
                     await addDoc(collectionRef, dataToSave);
-                    showMessage('Salvo na nuvem com sucesso!', 'success');
-                } catch (e) { showMessage('Erro ao salvar: ' + e.message, 'error'); } 
+                    this.showMessage('Salvo na nuvem com sucesso!', 'success');
+                } catch (e) { this.showMessage('Erro ao salvar: ' + e.message, 'error'); } 
                 finally { this.toggleLoadingSpinner('save', false); }
             },
 
             async openSavedReportsModal() {
-                if (!window.db || !window.userId) return showMessage('Não autenticado.', 'error');
+                if (!window.db || !window.userId) return this.showMessage('Não autenticado.', 'error');
                 this.toggleLoadingSpinner('load', true);
                 const reportsListDiv = document.getElementById('saved-reports-list');
                 reportsListDiv.innerHTML = '<p class="p-4 text-center">Carregando...</p>';
@@ -602,20 +574,20 @@
                         return;
                     }
                     const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-                    querySnapshot.forEach(doc => {
-                        const data = doc.data();
-                        this.savedReports.push({ id: doc.id, ...data });
+                    querySnapshot.forEach(docSnap => {
+                        const data = docSnap.data();
+                        this.savedReports.push({ id: docSnap.id, ...data });
                         const item = document.createElement('div');
                         item.className = 'report-item';
-                        item.setAttribute('data-report-id', doc.id);
+                        item.setAttribute('data-report-id', docSnap.id);
                         const d = data.date;
                         const monthName = monthNames[parseInt(d.month) - 1] || 'Mês Inválido';
                         item.textContent = `Fechamento de ${d.day} de ${monthName} de ${d.year}`;
-                        item.onclick = (e) => this.selectReport(e, doc.id);
+                        item.onclick = (e) => this.selectReport(e, docSnap.id);
                         reportsListDiv.appendChild(item);
                     });
                     document.getElementById('saved-reports-modal').style.display = 'flex';
-                } catch (error) { showMessage('Erro ao carregar relatórios: ' + error.message, 'error'); } 
+                } catch (error) { this.showMessage('Erro ao carregar relatórios: ' + error.message, 'error'); } 
                 finally { this.toggleLoadingSpinner('load', false); }
             },
 
@@ -630,27 +602,18 @@
             },
 
             loadSelectedReport() {
-                if (!this.selectedReportId) return showMessage('Selecione um relatório.', 'info');
+                if (!this.selectedReportId) return this.showMessage('Selecione um relatório.', 'info');
                 const report = this.savedReports.find(r => r.id === this.selectedReportId);
                 if (report) {
                     this.collaborators = report.collaborators || [];
                     this.products = report.products || [];
-
-                    const reportDate = report.lastSaved ? new Date(report.lastSaved).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-                    this.collaborators.forEach(collab => {
-                        (collab.clients || []).forEach(client => {
-                            if (client.service === undefined) client.service = '';
-                            if (client.date === undefined) client.date = reportDate;
-                        });
-                    });
-
                     document.getElementById('day').value = report.date?.day || '';
                     document.getElementById('month').value = report.date?.month || '';
                     document.getElementById('year').value = report.date?.year || '';
                     this.renderAllUI();
                     this.closeSavedReportsModal();
                     this.saveLocalData();
-                    showMessage('Relatório carregado!', 'success');
+                    this.showMessage('Relatório carregado!', 'success');
                 }
             },
             
@@ -673,62 +636,33 @@
                 }
             },
             
+            async loadDataFromFichasSystem() {
+                if (!window.db) return this.showMessage('Não autenticado.', 'error');
+                this.toggleLoadingSpinner('fichas', true);
+                try {
+                    // ALTERAÇÃO: Aponta para o documento compartilhado
+                    const docRef = doc(window.db, `artifacts/${window.appId}/shared_data/weeklyReportsAggregated/currentWeek`);
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        window.salonApp.collaborators = data.collaborators || [];
+                        window.salonApp.products = data.products || [];
+                        window.salonApp.renderAllUI();
+                        window.salonApp.saveLocalData();
+                        this.showMessage('Dados importados das fichas com sucesso!', 'success');
+                    } else {
+                        this.showMessage('Nenhum dado de ficha para importar.', 'info');
+                    }
+                } catch (error) { this.showMessage('Erro ao importar das fichas: ' + error.message, 'error'); }
+                finally { this.toggleLoadingSpinner('fichas', false); }
+            },
+
              generatePDF() {
-                showMessage('Função PDF ainda não implementada completamente.', 'info');
+                this.showMessage('Função PDF ainda não implementada completamente.', 'info');
             }
         };
-        
-        function showMessage(message, type) { 
-            const msgDiv = document.getElementById('app-message');
-            msgDiv.textContent = message;
-            msgDiv.className = `message message-${type}`;
-            setTimeout(() => { msgDiv.className = 'message hidden'; }, 5000);
-        }
-        function openSavedReportsModal() { window.salonApp.openSavedReportsModal(); }
-        function saveWeeklyClosingToFirestore() { window.salonApp.saveWeeklyClosingToFirestore(); }
-        async function loadDataFromFichasSystem() {
-            if (!window.db || !window.userId) return showMessage('Não autenticado.', 'error');
-            window.salonApp.toggleLoadingSpinner('fichas', true);
-            try {
-                const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    
-                    const importedCollaborators = (data.collaborators || []).map(collab => {
-                        const updatedClients = (collab.clients || []).map(client => {
-                            const nameParts = client.name.split(' - ');
-                            const clientName = nameParts.shift() || '';
-                            const serviceName = nameParts.join(' - ') || '';
 
-                            return {
-                                name: clientName,
-                                service: serviceName,
-                                date: data.lastUpdated ? new Date(data.lastUpdated).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                                value: client.value || 0,
-                                paymentMethod: client.paymentMethod || 'pix'
-                            };
-                        });
-                        return { ...collab, clients: updatedClients };
-                    });
-
-                    window.salonApp.collaborators = importedCollaborators;
-                    window.salonApp.products = data.products || [];
-
-                    window.salonApp.renderAllUI();
-                    window.salonApp.saveLocalData();
-                    showMessage('Dados importados das fichas com sucesso!', 'success');
-                } else {
-                    showMessage('Nenhum dado de ficha para importar.', 'info');
-                }
-            } catch (error) { showMessage('Erro ao importar das fichas: ' + error.message, 'error'); }
-            finally { window.salonApp.toggleLoadingSpinner('fichas', false); }
-        }
-        function showClearConfirm() { window.salonApp.showClearConfirm(); }
-        
-        function initializeAppLogic() {
-            window.salonApp.init();
-        }
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
     </script>
 </body>
 </html>
