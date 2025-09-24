@@ -134,6 +134,45 @@
 
         let db, auth, fichasCollectionRef;
 
+        async function initializeFirebase() {
+            try {
+                const app = initializeApp(window.firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                await setPersistence(auth, browserLocalPersistence);
+
+                onAuthStateChanged(auth, (user) => {
+                    const mainContent = document.getElementById('main-content');
+                    if (user) {
+                        const authorizedCollaborators = [
+                            "djmkbrasil@gmail.com", "frankokott@gmail.com", "djmkapple@gmail.com",
+                            "gabrielastephane11@gmail.com", "cibemarchi@gmail.com"
+                        ];
+
+                        if (authorizedCollaborators.includes(user.email)) {
+                            mainContent.classList.remove('hidden');
+                            document.getElementById('user-id-display').textContent = `Usuário: ${user.displayName || user.email}`;
+                            document.getElementById('auth-buttons').innerHTML = `<button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">Sair</button>`;
+                            
+                            fichasCollectionRef = collection(db, `artifacts/${window.appId}/shared_data/fichas`);
+                            window.fichasApp.init();
+                        } else {
+                            mainContent.classList.add('hidden');
+                            window.fichasApp.showMessage('Acesso não autorizado.', 'error');
+                            setTimeout(() => window.fichasApp.signOutUser(), 3000);
+                        }
+                    } else {
+                        mainContent.classList.add('hidden');
+                        document.getElementById('user-id-display').textContent = `Usuário: Não autenticado`;
+                        document.getElementById('auth-buttons').innerHTML = `<button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>`;
+                        if(window.fichasApp) window.fichasApp.disableButtons();
+                    }
+                });
+            } catch (error) {
+                if(window.fichasApp) window.fichasApp.showMessage('Erro ao inicializar o sistema.', 'error');
+            }
+        }
+
         window.fichasApp = {
             fichas: [],
             confirmAction: null,
@@ -342,7 +381,7 @@
                 
                 const dataToExport = {
                     collaborators: Object.values(aggregated.collaborators),
-                    products: aggregated.products,
+                    products: aggregated.products, 
                     lastUpdated: new Date().toISOString() 
                 };
                 
@@ -356,46 +395,7 @@
             }
         };
 
-        async function initializeApp() {
-            try {
-                const app = initializeApp(window.firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                await setPersistence(auth, browserLocalPersistence);
-
-                onAuthStateChanged(auth, (user) => {
-                    const mainContent = document.getElementById('main-content');
-                    if (user) {
-                        const authorizedCollaborators = [
-                            "djmkbrasil@gmail.com", "frankokott@gmail.com", "djmkapple@gmail.com",
-                            "gabrielastephane11@gmail.com", "cibemarchi@gmail.com"
-                        ];
-
-                        if (authorizedCollaborators.includes(user.email)) {
-                            mainContent.classList.remove('hidden');
-                            document.getElementById('user-id-display').textContent = `Usuário: ${user.displayName || user.email}`;
-                            document.getElementById('auth-buttons').innerHTML = `<button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">Sair</button>`;
-                            
-                            fichasCollectionRef = collection(db, `artifacts/${window.appId}/shared_data/fichas`);
-                            window.fichasApp.init();
-                        } else {
-                            mainContent.classList.add('hidden');
-                            window.fichasApp.showMessage('Acesso não autorizado.', 'error');
-                            setTimeout(() => window.fichasApp.signOutUser(), 3000);
-                        }
-                    } else {
-                        mainContent.classList.add('hidden');
-                        document.getElementById('user-id-display').textContent = `Usuário: Não autenticado`;
-                        document.getElementById('auth-buttons').innerHTML = `<button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>`;
-                        if(window.fichasApp) window.fichasApp.disableButtons();
-                    }
-                });
-            } catch (error) {
-                if(window.fichasApp) window.fichasApp.showMessage('Erro ao inicializar o sistema.', 'error');
-            }
-        }
-        
-        document.addEventListener('DOMContentLoaded', initializeApp);
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
     </script>
 </body>
 </html>
