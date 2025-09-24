@@ -37,7 +37,8 @@
             query, 
             where, 
             getDocs, 
-            addDoc 
+            addDoc,
+            onSnapshot
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Configuração do Firebase (usando as credenciais fornecidas ou placeholders)
@@ -90,7 +91,6 @@
                         
                         console.log("Usuário autenticado:", window.userId, "Método:", authMethod);
                         
-                        // ***** ALTERAÇÃO PRINCIPAL *****
                         // A coleção de fichas agora aponta para 'shared_data' para ser acessível por todos os colaboradores.
                         window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/shared_data/fichas`);
                         
@@ -135,7 +135,8 @@
         window.query = query;
         window.where = where;
         window.getDocs = getDocs;
-        window.addDoc = addDoc; 
+        window.addDoc = addDoc;
+        window.onSnapshot = onSnapshot;
     </script>
 
     <style>
@@ -305,9 +306,10 @@
     <script>
         window.fichasApp = {
             fichas: [],
+            unsubscribe: null, // Para guardar a função de cancelamento do listener
             
             init() {
-                this.loadFichasFromFirestore();
+                this.setupRealtimeListener();
                 if (document.querySelectorAll('.service-row').length === 0) this.addServiceRow();
                 if (document.querySelectorAll('.product-sold-row').length === 0) this.addProductSoldRow();
                 this.enableButtons();
@@ -338,6 +340,10 @@
             },
 
             async signOutUser() {
+                if (this.unsubscribe) {
+                    this.unsubscribe(); // Cancela o listener ao sair
+                    this.unsubscribe = null;
+                }
                 try {
                     await signOut(window.auth);
                     this.fichas = [];
@@ -370,6 +376,33 @@
                 }
                 this.confirmAction = null;
             },
+            
+            /**
+             * Configura o listener para atualizações em tempo real do Firestore.
+             */
+            setupRealtimeListener() {
+                if (this.unsubscribe) this.unsubscribe(); // Remove listener antigo se existir
+
+                if (!window.fichasCollectionRef) {
+                    console.error("Referência da coleção não está pronta para o listener.");
+                    return;
+                }
+
+                this.unsubscribe = window.onSnapshot(window.fichasCollectionRef, (querySnapshot) => {
+                    console.log("Recebida atualização em tempo real do Firestore.");
+                    this.fichas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    // Ordena as fichas por data, da mais nova para a mais antiga
+                    this.fichas.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                    this.renderFichasTable();
+                    this.enableButtons(); // Habilita botões se receber dados (tem permissão de leitura)
+                }, (error) => {
+                    console.error("Erro no listener em tempo real: ", error);
+                    this.showMessage('Erro de permissão ou conexão. Verifique se seu e-mail está na lista de colaboradores autorizados.', 'error');
+                    this.disableAuthRequiredButtons(); // Desabilita botões em caso de erro de permissão
+                });
+            },
 
             async saveFichaToFirestore(fichaData) {
                 if (!window.fichasCollectionRef) {
@@ -389,22 +422,9 @@
                 }
             },
 
-            async loadFichasFromFirestore() {
-                if (!window.fichasCollectionRef) return;
-                try {
-                    const querySnapshot = await window.getDocs(window.fichasCollectionRef);
-                    this.fichas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    this.renderFichasTable();
-                } catch (e) {
-                    this.showMessage('Erro ao carregar fichas da nuvem: ' + e.message, 'error');
-                }
-            },
-
             async removeFichaFromFirestore(fichaId) {
                 if (!window.db) return false;
                 try {
-                    // ***** ALTERAÇÃO *****
-                    // O caminho para o documento agora usa a coleção compartilhada.
                     const docRef = window.doc(window.db, `artifacts/${window.appId}/shared_data/fichas`, fichaId);
                     await window.deleteDoc(docRef);
                     this.showMessage('Ficha removida da nuvem.', 'info');
@@ -419,8 +439,6 @@
                 if (!window.db) return;
                 this.toggleLoadingSpinner('export-weekly', true);
                 try {
-                    // ***** ALTERAÇÃO *****
-                    // O relatório agregado também é salvo na coleção compartilhada.
                     const docRef = window.doc(window.db, `artifacts/${window.appId}/shared_data/weeklyReportsAggregated/currentWeek`);
                     await window.setDoc(docRef, data, { merge: true });
                     this.showMessage('Dados para fechamento salvos na nuvem!', 'success');
@@ -515,8 +533,7 @@
 
                 const fichaId = await this.saveFichaToFirestore(newFicha);
                 if (fichaId) {
-                    this.fichas.push({ id: fichaId, ...newFicha });
-                    this.renderFichasTable();
+                    // Não precisa mais atualizar a UI manualmente, o listener faz isso.
                     this.clearInputFields();
                 }
             },
@@ -524,11 +541,8 @@
             async removeFicha(index) {
                 const fichaId = this.fichas[index]?.id;
                 if (!fichaId) return;
-                const removed = await this.removeFichaFromFirestore(fichaId);
-                if (removed) {
-                    this.fichas.splice(index, 1);
-                    this.renderFichasTable();
-                }
+                // A UI será atualizada automaticamente pelo listener após a remoção.
+                await this.removeFichaFromFirestore(fichaId);
             },
 
             async clearAllFichas() {
@@ -536,13 +550,9 @@
                 this.toggleLoadingSpinner('clear-fichas', true);
                 try {
                     const querySnapshot = await window.getDocs(window.fichasCollectionRef);
-                    // ***** CORREÇÃO E ALTERAÇÃO *****
-                    // O método de exclusão foi otimizado para usar a referência direta do documento (doc.ref),
-                    // o que é mais seguro e se adapta automaticamente ao novo caminho da coleção compartilhada.
                     const deletePromises = querySnapshot.docs.map(doc => window.deleteDoc(doc.ref));
                     await Promise.all(deletePromises);
-                    this.fichas = [];
-                    this.renderFichasTable();
+                    // A UI será atualizada automaticamente pelo listener.
                     this.showMessage('Todas as fichas compartilhadas foram limpas.', 'success');
                 } catch (e) {
                     this.showMessage('Erro ao limpar as fichas compartilhadas: ' + e.message, 'error');
@@ -615,3 +625,4 @@
     </script>
 </body>
 </html>
+
