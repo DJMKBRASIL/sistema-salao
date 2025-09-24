@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fechamento Semanal do Salão — Auto Login</title>
+</head>
+<body>
+  <script>
+    // Config do seu projeto (exatamente como você enviou)
+    window.firebaseConfig = {
+      apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w",
+      authDomain: "sistema-do-salao.firebaseapp.com",
+      projectId: "sistema-do-salao",
+      storageBucket: "sistema-do-salao.firebasestorage.app",
+      messagingSenderId: "395887083088",
+      appId: "1:395887083088:web:3a41fd836cc59a976ddb55",
+      measurementId: "G-1D996M5FKZ"
+    };
+  </script>
+
+  <script type="module">
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, setPersistence, browserSessionPersistence, signOut as fbSignOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collectionGroup, query, where, orderBy, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+
+    const app = getApps().length ? getApp() : initializeApp(window.firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+    const analytics = getAnalytics(app);
+    const appId = window.firebaseConfig.appId;
+
+    const AUTHORIZED_EMAILS = ["djmkbrasil@gmail.com", "frankokott@gmail.com", "djmkapple@gmail.com", "gabrielastephane11@gmail.com", "cibemarchi@gmail.com"].map(e=>e.toLowerCase());
+
+    // Persistência em sessão
+    try { await setPersistence(auth, browserSessionPersistence); } catch {}
+
+    // Login robusto
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    async function robustLogin(){
+      try { await signInWithPopup(auth, provider); }
+      catch(e){ try { await signInWithRedirect(auth, provider); } catch(er){ console.error("Login falhou:", e, er); alert("Não foi possível abrir o login do Google. Verifique pop-ups e domínios autorizados."); } }
+    }
+    window.signInWithGoogle = robustLogin; // compat
+
+    // Autologin: tenta 1x se estiver sem usuário e ainda não tentamos nesta sessão
+    const AUTO_FLAG = "__autoLoginAttempted";
+    async function maybeAutoLogin(){
+      try {
+        if (sessionStorage.getItem(AUTO_FLAG)) return;
+        sessionStorage.setItem(AUTO_FLAG, "1");
+        await robustLogin();
+      } catch {}
+    }
+
+    // Fechamento: buscar fichas da semana
+    function startOfWeekUTC(d){ const x=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())); const day=x.getUTCDay()||7; if(day>1)x.setUTCDate(x.getUTCDate()-(day-1)); x.setUTCHours(0,0,0,0); return x; }
+    function endOfWeekUTC(d){ const s=startOfWeekUTC(d); const e=new Date(s); e.setUTCDate(e.getUTCDate()+7); return e; }
+    async function fetchWeeklyFichas(){
+      const now = new Date(); const start = startOfWeekUTC(now); const end = endOfWeekUTC(now);
+      const cg = collectionGroup(db, "fichas");
+      try {
+        const q1 = query(cg, where("createdAt", ">=", Timestamp.fromDate(start)), where("createdAt", "<", Timestamp.fromDate(end)), where("appId","==", appId), orderBy("createdAt","asc"));
+        const s1 = await getDocs(q1);
+        return s1.docs.map(d=>({id:d.id, ...d.data()}));
+      } catch (e) {
+        const q2 = query(cg, where("createdAt", ">=", Timestamp.fromDate(start)), where("createdAt", "<", Timestamp.fromDate(end)), orderBy("createdAt","asc"));
+        const s2 = await getDocs(q2);
+        return s2.docs.map(d=>({id:d.id, ...d.data()}));
+      }
+    }
+
+    // onAuthStateChanged
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        // se não houver usuário ~1s após carregar → tenta login automático (uma vez)
+        setTimeout(maybeAutoLogin, 1200);
+        return;
+      }
+      const email = (user.email||"").toLowerCase();
+      if (!AUTHORIZED_EMAILS.includes(email)) {
+        await fbSignOut(auth);
+        alert("Este e-mail não está autorizado.");
+        return;
+      }
+      try {
+        const rows = await fetchWeeklyFichas();
+        console.log("[Fechamento] Fichas:", rows.length, rows);
+        // Se sua UI tiver hook:
+        if (window.fechamentoApp && typeof window.fechamentoApp.onFichasLoaded === "function") {
+          const now=new Date(); const start=startOfWeekUTC(now); const end=endOfWeekUTC(now);
+          window.fechamentoApp.onFichasLoaded({ start, end, rows, user });
+        }
+      } catch (e) {
+        console.error(e);
+        alert("Erro ao carregar fichas da semana (ver console).");
+      }
+    });
+
+    // Completa redirect
+    try { await getRedirectResult(auth); } catch {}
+  </script>
+</body>
+</html>
