@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fichas de Clientes</title>
+  <!-- Seus estilos originais aqui -->
+</head>
+<body>
+  <!-- Seu HTML original (inputs, botões, tabela etc.) -->
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      onAuthStateChanged,
+      signOut as fbSignOut
+    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      getDocs,
+      query,
+      orderBy,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+    // === Configuração do Firebase ===
+    const firebaseConfig = window.firebaseConfig || {
+      apiKey: "SUA_API_KEY",
+      authDomain: "SEU_AUTH_DOMAIN",
+      projectId: "SEU_PROJECT_ID",
+      storageBucket: "SEU_BUCKET",
+      messagingSenderId: "SEU_SENDER",
+      appId: "SEU_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // === E-mails autorizados ===
+    const AUTHORIZED_EMAILS = [
+      'djmkbrasil@gmail.com',
+      'frankokott@gmail.com',
+      'djmkapple@gmail.com',
+      'gabrielastephane11@gmail.com',
+      'cibemarchi@gmail.com'
+    ].map(e => e.toLowerCase());
+
+    // === Caminho COMPARTILHADO ===
+    const appId = firebaseConfig.appId;
+    const fichasRef = collection(db, `artifacts/${appId}/shared/fichas`);
+
+    // === Login Google ===
+    const provider = new GoogleAuthProvider();
+    window.loginGoogle = async () => { await signInWithPopup(auth, provider); };
+
+    // === Logout (compatível com signOut e logout) ===
+    window.signOut = async () => {
+      try {
+        await fbSignOut(auth);
+      } catch (e) {
+        console.error(e);
+        alert('Erro ao sair: ' + (e?.message || e));
+      }
+    };
+    window.logout = window.signOut;
+
+    const showError = (msg) => { console.error(msg); alert(msg); };
+
+    // === Autenticação e checagem de e‑mail ===
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
+
+      const email = (user.email || '').toLowerCase();
+      if (!AUTHORIZED_EMAILS.includes(email)) {
+        await fbSignOut(auth);
+        showError('Este e-mail não tem permissão de acesso. Use um e-mail autorizado.');
+        return;
+      }
+
+      try {
+        // Ler fichas existentes
+        const q = query(fichasRef, orderBy('createdAt', 'desc'));
+        const snap = await getDocs(q);
+        // TODO: renderize aqui na tabela/lista original
+        // renderTabela(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (e) {
+        console.error(e);
+        showError('Erro ao carregar fichas.');
+      }
+    });
+
+    // === Função para registrar ficha ===
+    window.registrarFicha = async (payload) => {
+      try {
+        await addDoc(fichasRef, { ...payload, createdAt: serverTimestamp() });
+        alert('Ficha registrada com sucesso!');
+      } catch (e) {
+        console.error(e);
+        showError('Erro ao registrar ficha.');
+      }
+    };
+  </script>
+</body>
+</html>
