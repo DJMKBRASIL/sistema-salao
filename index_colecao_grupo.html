@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fechamento Semanal</title>
+  <!-- 🔒 Não alterei seu design. Se você já tem CSS/HTML próprio, pode manter.
+       Este arquivo funciona mesmo sem UI, mas expõe hooks para você renderizar. -->
+</head>
+<body>
+  <!--
+    Se você já tem o seu HTML de fechamento (tabelas, cards, etc.), mantenha.
+    Este arquivo cuida do Login/Logout e da BUSCA de TODAS as fichas da semana
+    usando collectionGroup('fichas') conforme as REGRAS Opção A.
+  -->
+
+  <script>
+    // ⚙️ Defina sua config aqui ou deixe que sua página a forneça antes deste script.
+    // window.firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", appId: "..." };
+  </script>
+
+  <!-- SHIM de logout para onclick="signOut()" / "logout()" funcionar SEMPRE -->
+  <script>
+    (function(){
+      window.signOut = window.logout = async function () {
+        try {
+          if (typeof window.__hardLogout === 'function') return await window.__hardLogout();
+          if (window.fechamentoApp && typeof window.fechamentoApp.signOutUser === 'function') return await window.fechamentoApp.signOutUser();
+          alert('Finalizando sessão...');
+        } catch (e) { console.error(e); alert('Erro ao sair: ' + (e?.message || e)); }
+      };
+    })();
+  </script>
+
+  <script type="module">
+    // ===== Firebase SDKs =====
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signInWithRedirect,
+      getRedirectResult,
+      onAuthStateChanged,
+      signOut as fbSignOut,
+      setPersistence,
+      browserSessionPersistence
+    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+    import {
+      getFirestore,
+      collectionGroup,
+      query, where, orderBy,
+      getDocs,
+      Timestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+    // ===== Config =====
+    const firebaseConfig = window.firebaseConfig || {
+      apiKey: "SUA_API_KEY",
+      authDomain: "SEU_AUTH_DOMAIN",
+      projectId: "SEU_PROJECT_ID",
+      appId: "SEU_APP_ID"
+    };
+
+    const app   = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const auth  = getAuth(app);
+    const db    = getFirestore(app);
+    const appId = firebaseConfig.appId;
+
+    // Emails autorizados
+    const AUTHORIZED_EMAILS = [
+      "djmkbrasil@gmail.com",
+      "frankokott@gmail.com",
+      "djmkapple@gmail.com",
+      "gabrielastephane11@gmail.com",
+      "cibemarchi@gmail.com"
+    ].map(e => e.toLowerCase());
+
+    // Persistência em sessão (facilita trocar de conta)
+    try { await setPersistence(auth, browserSessionPersistence); } catch (e) { console.warn("setPersistence:", e); }
+
+    // ===== Login universal (popup -> fallback redirect) =====
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+
+    async function robustLogin() {
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (e) {
+        console.warn("Popup falhou, tentando redirect:", e?.code, e?.message);
+        try { await signInWithRedirect(auth, provider); }
+        catch (er) {
+          console.error("Redirect falhou:", er?.code, er?.message);
+          alert("Não foi possível iniciar o login do Google.\nVerifique pop-ups e domínios autorizados no Firebase.");
+        }
+      }
+    }
+    window.loginGoogle  = robustLogin;
+    window.signInGoogle = robustLogin;
+    window.login        = robustLogin;
+
+    // ===== Logout forte =====
+    window.__hardLogout = async () => {
+      try { await fbSignOut(auth); } catch (e) { console.error(e); }
+      try {
+        // limpa storages/IndexedDB mínimos ligados ao Firebase para evitar reatachar
+        const clearMatching = (s) => {
+          try {
+            const keys = []; for (let i=0;i<s.length;i++) keys.push(s.key(i));
+            keys.forEach(k => { if (k && (k.includes("firebase") || k.includes("g_state"))) { try { s.removeItem(k); } catch {} } });
+          } catch {}
+        };
+        clearMatching(window.localStorage);
+        clearMatching(window.sessionStorage);
+        if (window.indexedDB) {
+          try { indexedDB.deleteDatabase("firebaseLocalStorageDb"); } catch {}
+          try { indexedDB.deleteDatabase("firebase-installations-database"); } catch {}
+          try { indexedDB.deleteDatabase("firebase-heartbeat-database"); } catch {}
+        }
+      } catch {}
+      try { alert("Sessão encerrada."); } catch {}
+      window.location.replace(window.location.pathname + window.location.search);
+    };
+
+    // ===== Helpers de data (semana) =====
+    function startOfWeek(d) {
+      const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      // Considerando semana iniciando na segunda-feira (1)
+      const day = x.getUTCDay() || 7; // 1..7 (domingo=7)
+      if (day > 1) x.setUTCDate(x.getUTCDate() - (day - 1));
+      x.setUTCHours(0,0,0,0);
+      return x;
+    }
+    function endOfWeek(d) {
+      const s = startOfWeek(d);
+      const e = new Date(s); e.setUTCDate(e.getUTCDate() + 7); // exclusivo
+      return e;
+    }
+
+    // ===== Busca de TODAS as fichas da semana (collectionGroup) =====
+    async function fetchWeeklyFichas(rangeDate = new Date()) {
+      const start = startOfWeek(new Date(rangeDate));
+      const end   = endOfWeek(new Date(rangeDate));
+
+      const fichasAll = collectionGroup(db, "fichas");
+      const qAll = query(
+        fichasAll,
+        where("appId", "==", appId),
+        where("createdAt", ">=", Timestamp.fromDate(start)),
+        where("createdAt", "<",  Timestamp.fromDate(end)),
+        orderBy("createdAt", "asc")
+      );
+
+      const snap = await getDocs(qAll);
+      const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      return { start, end, rows };
+    }
+    window.fetchWeeklyFichas = fetchWeeklyFichas; // expõe para você usar na UI
+
+    // ===== onAuthStateChanged =====
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return; // aguardando login
+
+      const email = (user.email || "").toLowerCase();
+      if (!AUTHORIZED_EMAILS.includes(email)) {
+        await window.__hardLogout();
+        alert("Este e-mail não tem permissão de acesso.");
+        return;
+      }
+
+      // Carrega fichas da semana atual
+      try {
+        const { start, end, rows } = await fetchWeeklyFichas(new Date());
+        // Hook 1: se você tiver um render próprio:
+        if (window.fechamentoApp && typeof window.fechamentoApp.onFichasLoaded === "function") {
+          window.fechamentoApp.onFichasLoaded({ start, end, rows, user });
+        } else {
+          // Fallback: loga no console para você conferir
+          console.log("[Fechamento] Semana:", start.toISOString(), "→", end.toISOString());
+          console.log("[Fechamento] Fichas:", rows);
+        }
+      } catch (e) {
+        console.error("Erro ao buscar fichas:", e);
+        alert("Erro ao carregar fichas da semana.");
+      }
+    });
+
+    // Completa fluxo redirect (Safari / popup bloqueado)
+    try {
+      const rr = await getRedirectResult(auth);
+      if (rr?.user) console.log("Login via redirect OK:", rr.user.email);
+    } catch (e) {
+      console.warn("getRedirectResult erro:", e?.code, e?.message);
+    }
+  </script>
+</body>
+</html>
