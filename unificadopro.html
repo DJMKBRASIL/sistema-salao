@@ -18,14 +18,14 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
             getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
             onAuthStateChanged, 
             GoogleAuthProvider, 
             signInWithPopup, 
             signOut, 
             setPersistence, 
-            browserLocalPersistence 
+            browserLocalPersistence,
+            signInWithRedirect,
+            getRedirectResult
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
@@ -70,6 +70,18 @@
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
                 
+                // Lida com o resultado do redirecionamento de login
+                try {
+                    const result = await getRedirectResult(window.auth);
+                    if (result) {
+                        console.log("Login via redirect bem-sucedido.", result.user);
+                        window.fichasApp.showMessage('Autenticado com sucesso!', 'success');
+                    }
+                } catch (error) {
+                    console.error("Erro ao obter resultado do redirect:", error);
+                    window.fichasApp.showMessage('Erro durante o login via redirect: ' + error.message, 'error');
+                }
+
                 await setPersistence(window.auth, browserLocalPersistence);
                 console.log("Firebase inicializado com sucesso");
 
@@ -137,7 +149,7 @@
         window.getDocs = getDocs;
         window.addDoc = addDoc;
         window.onSnapshot = onSnapshot;
-        window.signOut = signOut; // Expondo o signOut globalmente para garantir o acesso
+        window.signOut = signOut; 
 
     </script>
 
@@ -334,10 +346,10 @@
             async signInWithGoogle() {
                 const provider = new GoogleAuthProvider();
                 try {
-                    await signInWithPopup(window.auth, provider);
-                    this.showMessage('Autenticado com Google!', 'success');
+                    // Alterado de signInWithPopup para signInWithRedirect
+                    await signInWithRedirect(window.auth, provider);
                 } catch (error) {
-                    this.showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
+                    this.showMessage('Erro ao iniciar login com Google: ' + error.message, 'error');
                 }
             },
 
@@ -363,7 +375,7 @@
                 msgDiv.textContent = message;
                 msgDiv.className = `message message-${type}`;
                 msgDiv.style.display = 'block';
-                setTimeout(() => { msgDiv.style.display = 'none'; }, 6000); // Aumentei o tempo de exibição da mensagem
+                setTimeout(() => { msgDiv.style.display = 'none'; }, 6000); 
             },
 
             showClearAllFichasConfirm() {
@@ -379,11 +391,8 @@
                 this.confirmAction = null;
             },
             
-            /**
-             * Configura o listener para atualizações em tempo real do Firestore.
-             */
             setupRealtimeListener() {
-                if (this.unsubscribe) this.unsubscribe(); // Remove listener antigo se existir
+                if (this.unsubscribe) this.unsubscribe(); 
 
                 if (!window.fichasCollectionRef) {
                     console.error("Referência da coleção não está pronta para o listener.");
@@ -394,16 +403,15 @@
                     console.log("Recebida atualização em tempo real do Firestore.");
                     this.fichas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     
-                    // Ordena as fichas por data, da mais nova para a mais antiga
                     this.fichas.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
                     this.renderFichasTable();
-                    this.enableButtons(); // Habilita botões se receber dados (tem permissão de leitura)
+                    this.enableButtons(); 
                 }, (error) => {
                     console.error("Erro no listener em tempo real: ", error);
                     const userEmail = window.auth.currentUser ? window.auth.currentUser.email : 'N/A';
                     this.showMessage(`Permissão negada para ${userEmail}. Verifique se este e-mail está na lista de colaboradores autorizados.`, 'error');
-                    this.disableAuthRequiredButtons(); // Desabilita botões em caso de erro de permissão
+                    this.disableAuthRequiredButtons(); 
                 });
             },
 
@@ -537,7 +545,6 @@
 
                 const fichaId = await this.saveFichaToFirestore(newFicha);
                 if (fichaId) {
-                    // Não precisa mais atualizar a UI manualmente, o listener faz isso.
                     this.clearInputFields();
                 }
             },
@@ -545,7 +552,6 @@
             async removeFicha(index) {
                 const fichaId = this.fichas[index]?.id;
                 if (!fichaId) return;
-                // A UI será atualizada automaticamente pelo listener após a remoção.
                 await this.removeFichaFromFirestore(fichaId);
             },
 
@@ -556,7 +562,6 @@
                     const querySnapshot = await window.getDocs(window.fichasCollectionRef);
                     const deletePromises = querySnapshot.docs.map(doc => window.deleteDoc(doc.ref));
                     await Promise.all(deletePromises);
-                    // A UI será atualizada automaticamente pelo listener.
                     this.showMessage('Todas as fichas compartilhadas foram limpas.', 'success');
                 } catch (e) {
                     this.showMessage('Erro ao limpar as fichas compartilhadas: ' + e.message, 'error');
