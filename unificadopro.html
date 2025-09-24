@@ -163,6 +163,7 @@
                         mainContent.classList.add('hidden');
                         document.getElementById('user-id-display').textContent = `Usuário: Não autenticado`;
                         document.getElementById('auth-buttons').innerHTML = `<button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>`;
+                        window.fichasApp.disableButtons();
                     }
                 });
 
@@ -178,7 +179,9 @@
             
             init() {
                 this.loadFichasFromFirestore();
-                this.addServiceRow();
+                if(document.getElementById('services-container').children.length === 0) {
+                    this.addServiceRow();
+                }
                 this.enableButtons();
             },
 
@@ -186,6 +189,13 @@
                 ['addFichaBtn', 'clearAllFichasBtn', 'exportWeeklyDataBtn', 'reloadFichasBtn'].forEach(id => {
                     const btn = document.getElementById(id);
                     if (btn) btn.disabled = false;
+                });
+            },
+
+            disableButtons() {
+                 ['addFichaBtn', 'clearAllFichasBtn', 'exportWeeklyDataBtn', 'reloadFichasBtn'].forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = true;
                 });
             },
             
@@ -209,7 +219,7 @@
             },
             
             showClearAllFichasConfirm() {
-                this.confirmAction = this.clearAllFichas;
+                this.confirmAction = this.clearAllFichas.bind(this);
                 document.getElementById('confirm-message').textContent = 'Tem certeza que deseja limpar TODAS as fichas? Esta ação não pode ser desfeita.';
                 document.getElementById('custom-confirm-modal').style.display = 'flex';
             },
@@ -233,6 +243,7 @@
             },
 
             async loadFichasFromFirestore() {
+                if (!fichasCollectionRef) return;
                 this.showMessage('Carregando fichas...', 'info');
                 try {
                     const querySnapshot = await getDocs(fichasCollectionRef);
