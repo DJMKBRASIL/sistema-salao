@@ -11,6 +11,149 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <style>
+        :root {
+            --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #8b5cf6;
+            --success-color: #10b981; --warning-color: #f59e0b; --danger-color: #ef4444;
+            --info-color: #3b82f6; --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
+            --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280; --gray-600: #4b5563;
+            --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --border-radius: 0.75rem; --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; margin: 0; padding: 1rem; }
+        .main-container { max-width: 1200px; margin: 0 auto; background: white; border-radius: var(--border-radius); overflow: hidden; }
+        .header { background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%); color: white; padding: 2rem; text-align: center; }
+        .header h1 { margin: 0; font-size: 2.5rem; font-weight: 700; }
+        .content { padding: 2rem; }
+        .section { background: var(--gray-50); border-radius: var(--border-radius); padding: 1.5rem; margin-bottom: 2rem; border: 1px solid var(--gray-200); }
+        .section-title { font-size: 1.5rem; font-weight: 600; color: var(--gray-800); margin-bottom: 1.5rem; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; border: none; cursor: pointer; transition: var(--transition); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-secondary { background-color: var(--secondary-color); color: white; }
+        .btn-info { background-color: var(--info-color); color: white; }
+        .btn-gray { background-color: var(--gray-300); color: var(--gray-800); }
+        .form-input, .form-select { width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 0.5rem; }
+        .message { padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 500; }
+        .message-success { background-color: #d1fae5; color: #065f46; }
+        .message-error { background-color: #fee2e2; color: #991b1b; }
+        .message-info { background-color: #dbeafe; color: #1e40af; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); justify-content: center; align-items: center; }
+        .modal-content { background: white; border-radius: var(--border-radius); padding: 2rem; max-width: 500px; width: 100%; }
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <header class="header">
+            <h1>Registro de Fichas de Cliente</h1>
+            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Gerencie seus atendimentos</p>
+        </header>
+
+        <main class="content">
+            <div class="section">
+                <div class="flex items-center justify-between mb-4">
+                    <p id="user-id-display" class="text-sm text-gray-500">Usuário: Carregando...</p>
+                    <div id="auth-buttons" class="flex gap-2"></div>
+                </div>
+            </div>
+
+            <div id="app-message" class="message hidden"></div>
+            
+            <div id="main-content" style="display: none;">
+                <section class="section">
+                    <h2 class="section-title">Nova Ficha de Atendimento</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label for="clientName" class="block text-sm font-medium text-gray-700">Nome da Cliente</label>
+                            <input type="text" id="clientName" placeholder="Nome Completo da Cliente" class="form-input mt-1">
+                        </div>
+                        <div>
+                            <label for="professionalName" class="block text-sm font-medium text-gray-700">Nome da Profissional</label>
+                            <input type="text" id="professionalName" placeholder="Nome da Profissional" class="form-input mt-1">
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <h3 class="text-md font-medium text-gray-700 mb-2">Serviços</h3>
+                        <div class="hidden md:grid md:grid-cols-5 gap-2 items-center mb-2 text-sm font-bold text-gray-600 px-2">
+                            <span class="md:col-span-1">Data</span>
+                            <span class="md:col-span-2">Serviço</span>
+                            <span class="md:col-span-1 text-right">Valor</span>
+                            <span class="md:col-span-1">Pagamento</span>
+                        </div>
+                        <div id="services-container"></div>
+                        <button onclick="window.fichasApp.addServiceRow()" class="btn btn-primary btn-full mt-2">Adicionar Serviço</button>
+                    </div>
+
+                    <div class="mt-4">
+                        <h3 class="text-md font-medium text-gray-700 mb-2">Produtos Vendidos (Opcional)</h3>
+                        <div id="products-sold-container"></div>
+                        <button onclick="window.fichasApp.addProductSoldRow()" class="btn btn-success btn-full mt-2">Adicionar Produto</button>
+                    </div>
+
+                    <div class="mt-6 flex justify-end">
+                        <button id="addFichaBtn" onclick="window.fichasApp.addFicha()" class="btn btn-primary text-lg font-bold" disabled>
+                            <span id="add-ficha-spinner" class="loading-spinner mr-2 hidden"></span>
+                            <span id="add-ficha-icon">Registrar Ficha</span>
+                        </button>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <h2 class="section-title">Fichas Registradas</h2>
+                     <button id="reloadFichasBtn" onclick="window.fichasApp.loadFichasFromFirestore()" class="btn btn-info mb-4" disabled>
+                        <span id="reload-fichas-spinner" class="loading-spinner mr-2 hidden"></span>
+                        <span id="reload-fichas-icon">Recarregar Fichas (Nuvem)</span>
+                    </button>
+                    <div id="fichas-list" class="overflow-x-auto">
+                        <table class="min-w-full bg-white rounded-lg shadow-md">
+                            <thead>
+                                <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
+                                    <th class="py-3 px-6 text-left">Cliente</th>
+                                    <th class="py-3 px-6 text-left">Profissional</th>
+                                    <th class="py-3 px-6 text-left">Serviços</th>
+                                    <th class="py-3 px-6 text-left">Produtos</th>
+                                    <th class="py-3 px-6 text-center">Total Ficha</th>
+                                    <th class="py-3 px-6 text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-600 text-sm font-light" id="fichas-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                        <button id="clearAllFichasBtn" onclick="window.fichasApp.showClearAllFichasConfirm()" class="btn btn-danger btn-full" disabled>
+                            <span id="clear-fichas-spinner" class="loading-spinner mr-2 hidden"></span>
+                            <span id="clear-fichas-icon">Limpar Todas as Fichas</span>
+                        </button>
+                        <button id="exportWeeklyDataBtn" onclick="window.fichasApp.generateAndExportWeeklyData()" class="btn btn-secondary btn-full" disabled>
+                            <span id="export-weekly-spinner" class="loading-spinner mr-2 hidden"></span>
+                            <span id="export-weekly-icon">Exportar para Fechamento</span>
+                        </button>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div id="custom-confirm-modal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirmar Ação</h3>
+            <p class="text-gray-600 mb-4" id="confirm-message">Tem certeza?</p>
+            <div class="flex justify-end gap-4 mt-6">
+                <button class="btn btn-gray" onclick="window.fichasApp.handleConfirm(false)">Cancelar</button>
+                <button class="btn btn-danger" onclick="window.fichasApp.handleConfirm(true)">Confirmar</button>
+            </div>
+        </div>
+    </div>
+    
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { 
@@ -42,7 +185,6 @@
             messagingSenderId: "395887083088", 
             appId: "1:395887083088:web:3a41fd836cc59a976ddb55"
         };
-        window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         window.app = null;
         window.db = null;
@@ -110,8 +252,6 @@
                 window.fichasApp.showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
             }
         }
-
-        document.addEventListener('DOMContentLoaded', initializeFirebase);
         
         window.fichasApp = {
             fichas: [],
@@ -195,8 +335,8 @@
                 try {
                     this.fichas = []; 
                     const querySnapshot = await getDocs(window.fichasCollectionRef);
-                    querySnapshot.forEach((doc) => {
-                        this.fichas.push({ id: doc.id, ...doc.data() });
+                    querySnapshot.forEach((docSnap) => {
+                        this.fichas.push({ id: docSnap.id, ...docSnap.data() });
                     });
                     this.renderFichasTable();
                     this.showMessage('Fichas carregadas com sucesso!', 'success');
@@ -345,7 +485,7 @@
                     const row = tableBody.insertRow();
                     row.className = 'border-b border-gray-200 hover:bg-gray-100';
 
-                    const servicesHtml = ficha.services.map(s => {
+                    const servicesHtml = (ficha.services || []).map(s => {
                         const serviceDate = s.date ? new Date(s.date + 'T00:00:00') : null;
                         const formattedDate = serviceDate ? serviceDate.toLocaleDateString('pt-BR') : 'Sem data';
                         return `<p>${formattedDate} - ${s.name} (R$ ${s.value.toFixed(2).replace('.', ',')})</p>`
@@ -355,7 +495,7 @@
                         <td class="py-3 px-6 text-left whitespace-nowrap">${ficha.clientName}</td>
                         <td class="py-3 px-6 text-left whitespace-nowrap">${ficha.professionalName}</td>
                         <td class="py-3 px-6 text-left">${servicesHtml || 'Nenhum'}</td>
-                        <td class="py-3 px-6 text-left">${ficha.productsSold.map(p => `<p>${p.name} (R$ ${p.value.toFixed(2).replace('.', ',')})</p>`).join('') || 'Nenhum'}</td>
+                        <td class="py-3 px-6 text-left">${(ficha.productsSold || []).map(p => `<p>${p.name} (R$ ${p.value.toFixed(2).replace('.', ',')})</p>`).join('') || 'Nenhum'}</td>
                         <td class="py-3 px-6 text-center font-bold">R$ ${ficha.totalFicha.toFixed(2).replace('.', ',')}</td>
                         <td class="py-3 px-6 text-center">
                             <button onclick="window.fichasApp.removeFicha(${index})" class="text-red-600 hover:text-red-800 font-medium">Remover</button>
@@ -375,7 +515,7 @@
                     if (!aggregatedData.collaborators[profName]) {
                         aggregatedData.collaborators[profName] = { name: profName, clients: [] };
                     }
-                    ficha.services.forEach(service => {
+                    (ficha.services || []).forEach(service => {
                         aggregatedData.collaborators[profName].clients.push({ 
                             name: ficha.clientName,
                             service: service.name,
@@ -384,7 +524,7 @@
                             paymentMethod: service.paymentMethod 
                         });
                     });
-                    ficha.productsSold.forEach(product => {
+                    (ficha.productsSold || []).forEach(product => {
                         aggregatedData.products.push({ clientName: `${ficha.clientName} - ${product.name}`, value: product.value, paymentMethod: product.paymentMethod });
                     });
                 });
@@ -415,112 +555,9 @@
                 }
             }
         };
+
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
     </script>
-</head>
-<body>
-    <div class="main-container">
-        <header class="header">
-            <h1>Registro de Fichas de Cliente</h1>
-            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Gerencie seus atendimentos</p>
-        </header>
-
-        <main class="content">
-            <div class="section">
-                <div class="flex items-center justify-between mb-4">
-                    <p id="user-id-display" class="text-sm text-gray-500">Usuário: Carregando...</p>
-                    <div id="auth-buttons" class="flex gap-2"></div>
-                </div>
-            </div>
-
-            <div id="app-message" class="message hidden"></div>
-            
-            <div id="main-content" style="display: none;">
-                <section class="section">
-                    <h2 class="section-title">Nova Ficha de Atendimento</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label for="clientName" class="block text-sm font-medium text-gray-700">Nome da Cliente</label>
-                            <input type="text" id="clientName" placeholder="Nome Completo da Cliente" class="form-input mt-1">
-                        </div>
-                        <div>
-                            <label for="professionalName" class="block text-sm font-medium text-gray-700">Nome da Profissional</label>
-                            <input type="text" id="professionalName" placeholder="Nome da Profissional" class="form-input mt-1">
-                        </div>
-                    </div>
-
-                    <div class="mt-4">
-                        <h3 class="text-md font-medium text-gray-700 mb-2">Serviços</h3>
-                        <div class="hidden md:grid md:grid-cols-5 gap-2 items-center mb-2 text-sm font-bold text-gray-600 px-2">
-                            <span class="md:col-span-1">Data</span>
-                            <span class="md:col-span-2">Serviço</span>
-                            <span class="md:col-span-1 text-right">Valor</span>
-                            <span class="md:col-span-1">Pagamento</span>
-                        </div>
-                        <div id="services-container"></div>
-                        <button onclick="window.fichasApp.addServiceRow()" class="btn btn-primary btn-full mt-2">Adicionar Serviço</button>
-                    </div>
-
-                    <div class="mt-4">
-                        <h3 class="text-md font-medium text-gray-700 mb-2">Produtos Vendidos (Opcional)</h3>
-                        <div id="products-sold-container"></div>
-                        <button onclick="window.fichasApp.addProductSoldRow()" class="btn btn-success btn-full mt-2">Adicionar Produto</button>
-                    </div>
-
-                    <div class="mt-6 flex justify-end">
-                        <button id="addFichaBtn" onclick="window.fichasApp.addFicha()" class="btn btn-primary text-lg font-bold" disabled>
-                            <span id="add-ficha-spinner" class="loading-spinner mr-2 hidden"></span>
-                            <span id="add-ficha-icon">Registrar Ficha</span>
-                        </button>
-                    </div>
-                </section>
-
-                <section class="section">
-                    <h2 class="section-title">Fichas Registradas</h2>
-                     <button id="reloadFichasBtn" onclick="window.fichasApp.loadFichasFromFirestore()" class="btn btn-info mb-4" disabled>
-                        <span id="reload-fichas-spinner" class="loading-spinner mr-2 hidden"></span>
-                        <span id="reload-fichas-icon">Recarregar Fichas (Nuvem)</span>
-                    </button>
-                    <div id="fichas-list" class="overflow-x-auto">
-                        <table class="min-w-full bg-white rounded-lg shadow-md">
-                            <thead>
-                                <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
-                                    <th class="py-3 px-6 text-left">Cliente</th>
-                                    <th class="py-3 px-6 text-left">Profissional</th>
-                                    <th class="py-3 px-6 text-left">Serviços</th>
-                                    <th class="py-3 px-6 text-left">Produtos</th>
-                                    <th class="py-3 px-6 text-center">Total Ficha</th>
-                                    <th class="py-3 px-6 text-center">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-gray-600 text-sm font-light" id="fichas-table-body">
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="mt-6 flex flex-col sm:flex-row gap-3">
-                        <button id="clearAllFichasBtn" onclick="window.fichasApp.showClearAllFichasConfirm()" class="btn btn-danger btn-full" disabled>
-                            <span id="clear-fichas-spinner" class="loading-spinner mr-2 hidden"></span>
-                            <span id="clear-fichas-icon">Limpar Todas as Fichas</span>
-                        </button>
-                        <button id="exportWeeklyDataBtn" onclick="window.fichasApp.generateAndExportWeeklyData()" class="btn btn-secondary btn-full" disabled>
-                            <span id="export-weekly-spinner" class="loading-spinner mr-2 hidden"></span>
-                            <span id="export-weekly-icon">Exportar para Fechamento</span>
-                        </button>
-                    </div>
-                </section>
-            </div>
-        </main>
-    </div>
-
-    <div id="custom-confirm-modal" class="modal">
-        <div class="modal-content">
-            <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirmar Ação</h3>
-            <p class="text-gray-600 mb-4" id="confirm-message">Tem certeza?</p>
-            <div class="flex justify-end gap-4 mt-6">
-                <button class="btn btn-gray" onclick="window.fichasApp.handleConfirm(false)">Cancelar</button>
-                <button class="btn btn-danger" onclick="window.fichasApp.handleConfirm(true)">Confirmar</button>
-            </div>
-        </div>
-    </div>
 </body>
 </html>
 
