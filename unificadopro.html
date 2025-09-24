@@ -20,7 +20,6 @@
             getAuth, 
             onAuthStateChanged, 
             GoogleAuthProvider, 
-            signInWithPopup, 
             signOut, 
             setPersistence, 
             browserLocalPersistence,
@@ -41,7 +40,7 @@
             onSnapshot
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuração do Firebase (usando as credenciais fornecidas ou placeholders)
+        // Configuração do Firebase
         window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
@@ -62,7 +61,7 @@
         window.fichasCollectionRef = null; 
 
         /**
-         * Inicializa o Firebase e configura o listener de autenticação.
+         * Inicializa o Firebase e configura a autenticação.
          */
         async function initializeFirebase() {
             try {
@@ -70,26 +69,14 @@
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
                 
-                // Lida com o resultado do redirecionamento de login
-                try {
-                    const result = await getRedirectResult(window.auth);
-                    if (result) {
-                        console.log("Login via redirect bem-sucedido.", result.user);
-                        window.fichasApp.showMessage('Autenticado com sucesso!', 'success');
-                    }
-                } catch (error) {
-                    console.error("Erro ao obter resultado do redirect:", error);
-                    window.fichasApp.showMessage('Erro durante o login via redirect: ' + error.message, 'error');
-                }
-
                 await setPersistence(window.auth, browserLocalPersistence);
-                console.log("Firebase inicializado com sucesso");
 
+                // Configura o observador de estado de autenticação.
+                // Esta função será a única responsável por atualizar a UI de autenticação.
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
                         window.userId = user.uid;
-                        const authMethod = user.isAnonymous ? 'Anônimo' : 'Google';
-                        const displayInfo = user.displayName ? `${user.displayName} (${user.email})` : `${window.userId} (${authMethod})`;
+                        const displayInfo = user.displayName ? `${user.displayName} (${user.email})` : `${user.uid} (Google)`;
                         
                         document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
                         document.getElementById('auth-buttons').innerHTML = `
@@ -101,16 +88,14 @@
                             </button>
                         `;
                         
-                        console.log("Usuário autenticado:", window.userId, "Método:", authMethod);
-                        
-                        // A coleção de fichas agora aponta para 'shared_data' para ser acessível por todos os colaboradores.
+                        console.log("Usuário autenticado:", window.userId);
                         window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/shared_data/fichas`);
                         
                         if (window.db) {
-                            window.fichasApp.init(); // Carregar dados iniciais após autenticação
+                            window.fichasApp.init();
                         } else {
-                            console.error("Banco de dados Firebase não disponível após autenticação.");
-                            window.fichasApp.showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
+                            console.error("Banco de dados Firebase não disponível.");
+                            window.fichasApp.showMessage('Erro: Banco de dados não disponível. Recarregue a página.', 'error');
                         }
                     } else {
                         window.userId = 'Não autenticado';
@@ -130,10 +115,25 @@
                         window.fichasApp.disableAuthRequiredButtons();
                     }
                 });
+                
+                // Processa o resultado do login via redirect. O onAuthStateChanged tratará a atualização da UI.
+                try {
+                    const result = await getRedirectResult(window.auth);
+                    if (result) {
+                        console.log("Login via redirect bem-sucedido.", result.user);
+                        window.fichasApp.showMessage('Autenticado com sucesso!', 'success');
+                    }
+                } catch (error) {
+                    if (error.code !== 'auth/no-redirect-operation') {
+                        console.error("Erro ao obter resultado do redirect:", error);
+                        window.fichasApp.showMessage('Erro durante o login: ' + error.message, 'error');
+                    }
+                }
 
             } catch (error) {
                 console.error("Erro ao inicializar Firebase:", error);
                 window.fichasApp.showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
+                document.getElementById('auth-buttons').innerHTML = `<p class="text-sm text-red-500">Falha ao iniciar.</p>`;
             }
         }
 
@@ -211,7 +211,9 @@
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); justify-content: center; align-items: center; padding: 1rem; }
         .modal-content { background: white; border-radius: var(--border-radius); padding: 2rem; max-width: 500px; width: 100%; box-shadow: var(--shadow-xl); }
         .modal-buttons { display: flex; gap: 1rem; margin-top: 1.5rem; }
-        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
+        .loading-spinner, .loading-spinner-auth { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(0, 0, 0, 0.1); border-radius: 50%; animation: spin 1s ease-in-out infinite; }
+        .loading-spinner { border-color: rgba(255, 255, 255, 0.3); border-top-color: white;}
+        .loading-spinner-auth { border-top-color: var(--gray-600); }
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 768px) { .content { padding: 1rem; } .header h1 { font-size: 2rem; } }
     </style>
@@ -227,7 +229,10 @@
             <div class="section">
                 <div class="flex items-center justify-between mb-4 flex-wrap gap-4">
                     <p id="user-id-display" class="text-sm text-gray-600 break-all">Usuário: Carregando...</p>
-                    <div id="auth-buttons" class="flex gap-2"></div>
+                    <div id="auth-buttons" class="flex gap-2 items-center">
+                         <div class="loading-spinner-auth"></div>
+                         <p class="text-sm text-gray-500">Verificando autenticação...</p>
+                    </div>
                 </div>
             </div>
 
@@ -320,7 +325,7 @@
     <script>
         window.fichasApp = {
             fichas: [],
-            unsubscribe: null, // Para guardar a função de cancelamento do listener
+            unsubscribe: null, 
             
             init() {
                 this.setupRealtimeListener();
@@ -346,7 +351,6 @@
             async signInWithGoogle() {
                 const provider = new GoogleAuthProvider();
                 try {
-                    // Alterado de signInWithPopup para signInWithRedirect
                     await signInWithRedirect(window.auth, provider);
                 } catch (error) {
                     this.showMessage('Erro ao iniciar login com Google: ' + error.message, 'error');
@@ -355,11 +359,11 @@
 
             async signOutUser() {
                 if (this.unsubscribe) {
-                    this.unsubscribe(); // Cancela o listener ao sair
+                    this.unsubscribe();
                     this.unsubscribe = null;
                 }
                 try {
-                    await window.signOut(window.auth); // Usando a função signOut global
+                    await window.signOut(window.auth);
                     this.fichas = [];
                     this.renderFichasTable();
                     this.clearInputFields();
@@ -400,11 +404,8 @@
                 }
 
                 this.unsubscribe = window.onSnapshot(window.fichasCollectionRef, (querySnapshot) => {
-                    console.log("Recebida atualização em tempo real do Firestore.");
                     this.fichas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    
                     this.fichas.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
                     this.renderFichasTable();
                     this.enableButtons(); 
                 }, (error) => {
