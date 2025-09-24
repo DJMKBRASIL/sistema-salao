@@ -222,7 +222,6 @@
                             `;
                             
                             console.log("Colaboradora autorizada:", user.email);
-                            // ALTERAÇÃO: Aponta para a coleção compartilhada
                             window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/shared_data/fichas`);
                             
                             if (window.db) {
@@ -351,7 +350,6 @@
             async removeFichaFromFirestore(fichaId) {
                 if (!window.fichasCollectionRef) return false;
                 try {
-                    // ALTERAÇÃO: Usa a referência da coleção compartilhada para criar a referência do documento
                     await deleteDoc(doc(window.fichasCollectionRef, fichaId));
                     return true;
                 } catch (e) {
@@ -538,7 +536,6 @@
                 };
                 
                 try {
-                    // ALTERAÇÃO: Aponta para o documento compartilhado
                     const docRef = doc(window.db, `artifacts/${window.appId}/shared_data/weeklyReportsAggregated/currentWeek`);
                     await setDoc(docRef, dataToExport);
                     this.showMessage('Dados exportados para o Fechamento Semanal com sucesso!', 'success');
