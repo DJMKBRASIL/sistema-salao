@@ -11,81 +11,6 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            onAuthStateChanged, 
-            GoogleAuthProvider, 
-            signInWithPopup, 
-            signOut, 
-            setPersistence, 
-            browserLocalPersistence 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            doc, 
-            getDocs, 
-            setDoc, 
-            deleteDoc, 
-            collection, 
-            addDoc 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
-            authDomain: "sistema-do-salao.firebaseapp.com", 
-            projectId: "sistema-do-salao",   
-            storageBucket: "sistema-do-salao.firebasestorage.app", 
-            messagingSenderId: "395887083088", 
-            appId: "1:395887083088:web:3a41fd836cc59a976ddb55"
-        };
-
-        let db, auth, fichasCollectionRef;
-
-        async function initializeFirebase() {
-            try {
-                const app = initializeApp(window.firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                await setPersistence(auth, browserLocalPersistence);
-
-                onAuthStateChanged(auth, (user) => {
-                    const mainContent = document.getElementById('main-content');
-                    if (user) {
-                        const authorizedCollaborators = [
-                            "djmkbrasil@gmail.com", "frankokott@gmail.com", "djmkapple@gmail.com",
-                            "gabrielastephane11@gmail.com", "cibemarchi@gmail.com"
-                        ];
-
-                        if (authorizedCollaborators.includes(user.email)) {
-                            mainContent.classList.remove('hidden');
-                            document.getElementById('user-id-display').textContent = `Usuário: ${user.displayName || user.email}`;
-                            document.getElementById('auth-buttons').innerHTML = `<button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">Sair</button>`;
-                            
-                            fichasCollectionRef = collection(db, `artifacts/${window.appId}/shared_data/fichas`);
-                            window.fichasApp.init();
-                        } else {
-                            mainContent.classList.add('hidden');
-                            window.fichasApp.showMessage('Acesso não autorizado.', 'error');
-                            setTimeout(() => window.fichasApp.signOutUser(), 3000);
-                        }
-                    } else {
-                        mainContent.classList.add('hidden');
-                        document.getElementById('user-id-display').textContent = `Usuário: Não autenticado`;
-                        document.getElementById('auth-buttons').innerHTML = `<button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>`;
-                        window.fichasApp.disableButtons();
-                    }
-                });
-            } catch (error) {
-                if(window.fichasApp) window.fichasApp.showMessage('Erro ao inicializar o sistema.', 'error');
-            }
-        }
-        
-        document.addEventListener('DOMContentLoaded', initializeFirebase);
-    </script>
-
     <style>
         :root {
             --primary-color: #6366f1; --primary-hover: #4f46e5; --secondary-color: #8b5cf6;
@@ -186,7 +111,78 @@
         </div>
     </div>
     
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged, 
+            GoogleAuthProvider, 
+            signInWithPopup, 
+            signOut, 
+            setPersistence, 
+            browserLocalPersistence 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDocs, 
+            setDoc, 
+            deleteDoc, 
+            collection, 
+            addDoc 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
+            authDomain: "sistema-do-salao.firebaseapp.com", 
+            projectId: "sistema-do-salao",   
+            storageBucket: "sistema-do-salao.firebasestorage.app", 
+            messagingSenderId: "395887083088", 
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55"
+        };
+
+        let db, auth, fichasCollectionRef;
+
+        async function initializeFirebase() {
+            try {
+                const app = initializeApp(window.firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                await setPersistence(auth, browserLocalPersistence);
+
+                onAuthStateChanged(auth, (user) => {
+                    const mainContent = document.getElementById('main-content');
+                    if (user) {
+                        const authorizedCollaborators = [
+                            "djmkbrasil@gmail.com", "frankokott@gmail.com", "djmkapple@gmail.com",
+                            "gabrielastephane11@gmail.com", "cibemarchi@gmail.com"
+                        ];
+
+                        if (authorizedCollaborators.includes(user.email)) {
+                            mainContent.classList.remove('hidden');
+                            document.getElementById('user-id-display').textContent = `Usuário: ${user.displayName || user.email}`;
+                            document.getElementById('auth-buttons').innerHTML = `<button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">Sair</button>`;
+                            
+                            fichasCollectionRef = collection(db, `artifacts/${window.appId}/shared_data/fichas`);
+                            window.fichasApp.init();
+                        } else {
+                            mainContent.classList.add('hidden');
+                            window.fichasApp.showMessage('Acesso não autorizado.', 'error');
+                            setTimeout(() => window.fichasApp.signOutUser(), 3000);
+                        }
+                    } else {
+                        mainContent.classList.add('hidden');
+                        document.getElementById('user-id-display').textContent = `Usuário: Não autenticado`;
+                        document.getElementById('auth-buttons').innerHTML = `<button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>`;
+                        window.fichasApp.disableButtons();
+                    }
+                });
+            } catch (error) {
+                if(window.fichasApp) window.fichasApp.showMessage('Erro ao inicializar o sistema.', 'error');
+            }
+        }
+        
         window.fichasApp = {
             fichas: [],
             confirmAction: null,
@@ -222,13 +218,13 @@
             },
 
             async signInWithGoogle() {
-                const provider = new window.GoogleAuthProvider();
-                try { await window.signInWithPopup(window.auth, provider); } 
+                const provider = new GoogleAuthProvider();
+                try { await signInWithPopup(auth, provider); } 
                 catch (error) { this.showMessage('Erro ao autenticar: ' + error.message, 'error'); }
             },
 
             async signOutUser() {
-                try { await window.signOut(window.auth); window.location.reload(); } 
+                try { await signOut(auth); window.location.reload(); } 
                 catch (error) { this.showMessage('Erro ao sair: ' + error.message, 'error'); }
             },
             
@@ -248,7 +244,7 @@
 
             async saveFichaToFirestore(ficha) {
                 try {
-                    const docRef = await window.addDoc(window.fichasCollectionRef, ficha);
+                    const docRef = await addDoc(fichasCollectionRef, ficha);
                     return docRef.id;
                 } catch (e) {
                     this.showMessage('Erro ao salvar ficha: ' + e.message, 'error');
@@ -257,10 +253,10 @@
             },
 
             async loadFichasFromFirestore() {
-                if (!window.fichasCollectionRef) return;
+                if (!fichasCollectionRef) return;
                 this.showMessage('Carregando fichas...', 'info');
                 try {
-                    const querySnapshot = await window.getDocs(window.fichasCollectionRef);
+                    const querySnapshot = await getDocs(fichasCollectionRef);
                     this.fichas = [];
                     querySnapshot.forEach((doc) => this.fichas.push({ id: doc.id, ...doc.data() }));
                     this.renderFichasTable();
@@ -268,7 +264,7 @@
             },
 
             async removeFichaFromFirestore(id) {
-                try { await window.deleteDoc(window.doc(window.fichasCollectionRef, id)); return true; } 
+                try { await deleteDoc(doc(fichasCollectionRef, id)); return true; } 
                 catch (e) { this.showMessage('Erro ao remover ficha: ' + e.message, 'error'); return false; }
             },
             
@@ -402,8 +398,8 @@
                 };
                 
                 try {
-                    const docRef = window.doc(db, `artifacts/${window.appId}/shared_data/weeklyReportsAggregated/currentWeek`);
-                    await window.setDoc(docRef, dataToExport);
+                    const docRef = doc(db, `artifacts/${window.appId}/shared_data/weeklyReportsAggregated/currentWeek`);
+                    await setDoc(docRef, dataToExport);
                     this.showMessage('Dados exportados com sucesso!', 'success');
                 } catch (e) {
                     this.showMessage('Erro ao exportar: ' + e.message, 'error');
@@ -411,10 +407,7 @@
             }
         };
 
-        // These global references are needed because the HTML file calls them directly with `window.fichasApp`
-        window.GoogleAuthProvider = GoogleAuthProvider;
-        window.signInWithPopup = signInWithPopup;
-        window.signOut = signOut;
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
     </script>
 </body>
 </html>
