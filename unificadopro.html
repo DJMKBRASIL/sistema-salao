@@ -82,12 +82,6 @@
 
                     <div class="mt-4">
                         <h3 class="text-md font-medium text-gray-700 mb-2">Serviços</h3>
-                        <div class="hidden md:grid md:grid-cols-5 gap-2 items-center mb-2 text-sm font-bold text-gray-600 px-2">
-                            <span class="md:col-span-1">Data</span>
-                            <span class="md:col-span-2">Serviço</span>
-                            <span class="md:col-span-1 text-right">Valor</span>
-                            <span class="md:col-span-1">Pagamento</span>
-                        </div>
                         <div id="services-container"></div>
                         <button onclick="window.fichasApp.addServiceRow()" class="btn btn-primary btn-full mt-2">Adicionar Serviço</button>
                     </div>
@@ -199,21 +193,16 @@
                 window.auth = getAuth(window.app);
                 
                 await setPersistence(window.auth, browserLocalPersistence);
-                console.log("Firebase inicializado com sucesso");
 
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
                         const authorizedCollaborators = [
-                            "djmkbrasil@gmail.com",
-                            "frankokott@gmail.com",
-                            "djmkapple@gmail.com",
-                            "gabrielastephane11@gmail.com",
-                            "cibemarchi@gmail.com"
+                            "djmkbrasil@gmail.com", "frankokott@gmail.com", "djmkapple@gmail.com",
+                            "gabrielastephane11@gmail.com", "cibemarchi@gmail.com"
                         ];
 
                         if (authorizedCollaborators.includes(user.email)) {
                             document.getElementById('main-content').style.display = 'block';
-                            window.userId = user.uid;
                             const displayInfo = user.displayName || user.email;
                             
                             document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
@@ -221,34 +210,23 @@
                                 <button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">Sair</button>
                             `;
                             
-                            console.log("Colaboradora autorizada:", user.email);
                             window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/shared_data/fichas`);
-                            
-                            if (window.db) {
-                                window.fichasApp.init(); 
-                            } else {
-                                window.fichasApp.showMessage('Erro: Banco de dados não disponível.', 'error');
-                            }
+                            window.fichasApp.init(); 
                         } else {
                             document.getElementById('main-content').style.display = 'none';
-                            window.fichasApp.showMessage('Acesso não autorizado para este e-mail.', 'error');
+                            window.fichasApp.showMessage('Acesso não autorizado.', 'error');
                             setTimeout(() => window.fichasApp.signOutUser(), 3000);
                         }
                     } else {
-                        window.userId = 'Não autenticado';
-                        document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
+                        document.getElementById('user-id-display').textContent = `Usuário: Não autenticado`;
                         document.getElementById('auth-buttons').innerHTML = `
                             <button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">Entrar com Google</button>
                         `;
                         document.getElementById('main-content').style.display = 'none';
-                        if (window.fichasApp) {
-                           window.fichasApp.disableAuthRequiredButtons();
-                        }
                     }
                 });
 
             } catch (error) {
-                console.error("Erro ao inicializar Firebase:", error);
                 if(window.fichasApp) window.fichasApp.showMessage('Erro ao inicializar o Firebase.', 'error');
             }
         }
@@ -267,13 +245,6 @@
                 ['addFichaBtn', 'clearAllFichasBtn', 'exportWeeklyDataBtn', 'reloadFichasBtn'].forEach(id => {
                     const btn = document.getElementById(id);
                     if (btn) btn.disabled = false;
-                });
-            },
-
-            disableAuthRequiredButtons() {
-                ['addFichaBtn', 'clearAllFichasBtn', 'exportWeeklyDataBtn', 'reloadFichasBtn'].forEach(id => {
-                    const btn = document.getElementById(id);
-                    if (btn) btn.disabled = true;
                 });
             },
             
@@ -309,9 +280,7 @@
 
             handleConfirm(confirmed) {
                 document.getElementById('custom-confirm-modal').style.display = 'none';
-                if (confirmed) {
-                    this.clearAllFichas();
-                }
+                if (confirmed) this.clearAllFichas();
             },
 
             async saveFichaToFirestore(fichaData) {
@@ -330,7 +299,6 @@
 
             async loadFichasFromFirestore() {
                 if (!window.fichasCollectionRef) return;
-                this.showMessage('Carregando fichas da nuvem...', 'info');
                 this.toggleLoadingSpinner('reload-fichas', true);
                 try {
                     this.fichas = []; 
@@ -339,7 +307,6 @@
                         this.fichas.push({ id: docSnap.id, ...docSnap.data() });
                     });
                     this.renderFichasTable();
-                    this.showMessage('Fichas carregadas com sucesso!', 'success');
                 } catch (e) {
                     this.showMessage('Erro ao carregar fichas: ' + e.message, 'error');
                 } finally {
@@ -363,12 +330,12 @@
                 const div = document.createElement('div');
                 const today = new Date().toISOString().split('T')[0];
 
-                div.className = 'grid grid-cols-1 md:grid-cols-5 gap-2 items-center mb-2 service-row p-2 border rounded-lg bg-white';
+                div.className = 'grid grid-cols-1 md:grid-cols-6 gap-2 items-center mb-2 service-row p-2 border rounded-lg bg-white';
                 div.innerHTML = `
-                    <input type="date" value="${serviceData.date || today}" class="service-date form-input md:col-span-1">
-                    <input type="text" placeholder="Nome do Serviço" value="${serviceData.name || ''}" class="service-name form-input md:col-span-2">
-                    <input type="number" step="0.01" min="0" placeholder="Valor" value="${serviceData.value || ''}" class="service-value form-input w-full text-right md:col-span-1">
-                    <div class="md:col-span-1 flex items-center gap-1">
+                    <div class="md:col-span-1"><input type="date" value="${serviceData.date || today}" class="service-date form-input"></div>
+                    <div class="md:col-span-2"><input type="text" placeholder="Nome do Serviço" value="${serviceData.name || ''}" class="service-name form-input"></div>
+                    <div class="md:col-span-1"><input type="number" step="0.01" min="0" placeholder="Valor" value="${serviceData.value || ''}" class="service-value form-input w-full text-right"></div>
+                    <div class="md:col-span-2 flex items-center gap-1">
                         <select class="payment-method form-select w-full">
                             <option value="pix" ${serviceData.paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
                             <option value="debito" ${serviceData.paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
@@ -383,20 +350,20 @@
                 container.appendChild(div);
             },
 
-            addProductSoldRow(productName = '', productValue = '', paymentMethod = 'pix') {
+            addProductSoldRow(productData = {}) {
                 const container = document.getElementById('products-sold-container');
                 const div = document.createElement('div');
-                div.className = 'flex items-center gap-2 mb-2 product-sold-row';
+                div.className = 'flex items-center gap-2 mb-2 product-sold-row p-2 border rounded-lg bg-white';
                 div.innerHTML = `
-                    <input type="text" placeholder="Nome do Produto" value="${productName}" class="product-sold-name form-input flex-grow">
-                    <input type="number" step="0.01" min="0" placeholder="Valor" value="${productValue}" class="product-sold-value form-input w-28 text-right">
+                    <input type="text" placeholder="Nome do Produto" value="${productData.name || ''}" class="product-sold-name form-input flex-grow">
+                    <input type="number" step="0.01" min="0" placeholder="Valor" value="${productData.value || ''}" class="product-sold-value form-input w-28 text-right">
                     <select class="payment-method form-select w-32">
-                         <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
-                        <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
-                        <option value="credito_1x" ${paymentMethod === 'credito_1x' ? 'selected' : ''}>Crédito 1x</option>
-                        <option value="credito_2x" ${paymentMethod === 'credito_2x' ? 'selected' : ''}>Crédito 2x</option>
-                        <option value="credito_3x" ${paymentMethod === 'credito_3x' ? 'selected' : ''}>Crédito 3x</option>
-                        <option value="dinheiro" ${paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                         <option value="pix" ${productData.paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
+                        <option value="debito" ${productData.paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
+                        <option value="credito_1x" ${productData.paymentMethod === 'credito_1x' ? 'selected' : ''}>Crédito 1x</option>
+                        <option value="credito_2x" ${productData.paymentMethod === 'credito_2x' ? 'selected' : ''}>Crédito 2x</option>
+                        <option value="credito_3x" ${productData.paymentMethod === 'credito_3x' ? 'selected' : ''}>Crédito 3x</option>
+                        <option value="dinheiro" ${productData.paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
                     </select>
                     <button onclick="this.closest('.product-sold-row').remove()" class="btn btn-danger p-2">X</button>
                 `;
@@ -433,7 +400,6 @@
                 if (services.length === 0 && productsSold.length === 0) return this.showMessage('Adicione pelo menos um serviço ou produto.', 'error');
 
                 const totalFicha = services.reduce((s, i) => s + i.value, 0) + productsSold.reduce((s, i) => s + i.value, 0);
-
                 const newFicha = { clientName, professionalName, services, productsSold, totalFicha, timestamp: new Date().toISOString() };
 
                 const fichaId = await this.saveFichaToFirestore(newFicha);
@@ -475,6 +441,8 @@
             renderFichasTable() {
                 const tableBody = document.getElementById('fichas-table-body');
                 tableBody.innerHTML = ''; 
+                this.fichas.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
 
                 if (this.fichas.length === 0) {
                     tableBody.innerHTML = `<tr><td colspan="6" class="py-3 px-6 text-center text-gray-500">Nenhuma ficha registrada.</td></tr>`;
