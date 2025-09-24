@@ -137,6 +137,8 @@
         window.getDocs = getDocs;
         window.addDoc = addDoc;
         window.onSnapshot = onSnapshot;
+        window.signOut = signOut; // Expondo o signOut globalmente para garantir o acesso
+
     </script>
 
     <style>
@@ -345,7 +347,7 @@
                     this.unsubscribe = null;
                 }
                 try {
-                    await signOut(window.auth);
+                    await window.signOut(window.auth); // Usando a função signOut global
                     this.fichas = [];
                     this.renderFichasTable();
                     this.clearInputFields();
@@ -361,7 +363,7 @@
                 msgDiv.textContent = message;
                 msgDiv.className = `message message-${type}`;
                 msgDiv.style.display = 'block';
-                setTimeout(() => { msgDiv.style.display = 'none'; }, 5000);
+                setTimeout(() => { msgDiv.style.display = 'none'; }, 6000); // Aumentei o tempo de exibição da mensagem
             },
 
             showClearAllFichasConfirm() {
@@ -399,7 +401,8 @@
                     this.enableButtons(); // Habilita botões se receber dados (tem permissão de leitura)
                 }, (error) => {
                     console.error("Erro no listener em tempo real: ", error);
-                    this.showMessage('Erro de permissão ou conexão. Verifique se seu e-mail está na lista de colaboradores autorizados.', 'error');
+                    const userEmail = window.auth.currentUser ? window.auth.currentUser.email : 'N/A';
+                    this.showMessage(`Permissão negada para ${userEmail}. Verifique se este e-mail está na lista de colaboradores autorizados.`, 'error');
                     this.disableAuthRequiredButtons(); // Desabilita botões em caso de erro de permissão
                 });
             },
@@ -415,7 +418,8 @@
                     this.showMessage('Ficha registrada na nuvem!', 'success');
                     return docRef.id;
                 } catch (e) {
-                    this.showMessage('Erro ao salvar ficha na nuvem: ' + e.message, 'error');
+                    const userEmail = window.auth.currentUser ? window.auth.currentUser.email : 'N/A';
+                    this.showMessage(`Erro ao salvar: ${e.message}. Verifique a permissão para o e-mail ${userEmail}.`, 'error');
                     return null;
                 } finally {
                     this.toggleLoadingSpinner('add-ficha', false);
