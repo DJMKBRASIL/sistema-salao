@@ -72,7 +72,6 @@
                 await setPersistence(window.auth, browserLocalPersistence);
 
                 // Configura o observador de estado de autenticação.
-                // Esta função será a única responsável por atualizar a UI de autenticação.
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
                         window.userId = user.uid;
@@ -116,7 +115,6 @@
                     }
                 });
                 
-                // Processa o resultado do login via redirect. O onAuthStateChanged tratará a atualização da UI.
                 try {
                     const result = await getRedirectResult(window.auth);
                     if (result) {
@@ -348,13 +346,14 @@
                 });
             },
 
-            async signInWithGoogle() {
+            signInWithGoogle() {
                 const provider = new GoogleAuthProvider();
-                try {
-                    await signInWithRedirect(window.auth, provider);
-                } catch (error) {
-                    this.showMessage('Erro ao iniciar login com Google: ' + error.message, 'error');
-                }
+                this.showMessage('Redirecionando para o login do Google...', 'info');
+                signInWithRedirect(window.auth, provider)
+                    .catch((error) => {
+                        console.error("Falha no redirecionamento do login:", error);
+                        this.showMessage(`Erro ao tentar fazer login: ${error.message}`, 'error');
+                    });
             },
 
             async signOutUser() {
@@ -531,7 +530,7 @@
                 
                 const productsSold = Array.from(document.querySelectorAll('.product-sold-row')).map(row => ({
                     name: row.querySelector('.product-sold-name').value.trim(),
-                    value: parseFloat(row.querySelector('.product-sold-value').value) || 0,
+                    value: parseFloat(row.querySelector('.service-value').value) || 0,
                     paymentMethod: row.querySelector('.payment-method').value
                 })).filter(p => p.name && p.value > 0);
 
