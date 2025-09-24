@@ -363,13 +363,20 @@
                 div.className = 'collaborator-block border p-4 rounded-lg mb-4';
                 div.setAttribute('data-index', index);
                 div.innerHTML = `
-                    <div class="flex justify-between items-center mb-2">
+                    <div class="flex justify-between items-center mb-4">
                         <input type="text" placeholder="Nome da Colaboradora" value="${collabData.name}" class="form-input font-bold" oninput="window.salonApp.updateCollaboratorName(${index}, this.value)">
-                        <button onclick="window.salonApp.removeCollaborator(${index})" class="btn btn-danger">Remover</button>
+                        <button onclick="window.salonApp.removeCollaborator(${index})" class="btn btn-danger ml-4">Remover</button>
+                    </div>
+                    <div class="hidden md:grid md:grid-cols-7 gap-2 items-center mb-2 text-sm font-bold text-gray-600 px-2">
+                        <span class="md:col-span-1">Data</span>
+                        <span class="md:col-span-2">Cliente</span>
+                        <span class="md:col-span-2">Serviço</span>
+                        <span class="md:col-span-1 text-right">Valor</span>
+                        <span class="md:col-span-1">Pagamento</span>
                     </div>
                     <div id="clients-container-${index}"></div>
-                    <button onclick="window.salonApp.addClientRow(${index})" class="btn btn-primary w-full mt-2">Adicionar Cliente</button>
-                    <div class="text-right mt-2">
+                    <button onclick="window.salonApp.addClientRow(${index})" class="btn btn-primary w-full mt-2">Adicionar Cliente/Serviço</button>
+                    <div class="text-right mt-4">
                          <p class="text-md font-bold text-gray-800">Total Líquido Colaboradora: <span id="collab-net-total-display-${index}">R$ 0,00</span></p>
                     </div>
                 `;
@@ -380,19 +387,23 @@
             addClientRowUI(clientData, collaboratorIndex, clientIndex) {
                 const container = document.getElementById(`clients-container-${collaboratorIndex}`);
                 const div = document.createElement('div');
-                div.className = 'client-row flex items-center gap-2 mb-2';
+                div.className = 'client-row grid grid-cols-1 md:grid-cols-7 gap-2 items-center mb-2 p-2 border rounded-lg bg-white';
                 div.innerHTML = `
-                    <input type="text" placeholder="Nome do Cliente" value="${clientData.name}" class="form-input flex-grow" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)">
-                    <input type="number" placeholder="Valor" value="${clientData.value}" class="form-input w-28 text-right" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)">
-                    <select class="form-select w-32" onchange="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'paymentMethod', this.value)">
-                        <option value="pix" ${clientData.paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
-                        <option value="debito" ${clientData.paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
-                        <option value="credito_1x" ${clientData.paymentMethod === 'credito_1x' ? 'selected' : ''}>Crédito 1x</option>
-                        <option value="credito_2x" ${clientData.paymentMethod === 'credito_2x' ? 'selected' : ''}>Crédito 2x</option>
-                        <option value="credito_3x" ${clientData.paymentMethod === 'credito_3x' ? 'selected' : ''}>Crédito 3x</option>
-                        <option value="dinheiro" ${clientData.paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
-                    </select>
-                    <button onclick="window.salonApp.removeClientRow(${collaboratorIndex}, ${clientIndex})" class="btn btn-danger p-2">X</button>
+                    <input type="date" value="${clientData.date || ''}" class="form-input md:col-span-1" onchange="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'date', this.value)">
+                    <input type="text" placeholder="Nome Cliente" value="${clientData.name}" class="form-input md:col-span-2" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'name', this.value)">
+                    <input type="text" placeholder="Serviço" value="${clientData.service || ''}" class="form-input md:col-span-2" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'service', this.value)">
+                    <input type="number" placeholder="Valor" value="${clientData.value}" class="form-input text-right md:col-span-1" oninput="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'value', parseFloat(this.value) || 0)">
+                    <div class="md:col-span-1 flex items-center gap-1">
+                        <select class="form-select w-full" onchange="window.salonApp.updateClientData(${collaboratorIndex}, ${clientIndex}, 'paymentMethod', this.value)">
+                            <option value="pix" ${clientData.paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
+                            <option value="debito" ${clientData.paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
+                            <option value="credito_1x" ${clientData.paymentMethod === 'credito_1x' ? 'selected' : ''}>Crédito 1x</option>
+                            <option value="credito_2x" ${clientData.paymentMethod === 'credito_2x' ? 'selected' : ''}>Crédito 2x</option>
+                            <option value="credito_3x" ${clientData.paymentMethod === 'credito_3x' ? 'selected' : ''}>Crédito 3x</option>
+                            <option value="dinheiro" ${clientData.paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                        </select>
+                        <button onclick="window.salonApp.removeClientRow(${collaboratorIndex}, ${clientIndex})" class="btn btn-danger p-2 flex-shrink-0">X</button>
+                    </div>
                 `;
                 container.appendChild(div);
             },
@@ -427,7 +438,8 @@
             },
 
             addCollaborator() {
-                this.collaborators.push({ name: '', clients: [{ name: '', value: 0, paymentMethod: 'pix' }], discountPercentage: 0.30, observations: '' });
+                const today = new Date().toISOString().split('T')[0];
+                this.collaborators.push({ name: '', clients: [{ name: '', service: '', date: today, value: 0, paymentMethod: 'pix' }], discountPercentage: 0.30, observations: '' });
                 this.renderAllUI();
                 this.saveLocalData();
             },
@@ -444,7 +456,8 @@
             },
 
             addClientRow(collaboratorIndex) {
-                this.collaborators[collaboratorIndex].clients.push({ name: '', value: 0, paymentMethod: 'pix' });
+                const today = new Date().toISOString().split('T')[0];
+                this.collaborators[collaboratorIndex].clients.push({ name: '', service: '', date: today, value: 0, paymentMethod: 'pix' });
                 this.renderAllUI();
                 this.saveLocalData();
             },
@@ -536,6 +549,15 @@
                         const parsedData = JSON.parse(savedData);
                         this.collaborators = parsedData.collaborators || [];
                         this.products = parsedData.products || [];
+
+                        const today = new Date().toISOString().split('T')[0];
+                        this.collaborators.forEach(collab => {
+                            collab.clients.forEach(client => {
+                                if (client.service === undefined) client.service = '';
+                                if (client.date === undefined) client.date = today;
+                            });
+                        });
+
                         document.getElementById('day').value = parsedData.date?.day || '';
                         document.getElementById('month').value = parsedData.date?.month || '';
                         document.getElementById('year').value = parsedData.date?.year || '';
@@ -613,6 +635,15 @@
                 if (report) {
                     this.collaborators = report.collaborators || [];
                     this.products = report.products || [];
+
+                    const reportDate = report.lastSaved ? new Date(report.lastSaved).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+                    this.collaborators.forEach(collab => {
+                        (collab.clients || []).forEach(client => {
+                            if (client.service === undefined) client.service = '';
+                            if (client.date === undefined) client.date = reportDate;
+                        });
+                    });
+
                     document.getElementById('day').value = report.date?.day || '';
                     document.getElementById('month').value = report.date?.month || '';
                     document.getElementById('year').value = report.date?.year || '';
@@ -663,8 +694,27 @@
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    window.salonApp.collaborators = data.collaborators || [];
+                    
+                    const importedCollaborators = (data.collaborators || []).map(collab => {
+                        const updatedClients = (collab.clients || []).map(client => {
+                            const nameParts = client.name.split(' - ');
+                            const clientName = nameParts.shift() || '';
+                            const serviceName = nameParts.join(' - ') || '';
+
+                            return {
+                                name: clientName,
+                                service: serviceName,
+                                date: data.lastUpdated ? new Date(data.lastUpdated).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                                value: client.value || 0,
+                                paymentMethod: client.paymentMethod || 'pix'
+                            };
+                        });
+                        return { ...collab, clients: updatedClients };
+                    });
+
+                    window.salonApp.collaborators = importedCollaborators;
                     window.salonApp.products = data.products || [];
+
                     window.salonApp.renderAllUI();
                     window.salonApp.saveLocalData();
                     showMessage('Dados importados das fichas com sucesso!', 'success');
