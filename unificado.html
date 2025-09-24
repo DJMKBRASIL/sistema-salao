@@ -556,7 +556,7 @@
                     lastSaved: new Date().toISOString()
                 };
                 try {
-                    const collectionRef = window.collection(window.db, `artifacts/${window.appId}/public/data/manualWeeklySaves`);
+                    const collectionRef = window.collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
                     await addDoc(collectionRef, dataToSave);
                     showMessage('Salvo na nuvem com sucesso!', 'success');
                 } catch (e) { showMessage('Erro ao salvar: ' + e.message, 'error'); } 
@@ -571,7 +571,7 @@
                 this.selectedReportId = null;
 
                 try {
-                    const collectionRef = collection(window.db, `artifacts/${window.appId}/public/data/manualWeeklySaves`);
+                    const collectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/manualWeeklySaves`);
                     const querySnapshot = await getDocs(collectionRef);
                     this.savedReports = [];
                     reportsListDiv.innerHTML = '';
@@ -659,7 +659,7 @@
             if (!window.db || !window.userId) return showMessage('Não autenticado.', 'error');
             window.salonApp.toggleLoadingSpinner('fichas', true);
             try {
-                const docRef = doc(window.db, `artifacts/${window.appId}/public/data/weeklyReportsAggregated/currentWeek`);
+                const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -682,5 +682,4 @@
     </script>
 </body>
 </html>
-
 
