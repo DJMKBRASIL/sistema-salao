@@ -222,7 +222,8 @@
                             `;
                             
                             console.log("Colaboradora autorizada:", user.email);
-                            window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
+                            // ALTERAÇÃO: Aponta para a coleção compartilhada
+                            window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/shared_data/fichas`);
                             
                             if (window.db) {
                                 window.fichasApp.init(); 
@@ -348,9 +349,10 @@
             },
 
             async removeFichaFromFirestore(fichaId) {
-                if (!window.db || !window.userId) return false;
+                if (!window.fichasCollectionRef) return false;
                 try {
-                    await deleteDoc(doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, fichaId));
+                    // ALTERAÇÃO: Usa a referência da coleção compartilhada para criar a referência do documento
+                    await deleteDoc(doc(window.fichasCollectionRef, fichaId));
                     return true;
                 } catch (e) {
                     this.showMessage('Erro ao remover ficha: ' + e.message, 'error');
@@ -536,7 +538,8 @@
                 };
                 
                 try {
-                    const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
+                    // ALTERAÇÃO: Aponta para o documento compartilhado
+                    const docRef = doc(window.db, `artifacts/${window.appId}/shared_data/weeklyReportsAggregated/currentWeek`);
                     await setDoc(docRef, dataToExport);
                     this.showMessage('Dados exportados para o Fechamento Semanal com sucesso!', 'success');
                 } catch (e) {
