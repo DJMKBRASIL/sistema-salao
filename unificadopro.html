@@ -249,7 +249,7 @@
 
             } catch (error) {
                 console.error("Erro ao inicializar Firebase:", error);
-                window.fichasApp.showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
+                if(window.fichasApp) window.fichasApp.showMessage('Erro ao inicializar o Firebase.', 'error');
             }
         }
         
@@ -505,7 +505,7 @@
             },
             
             async generateAndExportWeeklyData() {
-                 if (!window.db || !window.userId) return this.showMessage('Não autenticado.', 'error');
+                 if (!window.db) return this.showMessage('Não autenticado.', 'error');
                 this.toggleLoadingSpinner('export-weekly', true);
 
                 const aggregatedData = { collaborators: {}, products: [] };
