@@ -81,15 +81,17 @@
          */
         async function initializeFirebase() {
             try {
+                console.log("Inicializando Firebase...");
                 window.app = initializeApp(window.firebaseConfig);
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
                 
                 await setPersistence(window.auth, browserLocalPersistence);
 
-                // Configura o observador de estado de autenticação.
+                console.log("Configurando o observador de estado de autenticação...");
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
+                        console.log("onAuthStateChanged: Usuário detectado.", user);
                         window.userId = user.uid;
                         const displayInfo = user.displayName ? `${user.displayName} (${user.email})` : `${user.uid} (Google)`;
                         
@@ -113,6 +115,7 @@
                             window.fichasApp.showMessage('Erro: Banco de dados não disponível. Recarregue a página.', 'error');
                         }
                     } else {
+                        console.log("onAuthStateChanged: Nenhum usuário detectado.");
                         window.userId = 'Não autenticado';
                         document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
                         document.getElementById('auth-buttons').innerHTML = `
@@ -131,21 +134,22 @@
                     }
                 });
                 
+                console.log("Verificando resultado do redirecionamento de login...");
                 try {
                     const result = await getRedirectResult(window.auth);
                     if (result) {
-                        console.log("Login via redirect bem-sucedido.", result.user);
+                        console.log("getRedirectResult: Login bem-sucedido.", result.user);
                         window.fichasApp.showMessage('Autenticado com sucesso!', 'success');
+                    } else {
+                        console.log("getRedirectResult: Nenhuma operação de redirecionamento encontrada.");
                     }
                 } catch (error) {
-                    if (error.code !== 'auth/no-redirect-operation') {
-                        console.error("Erro ao obter resultado do redirect:", error);
-                        window.fichasApp.showMessage('Erro durante o login: ' + error.message, 'error');
-                    }
+                    console.error("getRedirectResult: Erro ao obter resultado do redirect:", error);
+                    window.fichasApp.showMessage('Erro durante o login: ' + error.message, 'error');
                 }
 
             } catch (error) {
-                console.error("Erro ao inicializar Firebase:", error);
+                console.error("Erro fatal ao inicializar Firebase:", error);
                 window.fichasApp.showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
                 document.getElementById('auth-buttons').innerHTML = `<p class="text-sm text-red-500">Falha ao iniciar.</p>`;
             }
