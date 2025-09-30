@@ -47,6 +47,7 @@
         window.db = null;
         window.auth = null;
         window.userId = 'Carregando...';
+        window.recaptchaWidgetId = null;
 
         async function initializeFirebase() {
             try {
@@ -113,6 +114,7 @@
         .content { padding: 2rem; }
         .section { background: #f9fafb; border-radius: var(--border-radius); padding: 1.5rem; margin-bottom: 2rem; border: 1px solid #e5e7eb; }
         .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; border: none; cursor: pointer; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background-color: var(--primary-color); color: white; }
         .btn-danger { background-color: var(--danger-color); color: white; }
         .btn-success { background-color: var(--success-color); color: white; }
@@ -134,7 +136,7 @@
                 <div id="phone-auth-section">
                     <label for="phone-number" class="block mb-2 font-medium">Número de Telefone (com DDI, ex: +55419...)</label>
                     <input type="tel" id="phone-number" class="form-input mb-4" placeholder="+5541999999999">
-                    <button id="send-code-btn" onclick="window.salonApp.sendVerificationCode()" class="btn btn-primary w-full">Enviar Código de Verificação</button>
+                    <button id="send-code-btn" class="btn btn-primary w-full">Enviar Código de Verificação</button>
                     <div id="recaptcha-container" class="mt-4"></div>
                 </div>
                 <div id="code-verification-section" class="hidden mt-4">
@@ -156,11 +158,40 @@
             confirmationResult: null,
 
             setupRecaptcha() {
-                if (!window.recaptchaVerifier) {
+                try {
+                    if (window.recaptchaVerifier) {
+                        // Não é ideal recriar, mas vamos garantir que esteja limpo
+                        // A melhor abordagem é ter um container que é limpo
+                        document.getElementById('recaptcha-container').innerHTML = '';
+                    }
+                    
                     window.recaptchaVerifier = new window.RecaptchaVerifier(window.auth, 'recaptcha-container', {
-                        'size': 'invisible',
-                        'callback': (response) => {}
+                        'size': 'normal',
+                        'callback': (response) => {
+                            document.getElementById('send-code-btn').disabled = false;
+                        },
+                        'expired-callback': () => {
+                            document.getElementById('send-code-btn').disabled = true;
+                            this.showMessage('Verificador de segurança expirou. Por favor, resolva-o novamente.', 'error');
+                            if (window.grecaptcha && window.recaptchaWidgetId) {
+                                window.grecaptcha.reset(window.recaptchaWidgetId);
+                            }
+                        }
                     });
+
+                    window.recaptchaVerifier.render().then((widgetId) => {
+                        window.recaptchaWidgetId = widgetId;
+                    }).catch(err => {
+                        console.error("Erro ao renderizar reCAPTCHA:", err);
+                        this.showMessage("Falha ao renderizar o reCAPTCHA. Verifique se a API 'Identity Platform' está ativada no seu projeto Google Cloud e se o domínio está autorizado.", "error");
+                    });
+
+                    document.getElementById('send-code-btn').disabled = true;
+                    document.getElementById('send-code-btn').onclick = () => this.sendVerificationCode();
+
+                } catch (error) {
+                    console.error("Erro ao criar RecaptchaVerifier:", error);
+                    this.showMessage("Falha ao criar o verificador de segurança. Verifique a configuração do Firebase.", "error");
                 }
             },
 
@@ -176,14 +207,19 @@
                         document.getElementById('code-verification-section').classList.remove('hidden');
                     }).catch((error) => {
                         this.showMessage('Erro ao enviar código: ' + error.message, 'error');
-                        window.recaptchaVerifier.render().then((widgetId) => {
-                           grecaptcha.reset(widgetId);
-                        });
+                        if (window.grecaptcha && window.recaptchaWidgetId) {
+                            window.grecaptcha.reset(window.recaptchaWidgetId);
+                            document.getElementById('send-code-btn').disabled = true;
+                        }
                     });
             },
 
             verifyCode() {
                 const code = document.getElementById('verification-code').value;
+                if (!this.confirmationResult) {
+                    this.showMessage('Nenhuma operação de verificação em andamento.', 'error');
+                    return;
+                }
                 this.confirmationResult.confirm(code).then((result) => {
                     this.showMessage('Autenticado com sucesso!', 'success');
                 }).catch((error) => {
@@ -206,7 +242,6 @@
                 msgDiv.className = `p-4 mb-4 text-sm rounded-lg bg-${type === 'success' ? 'green' : 'red'}-100 text-${type === 'success' ? 'green' : 'red'}-700`;
             },
             
-            // Suas outras funções do salonApp (init, calculateAllTotals, etc.)
             init() {
                 console.log("App de Fechamento Inicializado");
             },
@@ -219,3 +254,5 @@
     </script>
 </body>
 </html>
+
+
