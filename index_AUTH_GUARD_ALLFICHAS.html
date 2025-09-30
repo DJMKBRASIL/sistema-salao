@@ -160,8 +160,6 @@
             setupRecaptcha() {
                 try {
                     if (window.recaptchaVerifier) {
-                        // Não é ideal recriar, mas vamos garantir que esteja limpo
-                        // A melhor abordagem é ter um container que é limpo
                         document.getElementById('recaptcha-container').innerHTML = '';
                     }
                     
@@ -173,7 +171,7 @@
                         'expired-callback': () => {
                             document.getElementById('send-code-btn').disabled = true;
                             this.showMessage('Verificador de segurança expirou. Por favor, resolva-o novamente.', 'error');
-                            if (window.grecaptcha && window.recaptchaWidgetId) {
+                            if (window.grecaptcha && window.recaptchaWidgetId != null) {
                                 window.grecaptcha.reset(window.recaptchaWidgetId);
                             }
                         }
@@ -207,7 +205,7 @@
                         document.getElementById('code-verification-section').classList.remove('hidden');
                     }).catch((error) => {
                         this.showMessage('Erro ao enviar código: ' + error.message, 'error');
-                        if (window.grecaptcha && window.recaptchaWidgetId) {
+                        if (window.grecaptcha && window.recaptchaWidgetId != null) {
                             window.grecaptcha.reset(window.recaptchaWidgetId);
                             document.getElementById('send-code-btn').disabled = true;
                         }
@@ -254,5 +252,4 @@
     </script>
 </body>
 </html>
-
 
