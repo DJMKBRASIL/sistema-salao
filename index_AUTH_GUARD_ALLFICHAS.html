@@ -54,6 +54,8 @@
                 window.app = initializeApp(window.firebaseConfig);
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
+                // MODO DE DEBUG - Adicione esta linha
+                window.auth.settings.appVerificationDisabledForTesting = true;
 
                 onAuthStateChanged(window.auth, (user) => {
                     const authContainer = document.getElementById('auth-container');
