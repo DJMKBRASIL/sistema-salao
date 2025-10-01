@@ -1,0 +1,1983 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Espaço Fran Kokott</title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import {GoogleAuthProvider, RecaptchaVerifier, browserLocalPersistence, getAuth, linkWithPhoneNumber, linkWithPopup, onAuthStateChanged, setPersistence, signInAnonymously, signInWithCustomToken, signInWithPhoneNumber, signInWithPopup, signOut} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDoc, 
+            setDoc, 
+            deleteDoc, 
+            collection, 
+            query, 
+            where, 
+            getDocs, 
+            addDoc 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuração do Firebase (usando as credenciais fornecidas ou placeholders)
+        window.appId = typeof __app_id !== 'undefined' ? __app_id : (window.firebaseConfig && window.firebaseConfig.projectId ? window.firebaseConfig.projectId : 'default-app-id');
+        window.firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyD7FwQZspQNYZmNlQv8oNglccBXHmduW5w", 
+            authDomain: "sistema-do-salao.firebaseapp.com", 
+            projectId: "sistema-do-salao",   
+            storageBucket: "sistema-do-salao.firebasestorage.app", 
+            messagingSenderId: "395887083088", 
+            appId: "1:395887083088:web:3a41fd836cc59a976ddb55", 
+            measurementId: "G-1D996M5FKZ" 
+        };
+        window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Variáveis globais do Firebase
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = 'Carregando...'; 
+        window.fichasCollectionRef = null; 
+
+        /**
+         * Inicializa o Firebase e configura o listener de autenticação.
+         */
+        async function initializeFirebase() {
+            try {
+                window.app = initializeApp(window.firebaseConfig);
+                window.db = getFirestore(window.app);
+                window.auth = getAuth(window.app);
+                
+                await setPersistence(window.auth, browserLocalPersistence);
+                console.log("Firebase inicializado com sucesso");
+
+                onAuthStateChanged(window.auth, async (user) => {
+                    if (user) {
+                        window.userId = user.uid;
+                        const authMethod = user.phoneNumber ? 'Telefone' : (user.isAnonymous ? 'Anônimo' : 'Google');
+                        const nameOrId = user.phoneNumber || user.displayName || user.email || window.userId;
+                        const displayInfo = `${nameOrId} (${authMethod})`;
+                        
+                        document.getElementById('user-id-display').textContent = `Usuário: ${displayInfo}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="window.fichasApp.signOutUser()" class="btn btn-danger">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                </svg>
+                                Sair
+                            </button>
+                        `;
+                        
+                        console.log("Usuário autenticado:", window.userId, "Método:", authMethod);
+                        window.fichasCollectionRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`);
+                        if (window.db) {
+                            window.fichasApp.init(); // Carregar dados iniciais após autenticação
+                        } else {
+                            console.error("Banco de dados Firebase não disponível após autenticação.");
+                            window.fichasApp.showMessage('Erro: Banco de dados não disponível após autenticação. Recarregue a página.', 'error');
+                        }
+                    } else {
+                        window.userId = 'Não autenticado';
+                        document.getElementById('user-id-display').textContent = `Usuário: ${window.userId}`;
+                        document.getElementById('auth-buttons').innerHTML = `
+                            <button onclick="window.fichasApp.signInWithGoogle()" class="btn btn-primary">
+                                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                </svg>
+                                Entrar com Google
+                            </button>
+                            <button onclick="openPhoneLoginModal_fichas()" class="btn btn-primary ml-2">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h2l3 7-1 4a2 2 0 002 2h6a2 2 0 002-2l-1-4 3-7h2" />
+                                </svg>
+                                Entrar por Telefone
+                            </button>
+                        `;
+                        
+                        // Desabilitar botões que dependem de autenticação completa
+                        window.fichasApp.disableAuthRequiredButtons();
+                    }
+                });
+
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                window.fichasApp.showMessage('Erro ao inicializar o Firebase. Verifique a configuração.', 'error');
+            }
+        }
+
+        // Chamar a inicialização do Firebase quando o DOM estiver pronto
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
+
+        // Expondo as funções do Firestore SDK diretamente, se necessário
+        window.doc = doc;
+        window.getDoc = getDoc;
+        window.setDoc = setDoc;
+        window.deleteDoc = deleteDoc;
+        window.collection = collection;
+        window.query = query;
+        window.where = where;
+        window.getDocs = getDocs;
+        window.addDoc = addDoc; 
+    
+        // ===== Autenticação por Telefone (fichas) =====
+        let recaptchaVerifier_fichas = null;
+        let confirmationResult_fichas = null;
+        let recaptchaLinkVerifier_fichas = null;
+        let linkConfirmation_fichas = null;
+
+        function openPhoneLoginModal_fichas() {
+            const modal = document.getElementById('phone-login-modal-fichas');
+            if (modal) modal.style.display = 'flex';
+            if (!recaptchaVerifier_fichas) {
+                try {
+                    recaptchaVerifier_fichas = new RecaptchaVerifier(window.auth, 'recaptcha-container-fichas', { size: 'normal' });
+                } catch (e) {
+                    console.error(e); showMessage('Falha ao iniciar reCAPTCHA', 'error');
+                }
+            }
+        }
+        function closePhoneLoginModal_fichas() {
+            const modal = document.getElementById('phone-login-modal-fichas');
+            if (modal) modal.style.display = 'none';
+            const step = document.getElementById('sms-step-fichas'); if (step) step.style.display = 'none';
+        }
+        async function startPhoneAuth_fichas() {
+            const phone = (document.getElementById('phone-number-input-fichas')?.value || '').trim();
+            if (!phone) return showMessage('Informe o telefone no formato +55DDDNÚMERO.', 'error');
+            try {
+                confirmationResult_fichas = await signInWithPhoneNumber(window.auth, phone, recaptchaVerifier_fichas);
+                document.getElementById('sms-step-fichas').style.display = 'block';
+                showMessage('Código SMS enviado.', 'success');
+            } catch (e) {
+                console.error(e); showMessage('Erro ao enviar SMS: '+(e?.message||e), 'error');
+            }
+        }
+        async function verifyPhoneCode_fichas() {
+            const code = (document.getElementById('sms-code-input-fichas')?.value || '').trim();
+            if (!code) return showMessage('Digite o código recebido por SMS.', 'error');
+            try {
+                await confirmationResult_fichas.confirm(code);
+                closePhoneLoginModal_fichas();
+                showMessage('Autenticado por telefone!', 'success');
+            } catch (e) {
+                console.error(e); showMessage('Código inválido/expirado.', 'error');
+            }
+        }
+
+        // ===== Vincular Telefone ao usuário atual (mesmo UID) =====
+        function openLinkPhoneModal_fichas() {
+            const modal = document.getElementById('phone-link-modal-fichas');
+            if (modal) modal.style.display = 'flex';
+            if (!recaptchaLinkVerifier_fichas) {
+                try {
+                    recaptchaLinkVerifier_fichas = new RecaptchaVerifier(window.auth, 'recaptcha-link-container-fichas', { size: 'normal' });
+                } catch (e) {
+                    console.error(e); showMessage('Falha ao iniciar reCAPTCHA (link)', 'error');
+                }
+            }
+        }
+        function closeLinkPhoneModal_fichas() {
+            const modal = document.getElementById('phone-link-modal-fichas'); if (modal) modal.style.display = 'none';
+            const step = document.getElementById('link-sms-step-fichas'); if (step) step.style.display = 'none';
+        }
+        async function startLinkPhone_fichas() {
+            if (!window.auth?.currentUser) return showMessage('Faça login primeiro.', 'error');
+            const phone = (document.getElementById('link-phone-input-fichas')?.value || '').trim();
+            if (!phone) return showMessage('Informe o telefone no formato +55DDDNÚMERO.', 'error');
+            try {
+                linkConfirmation_fichas = await linkWithPhoneNumber(window.auth.currentUser, phone, recaptchaLinkVerifier_fichas);
+                document.getElementById('link-sms-step-fichas').style.display = 'block';
+                showMessage('Código SMS enviado.', 'success');
+            } catch (e) {
+                console.error(e); showMessage('Erro ao enviar SMS (link): '+(e?.message||e), 'error');
+            }
+        }
+        async function verifyLinkPhone_fichas() {
+            const code = (document.getElementById('link-code-input-fichas')?.value || '').trim();
+            if (!code) return showMessage('Digite o código.', 'error');
+            try {
+                await linkConfirmation_fichas.confirm(code);
+                closeLinkPhoneModal_fichas();
+                showMessage('Telefone vinculado! Agora você pode entrar só com o número e manterá o mesmo UID.', 'success');
+                try { document.getElementById('link-banner-fichas').classList.add('hidden'); } catch(_) {}
+            } catch (e) {
+                console.error(e); showMessage('Código inválido/expirado ou telefone já vinculado.', 'error');
+            }
+        }
+
+        // Expor para onclick
+        window.openPhoneLoginModal_fichas = openPhoneLoginModal_fichas;
+        window.closePhoneLoginModal_fichas = closePhoneLoginModal_fichas;
+        window.startPhoneAuth_fichas = startPhoneAuth_fichas;
+        window.verifyPhoneCode_fichas = verifyPhoneCode_fichas;
+        window.openLinkPhoneModal_fichas = openLinkPhoneModal_fichas;
+        window.closeLinkPhoneModal_fichas = closeLinkPhoneModal_fichas;
+        window.startLinkPhone_fichas = startLinkPhone_fichas;
+        window.verifyLinkPhone_fichas = verifyLinkPhone_fichas;
+    </script>
+
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-hover: #4f46e5;
+            --secondary-color: #8b5cf6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #3b82f6;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --border-radius: 0.75rem;
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+            line-height: 1.6;
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .section {
+            background: var(--gray-50);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--gray-200);
+            transition: var(--transition);
+        }
+
+        .section:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between; 
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin: 0;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow-sm);
+            min-height: 44px; /* Touch-friendly minimum */
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #7c3aed;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background-color: #059669;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover:not(:disabled) {
+            background-color: #d97706;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background-color: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-info {
+            background-color: var(--info-color);
+            color: white;
+        }
+
+        .btn-info:hover:not(:disabled) {
+            background-color: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-gray {
+            background-color: var(--gray-300);
+            color: var(--gray-800);
+        }
+
+        .btn-gray:hover:not(:disabled) {
+            background-color: var(--gray-400);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: var(--transition);
+            background-color: white;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .form-input::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        .form-textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: var(--transition);
+            background-color: white;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .grid-cols-1 {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+        }
+
+        .grid-cols-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .grid-cols-3 {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
+            flex-direction: column;
+        }
+
+        .flex-wrap {
+            flex-wrap: wrap;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-between {
+            justify-content: space-between;
+        }
+
+        .gap-2 {
+            gap: 0.5rem;
+        }
+
+        .gap-3 {
+            gap: 0.75rem;
+        }
+
+        .gap-4 {
+            gap: 1rem;
+        }
+
+        .mb-2 {
+            margin-bottom: 0.5rem;
+        }
+
+        .mb-4 {
+            margin-bottom: 1rem;
+        }
+
+        .mb-6 {
+            margin-bottom: 1.5rem;
+        }
+
+        .mt-4 {
+            margin-top: 1rem;
+        }
+
+        .p-4 {
+            padding: 1rem;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-sm {
+            font-size: 0.875rem;
+        }
+
+        .text-lg {
+            font-size: 1.125rem;
+        }
+
+        .text-xl {
+            font-size: 1.25rem;
+        }
+
+        .font-medium {
+            font-weight: 500;
+        }
+
+        .font-semibold {
+            font-weight: 600;
+        }
+
+        .font-bold {
+            font-weight: 700;
+        }
+
+        .text-gray-500 {
+            color: var(--gray-500);
+        }
+
+        .text-gray-600 {
+            color: var(--gray-600);
+        }
+
+        .text-gray-700 {
+            color: var(--gray-700);
+        }
+
+        .text-gray-800 {
+            color: var(--gray-800);
+        }
+
+        .collaborator-block {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--gray-200);
+            box-shadow: var(--shadow-sm);
+            transition: var(--transition);
+        }
+
+        .collaborator-block:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .client-row {
+            background: var(--gray-50);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--gray-200);
+        }
+
+        .product-row {
+            background: var(--gray-50);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--gray-200);
+        }
+
+        .observation-area {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .observation-area.visible {
+            display: block;
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            animation: slideInDown 0.3s ease-out;
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .message-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .message-info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: var(--shadow-xl);
+            animation: scaleIn 0.3s ease-out;
+        }
+
+        @keyframes scaleIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .saved-reports-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .report-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--gray-200);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition);
+        }
+
+        .report-item:last-child {
+            border-bottom: none;
+        }
+
+        .report-item:hover {
+            background-color: var(--gray-50);
+        }
+
+        .report-item.selected {
+            background-color: #e0e7ff;
+            font-weight: 600;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            body {
+                padding: 0.5rem;
+            }
+
+            .header {
+                padding: 1.5rem 1rem;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .content {
+                padding: 1rem;
+            }
+
+            .section {
+                padding: 1rem;
+            }
+
+            .grid-cols-3 {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+
+            .grid-cols-2 {
+                grid-template-columns: repeat(1, minmax(0, 1fr));
+            }
+
+            .flex {
+                flex-direction: column;
+            }
+
+            .flex > * {
+                width: 100%;
+            }
+
+            .btn {
+                padding: 1rem;
+                font-size: 1rem;
+            }
+
+            .modal-content {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+
+            .modal-buttons {
+                flex-direction: column;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.75rem;
+            }
+
+            .section-title {
+                font-size: 1.25rem;
+            }
+
+            .collaborator-block {
+                padding: 1rem;
+            }
+
+            .client-row,
+            .product-row {
+                padding: 0.5rem;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .main-container {
+                box-shadow: none;
+                border-radius: 0;
+            }
+
+            .header {
+                background: white !important;
+                color: black !important;
+            }
+
+            .btn,
+            .modal {
+                display: none !important;
+            }
+        }
+
+        /* High contrast mode support */
+        @media (prefers-contrast: high) {
+            .section {
+                border: 2px solid var(--gray-400);
+            }
+
+            .btn {
+                border: 2px solid currentColor;
+            }
+        }
+
+        /* Reduced motion support */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Espaço Fran Kokott</h1>
+            <p style="font-size: 1.2rem; margin-top: 0.5rem; opacity: 0.9;">Fichas de Cliente</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="content">
+            <!-- User Authentication Section -->
+            <div class="section">
+                <div class="flex items-center justify-between mb-4">
+                    <p id="user-id-display" class="text-sm text-gray-500">Usuário: Carregando...</p>
+                    <div id="auth-buttons" class="flex gap-2">
+                        <!-- Authentication buttons will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Area for feedback messages -->
+            <div id="app-message" class="message" style="display: none;"></div>
+
+            <!-- Ficha Input Section -->
+            <section class="section">
+                <h2 class="section-title">Nova Ficha de Atendimento</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label for="clientName" class="form-label">Nome da Cliente</label>
+                        <input type="text" id="clientName" placeholder="Nome Completo da Cliente" class="form-input" oninput="window.fichasApp.saveLocalData()">
+                    </div>
+                    <div>
+                        <label for="professionalName" class="form-label">Nome da Profissional</label>
+                        <input type="text" id="professionalName" placeholder="Nome da Profissional" class="form-input" oninput="window.fichasApp.saveLocalData()">
+                    </div>
+                    <div>
+                        <label for="serviceDate" class="form-label">Data do Serviço</label>
+                        <input type="date" id="serviceDate" class="form-input" oninput="window.fichasApp.saveLocalData()">
+                    </div>
+                </div>
+
+                <!-- Observações -->
+                <div class="mt-3">
+                    <label for="observations" class="form-label">Observações</label>
+                    <textarea id="observations" class="form-input" rows="2" placeholder="Ex.: Fulana pagou 100 em dinheiro e 200 no crédito à vista" oninput="window.fichasApp.saveLocalData()"></textarea>
+                </div>
+
+                <div class="mt-4">
+                    <h3 class="text-md font-medium text-gray-700 mb-2">Serviços</h3>
+                    <div id="services-container">
+                        <!-- Service rows will be added dynamically here -->
+                    </div>
+                    <button onclick="window.fichasApp.addServiceRow()" class="btn btn-primary btn-full mt-2">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Adicionar Serviço
+                    </button>
+                </div>
+
+                <div class="mt-4">
+                    <h3 class="text-md font-medium text-gray-700 mb-2">Produtos Vendidos (Opcional)</h3>
+                    <div id="products-sold-container">
+                        <!-- Products sold rows will be added dynamically here -->
+                    </div>
+                    <button onclick="window.fichasApp.addProductSoldRow()" class="btn btn-success btn-full mt-2">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Adicionar Produto
+                    </button>
+                    <button id="addProductsOnlyBtn" onclick="window.fichasApp.addProductsOnly()" class="btn btn-success btn-full mt-2" disabled>
+                        Registrar Só Produtos
+                    </button>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <button id="addFichaBtn" onclick="window.fichasApp.addFicha()" class="btn btn-primary text-lg font-bold" disabled>
+                        <span id="add-ficha-spinner" class="loading-spinner mr-2 hidden"></span>
+                        <svg id="add-ficha-icon" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Registrar Ficha
+                    </button>
+                </div>
+            </section>
+
+            <!-- Recorded Fichas Section -->
+            <section class="section">
+                <h2 class="section-title">Fichas Registradas</h2>
+                <div id="fichas-list" class="overflow-x-auto">
+                    <table class="min-w-full bg-white rounded-lg shadow-md">
+                        <thead>
+                            <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
+                                <th class="py-3 px-6 text-left">Cliente</th>
+                                <th class="py-3 px-6 text-left">Profissional</th>
+                                <th class="py-3 px-6 text-left">Serviços</th>
+                                <th class="py-3 px-6 text-left">Produtos</th>
+                                <th class="py-3 px-6 text-center">Data</th>
+                                <th class="py-3 px-6 text-center">Total Ficha</th>
+                                <th class="py-3 px-6 text-left">Observações</th>
+                                <th class="py-3 px-6 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-gray-600 text-sm font-light" id="fichas-table-body">
+                            <!-- Fichas will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                    <button id="clearAllFichasBtn" onclick="window.fichasApp.showClearAllFichasConfirm()" class="btn btn-danger btn-full" disabled>
+                        <span id="clear-fichas-spinner" class="loading-spinner mr-2 hidden"></span>
+                        <svg id="clear-fichas-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        Limpar Todas as Fichas
+                    </button>
+                    <button id="exportWeeklyDataBtn" onclick="window.fichasApp.generateAndExportWeeklyData()" class="btn btn-secondary btn-full" disabled>
+                        <span id="export-weekly-spinner" class="loading-spinner mr-2 hidden"></span>
+                        <svg id="export-weekly-icon" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7m-4 2l4-4m0 0l-4-4m4 4H7"></path>
+                        </svg>
+                        Exportar Dados para Fechamento Semanal
+                    </button>
+                </div>
+            </section>
+
+            <!-- New Section for Local File Operations -->
+            <section class="section">
+                <h2 class="section-title">Opções de Arquivo Local</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <button onclick="window.fichasApp.exportDataToFile()" class="btn btn-info btn-full">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Exportar Fichas (JSON)
+                    </button>
+                    <button onclick="window.fichasApp.importDataFromFile()" class="btn btn-info btn-full">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                        </svg>
+                        Importar Fichas (JSON)
+                    </button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal de Confirmação para Limpar Tudo -->
+    <div id="custom-confirm-modal" class="modal">
+        <div class="modal-content">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirmar Ação</h3>
+            <p class="text-gray-600 mb-4" id="confirm-message">Tem certeza que deseja limpar todas as fichas?</p>
+            <p class="text-sm text-gray-500">Esta ação não pode ser desfeita.</p>
+            <div class="modal-buttons">
+                <button class="btn btn-gray" onclick="window.fichasApp.handleConfirm(false)">Cancelar</button>
+                <button class="btn btn-danger" onclick="window.fichasApp.handleConfirm(true)">Limpar Tudo</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Objeto principal da aplicação de Fichas
+        window.fichasApp = {
+            fichas: [], // Array local para armazenar os objetos de ficha
+            
+            /**
+             * Inicializa a aplicação de fichas.
+             */
+            init() {
+                this.loadLocalData(); // Tenta carregar dados do localStorage
+                this.loadFichasFromFirestore(); // Carrega fichas do Firestore
+                const sd = document.getElementById('serviceDate'); if (sd && !sd.value) sd.value = (new Date()).toISOString().slice(0,10);
+                // Garante que haja pelo menos uma linha vazia para input
+                if (document.querySelectorAll('.service-row').length === 0) {
+                    this.addServiceRow();
+                }
+                if (document.querySelectorAll('.product-sold-row').length === 0) {
+                    this.addProductSoldRow();
+                }
+                this.enableButtons();
+                console.log("Fichas App inicializado.");
+            },
+
+            /**
+             * Habilita os botões que requerem autenticação.
+             */
+            enableButtons() {
+                const authRequiredButtons = [
+                    'addFichaBtn',
+                    'clearAllFichasBtn',
+                    'exportWeeklyDataBtn',
+                    'addProductsOnlyBtn'
+                ];
+                authRequiredButtons.forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = false;
+                });
+            },
+
+            /**
+             * Desabilita os botões que requerem autenticação.
+             */
+            disableAuthRequiredButtons() {
+                const authRequiredButtons = [
+                    'addFichaBtn',
+                    'clearAllFichasBtn',
+                    'exportWeeklyDataBtn',
+                    'addProductsOnlyBtn'
+                ];
+                authRequiredButtons.forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = true;
+                });
+            },
+
+            // --- Funções de Autenticação (Espelhadas do Fechamento Semanal) ---
+            /**
+             * Função para fazer login com o Google.
+             */
+            async signInWithGoogle() {
+                const provider = new GoogleAuthProvider();
+                try {
+                    await signInWithPopup(window.auth, provider);
+                    this.showMessage('Autenticado com Google!', 'success');
+                } catch (error) {
+                    console.error("Erro ao autenticar com Google:", error);
+                    this.showMessage('Erro ao autenticar com Google: ' + error.message, 'error');
+                }
+            },
+
+            /**
+             * Função para fazer logout do usuário.
+             */
+            async signOutUser() {
+                try {
+                    await signOut(window.auth);
+                    this.showMessage('Sessão encerrada.', 'info');
+                    // Limpar dados locais ao sair
+                    this.fichas = [];
+                    this.renderFichasTable();
+                    this.clearInputFields();
+                    this.disableAuthRequiredButtons();
+                } catch (error) {
+                    console.error("Erro ao sair:", error);
+                    this.showMessage('Erro ao sair: ' + error.message, 'error');
+                }
+            },
+            // --- Fim Funções de Autenticação ---
+
+            // --- Helper Functions for Messages and Modals ---
+            /**
+             * Exibe uma mensagem na interface.
+             * @param {string} message - A mensagem a ser exibida.
+             * @param {string} type - O tipo da mensagem ('success', 'error', 'info').
+             */
+            showMessage(message, type = 'success') {
+                const msgDiv = document.getElementById('app-message');
+                msgDiv.textContent = message;
+                msgDiv.classList.remove('hidden', 'message-error', 'message-success', 'message-info');
+                if (type === 'success') {
+                    msgDiv.classList.add('message-success');
+                } else if (type === 'error') {
+                    msgDiv.classList.add('message-error');
+                } else if (type === 'info') {
+                    msgDiv.classList.add('message-info');
+                }
+                msgDiv.style.display = 'block'; // Garante que a mensagem seja visível
+                setTimeout(() => {
+                    msgDiv.style.display = 'none';
+                }, 5000);
+            },
+
+            /**
+             * Mostra o modal de confirmação para limpar todas as fichas.
+             */
+            showClearAllFichasConfirm() {
+                document.getElementById('custom-confirm-modal').style.display = 'flex';
+                this.confirmAction = 'clearAllFichas'; // Define a ação a ser confirmada
+            },
+
+            /**
+             * Lida com a resposta do modal de confirmação.
+             * @param {boolean} confirmed - True se a ação foi confirmada, false caso contrário.
+             */
+            handleConfirm(confirmed) {
+                document.getElementById('custom-confirm-modal').style.display = 'none';
+                if (confirmed) {
+                    if (this.confirmAction === 'clearAllFichas') {
+                        this.clearAllFichas();
+                    }
+                } else {
+                    this.showMessage('Operação de limpeza cancelada.', 'info');
+                }
+                this.confirmAction = null; // Limpa a ação pendente
+            },
+            // --- End Helper Functions ---
+
+            // --- Firestore Functions ---
+            /**
+             * Salva uma ficha no Firestore.
+             * @param {object} fichaData - Os dados da ficha a serem salvos.
+             * @returns {string|null} O ID do documento salvo ou null em caso de erro.
+             */
+            async saveFichaToFirestore(fichaData) {
+                if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível salvar a ficha.', 'error');
+                    return null;
+                }
+                this.toggleLoadingSpinner('add-ficha', true);
+                try {
+                    const docRef = await window.addDoc(window.fichasCollectionRef, fichaData);
+                    console.log("Ficha salva com ID:", docRef.id);
+                    this.showMessage('Ficha registrada e salva na nuvem!', 'success');
+                    return docRef.id;
+                } catch (e) {
+                    console.error("Erro ao adicionar ficha ao Firestore: ", e);
+                    this.showMessage('Erro ao salvar ficha na nuvem: ' + e.message, 'error');
+                    return null;
+                } finally {
+                    this.toggleLoadingSpinner('add-ficha', false);
+                }
+            },
+
+            /**
+             * Carrega as fichas do Firestore para o array local.
+             */
+            async loadFichasFromFirestore() {
+                if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                    console.log('Firebase não inicializado ou usuário não autenticado. Não foi possível carregar as fichas.');
+                    return;
+                }
+                this.showMessage('Carregando fichas do Firestore...', 'info');
+                this.toggleLoadingSpinner('clear-fichas', true); // Usando o spinner de limpar fichas para indicar carregamento
+                try {
+                    this.fichas = []; 
+                    const querySnapshot = await window.getDocs(window.fichasCollectionRef);
+                    querySnapshot.forEach((doc) => {
+                        this.fichas.push({ id: doc.id, ...doc.data() });
+                    });
+                    this.renderFichasTable();
+                    this.showMessage('Fichas carregadas do Firestore com sucesso!', 'success');
+                    console.log("Fichas carregadas:", this.fichas);
+                } catch (e) {
+                    console.error("Erro ao carregar fichas do Firestore: ", e);
+                    this.showMessage('Erro ao carregar fichas da nuvem: ' + e.message, 'error');
+                } finally {
+                    this.toggleLoadingSpinner('clear-fichas', false);
+                }
+            },
+
+            /**
+             * Remove uma ficha específica do Firestore.
+             * @param {string} fichaId - O ID da ficha a ser removida.
+             * @returns {boolean} True se a remoção foi bem-sucedida, false caso contrário.
+             */
+            async removeFichaFromFirestore(fichaId) {
+                if (!window.db || !window.userId) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível remover a ficha.', 'error');
+                    return false;
+                }
+                try {
+                    await window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, fichaId));
+                    this.showMessage('Ficha removida da nuvem.', 'info');
+                    return true;
+                } catch (e) {
+                    console.error("Erro ao remover ficha do Firestore: ", e);
+                    this.showMessage('Erro ao remover ficha da nuvem: ' + e.message, 'error');
+                    return false;
+                }
+            },
+
+            /**
+             * Salva os dados agregados para o sistema de fechamento semanal no Firestore.
+             * @param {object} data - Os dados agregados a serem salvos.
+             */
+            async saveWeeklyReportDataToFirestore(data) {
+                if (!window.db || !window.userId) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados.', 'error');
+                    return;
+                }
+                this.toggleLoadingSpinner('export-weekly', true);
+                try {
+                    // Salva os dados agregados em um documento específico para o fechamento semanal
+                    const docRef = window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/weeklyReportsAggregated/currentWeek`);
+                    await window.setDoc(docRef, data);
+                    console.log("Dados agregados para fechamento semanal salvos no Firestore com sucesso!");
+                    this.showMessage('Dados agregados para fechamento semanal salvos no Firestore!', 'success');
+                } catch (e) {
+                    console.error("Erro ao salvar dados agregados no Firestore: ", e);
+                    this.showMessage('Erro ao salvar dados agregados na nuvem: ' + e.message, 'error');
+                } finally {
+                    this.toggleLoadingSpinner('export-weekly', false);
+                }
+            },
+            // --- End Firestore Functions ---
+
+            // --- Dynamic Input Row Management ---
+            /**
+             * Adiciona uma nova linha de serviço.
+             * @param {string} serviceName - Nome do serviço (opcional).
+             * @param {number} serviceValue - Valor do serviço (opcional).
+             * @param {string} paymentMethod - Método de pagamento (opcional).
+             */
+            addServiceRow(serviceName = '', serviceValue = '', paymentMethod = 'pix') {
+                const container = document.getElementById('services-container');
+                const newServiceDiv = document.createElement('div');
+                newServiceDiv.className = 'flex items-center gap-2 mb-2 service-row';
+                newServiceDiv.innerHTML = `
+                    <input type="text" placeholder="Nome do Serviço" value="${serviceName}" 
+                           class="service-name form-input flex-grow min-w-[100px]" oninput="window.fichasApp.saveLocalData()">
+                    <input type="number" step="0.01" min="0" placeholder="Valor" value="${serviceValue}" 
+                           class="service-value form-input w-28 text-right" oninput="window.fichasApp.saveLocalData()">
+                    <select class="payment-method form-input w-24" onchange="window.fichasApp.saveLocalData()">
+                        <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
+                        <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
+                        <option value="credito_1x" ${paymentMethod === 'credito_1x' ? 'selected' : ''}>Crédito 1x</option>
+                        <option value="credito_2x" ${paymentMethod === 'credito_2x' ? 'selected' : ''}>Crédito 2x</option>
+                        <option value="credito_3x" ${paymentMethod === 'credito_3x' ? 'selected' : ''}>Crédito 3x</option>
+                        <option value="dinheiro" ${paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                    </select>
+                    <button onclick="window.fichasApp.removeRow(this)" class="btn btn-danger p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                `;
+                container.appendChild(newServiceDiv);
+            },
+
+            /**
+             * Adiciona uma nova linha de produto vendido.
+             * @param {string} productName - Nome do produto (opcional).
+             * @param {number} productValue - Valor do produto (opcional).
+             * @param {string} paymentMethod - Método de pagamento (opcional).
+             */
+            addProductSoldRow(productName = '', productValue = '', paymentMethod = 'pix') {
+                const container = document.getElementById('products-sold-container');
+                const newProductDiv = document.createElement('div');
+                newProductDiv.className = 'flex items-center gap-2 mb-2 product-sold-row';
+                newProductDiv.innerHTML = `
+                    <input type="text" placeholder="Nome do Produto" value="${productName}" 
+                           class="product-sold-name form-input flex-grow min-w-[100px]" oninput="window.fichasApp.saveLocalData()">
+                    <input type="number" step="0.01" min="0" placeholder="Valor" value="${productValue}" 
+                           class="product-sold-value form-input w-28 text-right" oninput="window.fichasApp.saveLocalData()">
+                    <select class="payment-method form-input w-24" onchange="window.fichasApp.saveLocalData()">
+                        <option value="pix" ${paymentMethod === 'pix' ? 'selected' : ''}>Pix</option>
+                        <option value="debito" ${paymentMethod === 'debito' ? 'selected' : ''}>Débito</option>
+                        <option value="credito_1x" ${paymentMethod === 'credito_1x' ? 'selected' : ''}>Crédito 1x</option>
+                        <option value="credito_2x" ${paymentMethod === 'credito_2x' ? 'selected' : ''}>Crédito 2x</option>
+                        <option value="credito_3x" ${paymentMethod === 'credito_3x' ? 'selected' : ''}>Crédito 3x</option>
+                        <option value="dinheiro" ${paymentMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                    </select>
+                    <button onclick="window.fichasApp.removeRow(this)" class="btn btn-danger p-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                `;
+                container.appendChild(newProductDiv);
+            },
+
+            /**
+             * Remove uma linha de input (serviço ou produto).
+             * @param {HTMLElement} button - O botão de remoção clicado.
+             */
+            removeRow(button) {
+                button.closest('.flex').remove();
+                this.saveLocalData(); // Salva o estado após remover uma linha
+            },
+
+            /**
+             * Limpa os campos de input do formulário.
+             */
+            clearInputFields() {
+                document.getElementById('clientName').value = '';
+                document.getElementById('professionalName').value = '';
+                document.getElementById('services-container').innerHTML = ''; 
+                document.getElementById('products-sold-container').innerHTML = '';
+                document.getElementById('serviceDate').value = (new Date()).toISOString().slice(0,10);
+                const obsEl = document.getElementById('observations'); if (obsEl) obsEl.value = ''; 
+                this.addServiceRow(); 
+                this.addProductSoldRow(); 
+                this.saveLocalData(); // Salva o estado limpo
+            },
+            // --- End Dynamic Input Row Management ---
+
+            // --- Ficha Management Functions ---
+            /**
+             * Adiciona uma nova ficha de atendimento.
+             */
+            async addFicha() {
+                if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Por favor, aguarde alguns segundos e tente novamente.', 'error');
+                    return;
+                }
+
+                const clientName = document.getElementById('clientName').value.trim();
+                const professionalName = document.getElementById('professionalName').value.trim();
+                const serviceDate = (document.getElementById('serviceDate').value || new Date().toISOString().slice(0,10));
+                const observations = (document.getElementById('observations')?.value || '').trim();
+
+                if (!clientName || !professionalName) {
+                    this.showMessage('Por favor, preencha o nome da Cliente e da Profissional.', 'error');
+                    return;
+                }
+
+                const services = [];
+                document.querySelectorAll('.service-row').forEach(row => {
+                    const name = row.querySelector('.service-name').value.trim();
+                    const value = parseFloat(row.querySelector('.service-value').value) || 0;
+                    const paymentMethod = row.querySelector('.payment-method').value;
+                    if (name && value > 0) {
+                        services.push({ name, value, paymentMethod });
+                    }
+                });
+
+                const productsSold = [];
+                document.querySelectorAll('.product-sold-row').forEach(row => {
+                    const name = row.querySelector('.product-sold-name').value.trim();
+                    const value = parseFloat(row.querySelector('.product-sold-value').value) || 0;
+                    const paymentMethod = row.querySelector('.payment-method').value;
+                    if (name && value > 0) {
+                        productsSold.push({ name, value, paymentMethod });
+                    }
+                });
+
+                if (services.length === 0 && productsSold.length === 0) {
+                    this.showMessage('Por favor, adicione pelo menos um serviço ou um produto vendido.', 'error');
+                    return;
+                }
+
+                const totalFicha = services.reduce((sum, s) => sum + s.value, 0) + productsSold.reduce((sum, p) => sum + p.value, 0);
+
+                const newFicha = {
+                    clientName,
+                    professionalName,
+                    services,
+                    productsSold,
+                    totalFicha,
+                    serviceDate,
+                    observations,
+                    timestamp: new Date().toISOString() 
+                };
+
+                const fichaId = await this.saveFichaToFirestore(newFicha);
+                if (fichaId) {
+                    this.fichas.push({ id: fichaId, ...newFicha }); 
+                    this.
+            
+            /**
+             * Registra apenas produtos (sem serviços).
+             */
+            async addProductsOnly() {
+                if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado.', 'error');
+                    return;
+                }
+                const clientName = document.getElementById('clientName').value.trim();
+                const professionalName = document.getElementById('professionalName').value.trim();
+                const serviceDate = (document.getElementById('serviceDate').value || new Date().toISOString().slice(0,10));
+                const observations = (document.getElementById('observations')?.value || '').trim();
+                if (!clientName || !professionalName) {
+                    this.showMessage('Por favor, preencha o nome da Cliente e da Profissional.', 'error');
+                    return;
+                }
+                // Coleta produtos
+                const productsSold = [];
+                document.querySelectorAll('.product-sold-row').forEach(row => {
+                    const name = row.querySelector('.product-sold-name').value.trim();
+                    const value = parseFloat(row.querySelector('.product-sold-value').value) || 0;
+                    const paymentMethod = row.querySelector('.payment-method').value;
+                    if (name && value > 0) {
+                        productsSold.push({ name, value, paymentMethod });
+                    }
+                });
+                if (productsSold.length === 0) {
+                    this.showMessage('Adicione ao menos 1 produto para registrar.', 'error');
+                    return;
+                }
+                // Monta a ficha só com produtos
+                const totalFicha = productsSold.reduce((sum, p) => sum + p.value, 0);
+                const newFicha = {
+                    clientName,
+                    professionalName,
+                    services: [],
+                    productsSold,
+                    totalFicha,
+                    serviceDate,
+                    observations,
+                    timestamp: new Date().toISOString()
+                };
+                // Salva local e na nuvem
+                this.fichas.push(newFicha);
+                this.saveLocalData();
+                this.renderFichasTable();
+                await this.saveFichaToFirestore(newFicha);
+                this.showMessage('Produtos registrados!', 'success');
+                this.clearInputFields();
+            }
+renderFichasTable();
+                    this.clearInputFields();
+                    this.saveLocalData(); // Salva o estado local após adicionar ficha
+                }
+            },
+
+            /**
+             * Remove uma ficha do array local e do Firestore.
+             * @param {number} index - O índice da ficha a ser removida no array local.
+             */
+            async removeFicha(index) {
+                const fichaToRemove = this.fichas[index];
+                if (!fichaToRemove || !fichaToRemove.id) {
+                    this.showMessage('Erro: Ficha ou ID da ficha não encontrado para remoção.', 'error');
+                    return;
+                }
+
+                const removed = await this.removeFichaFromFirestore(fichaToRemove.id);
+                if (removed) {
+                    this.fichas.splice(index, 1); 
+                    this.renderFichasTable();
+                    this.saveLocalData(); // Salva o estado local após remover ficha
+                }
+            },
+
+            /**
+             * Limpa todas as fichas do array local e do Firestore.
+             */
+            async clearAllFichas() {
+                if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível limpar as fichas.', 'error');
+                    return;
+                }
+                this.showMessage('Limpando todas as fichas no Firestore...', 'info');
+                this.toggleLoadingSpinner('clear-fichas', true);
+                try {
+                    const querySnapshot = await window.getDocs(window.fichasCollectionRef);
+                    const deletePromises = [];
+                    querySnapshot.forEach((doc) => {
+                        deletePromises.push(window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/users/${window.userId}/fichas`, doc.id)));
+                    });
+                    await Promise.all(deletePromises);
+                    this.fichas = []; 
+                    this.renderFichasTable();
+                    this.showMessage('Todas as fichas foram limpas (Firestore).', 'success');
+                    this.saveLocalData(); // Salva o estado local limpo
+                } catch (e) {
+                    console.error("Erro ao limpar todas as fichas do Firestore: ", e);
+                    this.showMessage('Erro ao limpar todas as fichas da nuvem: ' + e.message, 'error');
+                } finally {
+                    this.toggleLoadingSpinner('clear-fichas', false);
+                }
+            },
+
+            /**
+             * Renderiza a tabela de fichas na UI.
+             */
+            renderFichasTable() {
+                const tableBody = document.getElementById('fichas-table-body');
+                tableBody.innerHTML = ''; 
+
+                if (this.fichas.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="8" class="py-3 px-6 text-center text-gray-500">Nenhuma ficha registrada ainda.</td></tr>`;
+                    return;
+                }
+
+                this.fichas.forEach((ficha, index) => {
+                    const row = tableBody.insertRow();
+                    row.className = 'border-b border-gray-200 hover:bg-gray-100';
+
+                    // Client Name
+                    const clientCell = row.insertCell();
+                    clientCell.className = 'py-3 px-6 text-left whitespace-nowrap';
+                    clientCell.textContent = ficha.clientName;
+
+                    // Professional Name
+                    const professionalCell = row.insertCell();
+                    professionalCell.className = 'py-3 px-6 text-left whitespace-nowrap';
+                    professionalCell.textContent = ficha.professionalName;
+
+                    // Services
+                    const servicesCell = row.insertCell();
+                    servicesCell.className = 'py-3 px-6 text-left';
+                    servicesCell.innerHTML = ficha.services.map(s => `
+                        <p>${s.name} (R$ ${s.value.toFixed(2).replace('.', ',')}) - ${this.formatPaymentMethodForDisplay(s.paymentMethod)}</p>
+                    `).join('');
+                    if (ficha.services.length === 0) servicesCell.textContent = 'Nenhum';
+
+                    // Products Sold
+                    const productsCell = row.insertCell();
+                    productsCell.className = 'py-3 px-6 text-left';
+                    productsCell.innerHTML = ficha.productsSold.map(p => `
+                        <p>${p.name} (R$ ${p.value.toFixed(2).replace('.', ',')}) - ${this.formatPaymentMethodForDisplay(p.paymentMethod)}</p>
+                    `).join('');
+                    if (ficha.productsSold.length === 0) productsCell.textContent = 'Nenhum';
+
+                    // Data do Serviço
+                    const dateCell = row.insertCell();
+                    dateCell.className = 'py-3 px-6 text-center';
+                    const d = (ficha.serviceDate || (ficha.timestamp ? ficha.timestamp.slice(0,10) : ''));
+                    dateCell.textContent = d;
+
+                    // Total Ficha
+                    const totalCell = row.insertCell();
+                    totalCell.className = 'py-3 px-6 text-center font-bold';
+                    totalCell.textContent = `R$ ${ficha.totalFicha.toFixed(2).replace('.', ',')}`;
+
+                    // Observações
+                    const obsCell = row.insertCell();
+                    obsCell.className = 'py-3 px-6 text-left';
+                    obsCell.textContent = ficha.observations || '';
+
+                    // Actions
+                    const actionsCell = row.insertCell();
+                    actionsCell.className = 'py-3 px-6 text-center';
+                    actionsCell.innerHTML = `
+                        <button onclick="window.fichasApp.removeFicha(${index})" class="text-red-600 hover:text-red-800 font-medium">Remover</button>
+                    `;
+                });
+            },
+            // --- End Ficha Management Functions ---
+
+            // --- Integration with Weekly Closing System (Firestore) ---
+            /**
+             * Gera e exporta os dados semanais agregados para o sistema de fechamento.
+             */
+            async generateAndExportWeeklyData() {
+                if (!window.db || !window.userId || !window.fichasCollectionRef) {
+                    this.showMessage('Firebase não inicializado ou usuário não autenticado. Não foi possível exportar dados para fechamento semanal.', 'error');
+                    console.error("Erro: Firebase não inicializado ou usuário não autenticado ao tentar exportar dados semanais.");
+                    return;
+                }
+
+                this.showMessage('Exportando dados para fechamento semanal...', 'info');
+                this.toggleLoadingSpinner('export-weekly', true);
+
+                const aggregatedData = {
+                    collaborators: {}, // Objeto para agrupar facilmente por nome da profissional
+                    products: []
+                };
+
+                this.fichas.forEach(ficha => {
+                    const professionalName = ficha.professionalName.trim();
+
+                    // Agrega serviços por profissional
+                    if (!aggregatedData.collaborators[professionalName]) {
+                        aggregatedData.collaborators[professionalName] = {
+                            name: professionalName,
+                            clients: [], 
+                            discountPercentage: 0.30, // Padrão, pode ser ajustado no app principal
+                            observations: '' // Adiciona campo de observações vazio
+                        };
+                    }
+                    ficha.services.forEach(service => {
+                        aggregatedData.collaborators[professionalName].clients.push({
+                            name: ficha.clientName + ' - ' + service.name, 
+                            value: service.value,
+                            paymentMethod: service.paymentMethod,
+                            serviceDate: (ficha.serviceDate || (ficha.timestamp ? ficha.timestamp.slice(0,10) : null)) 
+                        });
+                    });
+
+                    // Agrega produtos
+                    ficha.productsSold.forEach(product => {
+                        aggregatedData.products.push({
+                            clientName: ficha.clientName + ' - ' + product.name, 
+                            value: product.value,
+                            paymentMethod: product.paymentMethod,
+                            serviceDate: (ficha.serviceDate || (ficha.timestamp ? ficha.timestamp.slice(0,10) : null)) 
+                        });
+                    });
+                });
+
+                // Converte o objeto de colaboradores de volta para um array
+                const finalCollaboratorsArray = Object.values(aggregatedData.collaborators);
+
+                const dataToExport = {
+                    collaborators: finalCollaboratorsArray,
+                    products: aggregatedData.products,
+                    lastUpdated: new Date().toISOString() 
+                };
+
+                console.log("Dados agregados para exportação:", dataToExport);
+                await this.saveWeeklyReportDataToFirestore(dataToExport);
+                console.log("Chamada para saveWeeklyReportDataToFirestore concluída.");
+                this.toggleLoadingSpinner('export-weekly', false);
+            },
+            // --- End Integration ---
+
+            // --- Local Storage Functions ---
+            /**
+             * Salva os dados atuais das fichas no localStorage.
+             */
+            saveLocalData() {
+                localStorage.setItem('clientFichasData', JSON.stringify(this.fichas));
+                // console.log("Dados das fichas salvos automaticamente no localStorage.");
+            },
+
+            /**
+             * Carrega os dados das fichas do localStorage.
+             */
+            loadLocalData() {
+                const savedData = localStorage.getItem('clientFichasData');
+                if (savedData) {
+                    try {
+                        this.fichas = JSON.parse(savedData);
+                        // Garante que os campos de paymentMethod existam para dados antigos
+                        this.fichas.forEach(ficha => {
+                            ficha.services.forEach(service => {
+                                if (service.paymentMethod === undefined || service.paymentMethod === 'credito') {
+                                    service.paymentMethod = 'credito_1x';
+                                }
+                            });
+                            ficha.productsSold.forEach(product => {
+                                if (product.paymentMethod === undefined || product.paymentMethod === 'credito') {
+                                    product.paymentMethod = 'credito_1x';
+                                }
+                            });
+                        });
+                        this.renderFichasTable();
+                        this.showMessage('Fichas carregadas do salvamento automático.', 'info');
+                    } catch (e) {
+                        console.error("Erro ao carregar dados do localStorage:", e);
+                        localStorage.removeItem('clientFichasData'); // Limpa dados corrompidos
+                        this.showMessage('Erro ao carregar fichas salvas localmente. Dados corrompidos foram removidos.', 'error');
+                    }
+                }
+            },
+            // --- End Local Storage Functions ---
+
+            // --- Local File Operations (New) ---
+            /**
+             * Exporta os dados atuais das fichas para um arquivo JSON local.
+             */
+            exportDataToFile() {
+                const dataToSave = this.fichas; // Exporta o array completo de fichas
+
+                const jsonString = JSON.stringify(dataToSave, null, 2);
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `fichas_clientes_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                this.showMessage('Fichas exportadas para arquivo local com sucesso!', 'success');
+            },
+
+            /**
+             * Importa dados de fichas de um arquivo JSON local.
+             */
+            importDataFromFile() {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = '.json';
+
+                fileInput.onchange = (event) => {
+                    const file = event.target.files[0];
+                    if (!file) {
+                        this.showMessage('Nenhum arquivo selecionado.', 'info');
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const importedData = JSON.parse(e.target.result);
+
+                            // Validação básica para garantir que é um array de fichas
+                            if (Array.isArray(importedData) && importedData.every(item => 
+                                typeof item === 'object' && item.clientName && item.professionalName && Array.isArray(item.services) && Array.isArray(item.productsSold))) {
+                                
+                                this.fichas = importedData;
+
+                                // Garante que os campos de paymentMethod existam para dados importados
+                                this.fichas.forEach(ficha => {
+                                    ficha.services.forEach(service => {
+                                        if (service.paymentMethod === undefined || service.paymentMethod === 'credito') {
+                                            service.paymentMethod = 'credito_1x';
+                                        }
+                                    });
+                                    ficha.productsSold.forEach(product => {
+                                        if (product.paymentMethod === undefined || product.paymentMethod === 'credito') {
+                                            product.paymentMethod = 'credito_1x';
+                                        }
+                                    });
+                                });
+
+                                this.renderFichasTable();
+                                this.saveLocalData(); // Salva os dados importados no localStorage
+                                this.showMessage('Fichas importadas de arquivo local com sucesso!', 'success');
+                            } else {
+                                this.showMessage('Formato de arquivo JSON inválido para fichas de cliente.', 'error');
+                            }
+                        } catch (parseError) {
+                            this.showMessage('Erro ao ler o arquivo: Não é um JSON válido.', 'error');
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+
+                fileInput.click();
+            },
+            // --- End Local File Operations ---
+
+            /**
+             * Alterna a visibilidade de um spinner de carregamento e seu ícone associado.
+             * @param {string} type - O tipo de operação ('add-ficha', 'clear-fichas', 'export-weekly').
+             * @param {boolean} show - True para mostrar o spinner, false para ocultar.
+             */
+            toggleLoadingSpinner(type, show) {
+                const spinner = document.getElementById(`${type}-spinner`);
+                const icon = document.getElementById(`${type}-icon`);
+                if (spinner && icon) {
+                    spinner.classList.toggle('hidden', !show);
+                    icon.classList.toggle('hidden', show);
+                }
+            },
+
+            /**
+             * Helper para formatar o método de pagamento para exibição.
+             * @param {string} paymentMethod - O método de pagamento original (ex: 'credito_1x').
+             * @returns {string} O método de pagamento formatado (ex: 'Crédito (1x)').
+             */
+            formatPaymentMethodForDisplay(paymentMethod) {
+                switch (paymentMethod) {
+                    case 'pix': return 'Pix';
+                    case 'debito': return 'Débito';
+                    case 'credito_1x': return 'Crédito (1x)';
+                    case 'credito_2x': return 'Crédito (2x)';
+                    case 'credito_3x': return 'Crédito (3x)';
+                    case 'dinheiro': return 'Dinheiro';
+                    default: return paymentMethod.toUpperCase();
+                }
+            }
+        };
+
+        // Aliases de funções globais para compatibilidade retroativa com o HTML
+        window.addServiceRow = (name, value, method) => window.fichasApp.addServiceRow(name, value, method);
+        window.addProductSoldRow = (name, value, method) => window.fichasApp.addProductSoldRow(name, value, method);
+        window.removeRow = (button) => window.fichasApp.removeRow(button);
+        window.addFicha = () => window.fichasApp.addFicha();
+        window.removeFicha = (index) => window.fichasApp.removeFicha(index);
+        window.showClearAllFichasConfirm = () => window.fichasApp.showClearAllFichasConfirm();
+        window.handleClearAllFichasConfirm = (confirmed) => window.fichasApp.handleConfirm(confirmed);
+        window.generateAndExportWeeklyData = () => window.fichasApp.generateAndExportWeeklyData();
+
+        // Função de inicialização da lógica da aplicação de fichas
+        function initializeAppLogic() {
+            window.fichasApp.init();
+        }
+    </script>
+
+    <!-- Modal Login por Telefone (fichas) -->
+    <div id="phone-login-modal-fichas" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:520px;">
+        <h3 class="text-xl font-semibold text-gray-800 mb-3">Entrar por Telefone</h3>
+        <label class="form-label" for="phone-number-input-fichas">Telefone em E.164 (ex: +55DDDNUMERO)</label>
+        <input id="phone-number-input-fichas" class="form-input" type="tel" placeholder="+55DDDNÚMERO">
+        <div id="recaptcha-container-fichas" class="my-3"></div>
+        <div class="modal-buttons">
+            <button class="btn btn-primary" onclick="startPhoneAuth_fichas()">Enviar Código</button>
+            <button class="btn btn-gray" onclick="closePhoneLoginModal_fichas()">Cancelar</button>
+        </div>
+        <div id="sms-step-fichas" style="display:none; margin-top:1rem;">
+            <label class="form-label" for="sms-code-input-fichas">Código SMS</label>
+            <input id="sms-code-input-fichas" class="form-input" type="text" placeholder="Digite o código">
+            <div class="modal-buttons" style="margin-top: 1rem;">
+                <button class="btn btn-success" onclick="verifyPhoneCode_fichas()">Verificar & Entrar</button>
+            </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Banner de vínculo, aparece se logar com Google e não tiver phoneNumber -->
+    <div id="link-banner-fichas" class="hidden p-3 rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-700 mx-4 my-2">
+      Para usar só o telefone no futuro e manter seus dados, <button class="underline font-semibold" onclick="openLinkPhoneModal_fichas()">vincule seu número à conta atual</button>.
+    </div>
+
+    <!-- Modal de Vínculo (fichas) -->
+    <div id="phone-link-modal-fichas" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:520px;">
+        <h3 class="text-xl font-semibold text-gray-800 mb-3">Vincular Telefone à Conta</h3>
+        <input id="link-phone-input-fichas" class="form-input" type="tel" placeholder="+55DDDNÚMERO">
+        <div id="recaptcha-link-container-fichas" class="my-3"></div>
+        <div class="modal-buttons">
+            <button class="btn btn-primary" onclick="startLinkPhone_fichas()">Enviar Código</button>
+            <button class="btn btn-gray" onclick="closeLinkPhoneModal_fichas()">Cancelar</button>
+        </div>
+        <div id="link-sms-step-fichas" style="display:none; margin-top:1rem;">
+            <input id="link-code-input-fichas" class="form-input" type="text" placeholder="Digite o código">
+            <div class="modal-buttons" style="margin-top: 1rem;">
+                <button class="btn btn-success" onclick="verifyLinkPhone_fichas()">Verificar & Vincular</button>
+            </div>
+        </div>
+      </div>
+    </div>
+    
+
+<!-- Add-on de Fichas (TESTE) embutido -->
+<script>
+
+/*!
+ * Fichas Addon (TESTE)
+ * editar/duplicar/excluir + relatório CSV + centavos extras
+ */
+(function(){/* minimized wrapper to avoid global leaks */
+  const log=(...a)=>console.debug("[addon]",...a);
+  function waitFor(c,cb,t=8000,s=80){const t0=Date.now(),iv=setInterval(()=>{if(c()){clearInterval(iv);cb();}else if(Date.now()-t0>t){clearInterval(iv);console.warn("[addon] timeout")}},s)}
+  const st=document.createElement("style");st.textContent=".addon-btn{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .5rem;border-radius:.5rem;border:1px solid rgba(0,0,0,.08);font-size:.78rem}.addon-row-actions{display:flex;gap:.35rem;justify-content:flex-end}.addon-modal-back{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999}.addon-modal{background:#fff;max-width:560px;width:96%;padding:18px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}.addon-modal h3{font-weight:700;font-size:1.05rem;margin:0 0 10px}.addon-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.addon-grid label{font-size:.8rem;color:#444}.addon-grid input{width:100%;border:1px solid #e3e3e6;border-radius:8px;padding:8px}.addon-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:14px}";
+  document.head.appendChild(st);
+  const toC=x=>{if(x==null||x==="")return 0;const n=typeof x==="number"?x:parseFloat(String(x).replace(",","."));return isFinite(n)?Math.round(n*100):0};
+  const fromC=c=>c/100;
+  function ensureCents(f){try{let sC=0,pC=0;(f.services||[]).forEach(i=>sC+=toC(i.value||i.preco||i.valor||0));(f.products||[]).forEach(i=>pC+=toC(i.value||i.preco||i.valor||0));f.servicesCents=sC;f.productsCents=pC;const total=(typeof f.total==="number"?f.total:parseFloat(f.total||0))||fromC(sC+pC);f.totalCents=toC(total);f.id=f.id||(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));f.createdAt=f.createdAt||new Date().toISOString();f.updatedAt=new Date().toISOString();return f}catch(e){return f}}
+  function modal(html,title){const b=document.createElement("div");b.className="addon-modal-back";b.innerHTML=`<div class="addon-modal"><h3>${title||"Editar ficha"}</h3><div>${html}</div><div class="addon-actions"><button class="addon-btn" data-act="cancelar">Cancelar</button><button class="addon-btn" style="background:#4f46e5;color:#fff;border-color:#4f46e5" data-act="salvar">Salvar</button></div></div>`;document.body.appendChild(b);return b}
+  const close=m=>m&&m.parentNode&&m.parentNode.removeChild(m);
+  const esc=s=>`"${String(s).replace(/"/g,'""')}"`;
+  const csv=(rows,heads)=>[heads.map(esc).join(","),...rows.map(r=>heads.map(h=>esc(r[h]??"")).join(","))].join("\n");
+  function dl(name,text){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"text/csv;charset=utf-8"}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4e3)}
+  function reportBtn(){
+    const anchor=[...document.querySelectorAll("button,a")].find(b=>/Exportar Fichas/i.test(b.textContent||""));
+    if(!anchor||anchor._addonReport)return;
+    const btn=document.createElement("button");btn.type="button";btn.className="addon-btn";btn.textContent="Relatórios (CSV)";
+    anchor.parentNode.insertBefore(btn,anchor.nextSibling);anchor._addonReport=true;
+    btn.addEventListener("click",()=>{
+      const app=window.fichasApp;const fichas=(app&&app.fichas)?app.fichas.slice():[];if(!fichas.length){alert("Nenhuma ficha para relatar.");return;}
+      const box=modal(`<div class='addon-grid'><div><label>Início<br><input type='date' id='repStart'></label></div><div><label>Fim<br><input type='date' id='repEnd'></label></div></div>`,"Relatório por período");
+      const sI=box.querySelector("#repStart"), eI=box.querySelector("#repEnd"); const t=new Date(); eI.value=t.toISOString().slice(0,10); sI.value=new Date(t.getTime()-14*864e5).toISOString().slice(0,10);
+      box.addEventListener("click",ev=>{
+        const act=ev.target&&ev.target.getAttribute("data-act");
+        if(act==="cancelar") return close(box);
+        if(act==="salvar"){
+          const s=new Date((sI.value||"1970-01-01")+"T00:00:00"); const e=new Date((eI.value||"2999-12-31")+"T23:59:59");
+          const sel=[]; fichas.forEach(f=>{let ds=f.serviceDate||f.dataDoServico||f.data||"";if(/^\d{2}\/\d{2}\/\d{4}$/.test(ds)){const [d,m,a]=ds.split("/");ds=`${a}-${m}-${d}`;} const fd=new Date(ds||f.createdAt||Date.now()); if(fd>=s&&fd<=e) sel.push(ensureCents({...f}));});
+          const total=sel.reduce((a,f)=>a+(f.totalCents||0),0); const byProf={}; sel.forEach(f=>{const p=f.professional||f.profissional||"—"; byProf[p]=(byProf[p]||0)+(f.totalCents||0);});
+          const rows=[{Tipo:"Resumo",Profissional:"Todos",Quantidade:sel.length,Total:(total/100).toFixed(2)}];
+          Object.entries(byProf).forEach(([k,v])=>rows.push({Tipo:"Profissional",Profissional:k,Quantidade:sel.filter(f=>(f.professional||f.profissional||"—")==k).length,Total:(v/100).toFixed(2)}));
+          sel.forEach(f=>rows.push({Tipo:"Ficha",Profissional:(f.professional||f.profissional||"—"),Quantidade:1,Total:((f.totalCents||0)/100).toFixed(2),Cliente:(f.client||f.cliente||"—"),Data:(f.serviceDate||f.dataDoServico||f.data||"—"),Id:(f.id||"—")}));
+          const heads=Object.keys(rows[0]); dl(`relatorio_fichas_${sI.value}_a_${eI.value}.csv`, csv(rows,heads)); close(box);
+        }
+      });
+    });
+  }
+  function patchTable(){
+    const app=window.fichasApp; if(!app||typeof app.renderFichasTable!=="function")return;
+    if(app._addonPatched) return; app._addonPatched=true;
+    const render=app.renderFichasTable.bind(app);
+    app.renderFichasTable=function(){ render(); try{
+      const table=document.querySelector("table"); if(!table) return;
+      table.querySelectorAll("tbody tr").forEach((tr,idx)=>{
+        const last=tr.querySelector("td:last-child"); if(!last||last._addonBound)return; last._addonBound=true; last.classList.add("addon-row-actions");
+        const mk=t=>{const b=document.createElement("button"); b.type="button"; b.className="addon-btn"; b.textContent=t; return b;};
+        const eBtn=mk("Editar"), cBtn=mk("Duplicar"), dBtn=mk("Excluir"); last.append(eBtn,cBtn,dBtn);
+        cBtn.addEventListener("click",()=>{const f=app.fichas[idx]; if(!f)return; const clone=ensureCents(JSON.parse(JSON.stringify(f))); clone.id=crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2); clone.createdAt=new Date().toISOString(); clone.updatedAt=clone.createdAt; app.fichas.push(clone); app.saveLocalData&&app.saveLocalData(); app.renderFichasTable();});
+        dBtn.addEventListener("click",()=>{ if(!confirm("Excluir esta ficha?"))return; app.fichas.splice(idx,1); app.saveLocalData&&app.saveLocalData(); app.renderFichasTable();});
+        eBtn.addEventListener("click",()=>{const f=app.fichas[idx]; if(!f)return; const fc=ensureCents({...f}); const box=modal(`<div class='addon-grid'>
+          <div><label>Cliente<br><input id='edCli' value='${(fc.client||fc.cliente||"").replace(/"/g,"&quot;")}'></label></div>
+          <div><label>Profissional<br><input id='edProf' value='${(fc.professional||fc.profissional||"").replace(/"/g,"&quot;")}'></label></div>
+          <div><label>Data do Serviço<br><input id='edData' type='date' value='${(()=>{let ds=fc.serviceDate||fc.dataDoServico||""; if(/^\d{2}\/\d{2}\/\d{4}$/.test(ds)){const [d,m,a]=ds.split("/"); ds=`${a}-${m}-${d}`;} if(/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds; try{return new Date(ds).toISOString().slice(0,10)}catch{return ""}})()}'>
+          </label></div>
+          <div><label>Total (exibição)<br><input id='edTot' value='${(fc.totalCents/100).toFixed(2)}'></label></div>
+        </div>`,"Editar ficha");
+          box.addEventListener("click",ev=>{const act=ev.target&&ev.target.getAttribute("data-act"); if(act==="cancelar") return close(box); if(act==="salvar"){const cli=box.querySelector("#edCli").value.trim(); const pro=box.querySelector("#edProf").value.trim(); const dt=box.querySelector("#edData").value; const tot=box.querySelector("#edTot").value;
+            if(cli){ f.client=cli; f.cliente=cli; } if(pro){ f.professional=pro; f.profissional=pro; } if(dt){ f.serviceDate=dt; const [y,m,d]=dt.split("-"); f.dataDoServico=`${d}/${m}/${y}`; } if(tot){ f.totalCents=toC(tot); f.total=fromC(f.totalCents); }
+            f.updatedAt=new Date().toISOString(); app.saveLocalData&&app.saveLocalData(); app.renderFichasTable(); close(box); }});
+        });
+      });
+    }catch(e){} };
+    log("renderFichasTable patched");
+  }
+  function start(){ patchTable(); reportBtn(); try{const app=window.fichasApp; app&&app.renderFichasTable&&app.renderFichasTable();}catch(e){} }
+  waitFor(()=>window.fichasApp&&typeof window.fichasApp.renderFichasTable==="function", start);
+})();
+</script>
+</body>
+</html>
