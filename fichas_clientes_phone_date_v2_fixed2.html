@@ -901,7 +901,21 @@
         }
     </style>
 </head>
-<body>
+<script>
+(function(){
+  function exp(name){
+    try {
+      const fn = window.fichasApp && window.fichasApp[name];
+      if (typeof fn === "function") {
+        window[name] = function(){ return fn.apply(window.fichasApp, arguments); };
+      }
+    } catch(e) { console.warn("shim fail", name, e); }
+  }
+  ["saveLocalData","addServiceRow","addProductSoldRow","registerFicha",
+   "renderFichasTable","updateTotals","removeService","removeProduct"].forEach(exp);
+})();
+</script>
+    <body>
     <div class="main-container">
         <!-- Header -->
         <header class="header">
