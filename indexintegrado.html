@@ -878,6 +878,7 @@
 
                     let totalGross = 0, totalNet = 0, totalFees = 0;
                     const weeks = [];
+                    const aggregatedCollabs = {}; // Agrega dados por colaboradora
 
                     snapshot.forEach(doc => {
                         const d = doc.data();
@@ -885,6 +886,24 @@
                         totalNet += d.net;
                         totalFees += d.fees;
                         weeks.push(d);
+
+                        // Agrega dados das colaboradoras
+                        if (d.collabs) {
+                            Object.values(d.collabs).forEach(c => {
+                                if (!aggregatedCollabs[c.name]) {
+                                    aggregatedCollabs[c.name] = { 
+                                        name: c.name, 
+                                        totalServices: 0, 
+                                        totalPay: 0 
+                                    };
+                                }
+                                const share = c.total * 0.30;
+                                const pay = c.total - share;
+                                
+                                aggregatedCollabs[c.name].totalServices += c.total;
+                                aggregatedCollabs[c.name].totalPay += pay;
+                            });
+                        }
                     });
 
                     const { jsPDF } = window.jspdf;
@@ -900,6 +919,28 @@
                     doc.text(`Taxas Cartão Total: R$ ${totalFees.toFixed(2)}`, 14, y); y+=8;
                     doc.setFont(undefined, 'bold');
                     doc.text(`Lucro Líquido Total: R$ ${totalNet.toFixed(2)}`, 14, y); y+=15;
+
+                    // Nova Seção: Faturamento por Colaboradora (Para NF)
+                    doc.setFont(undefined, 'bold');
+                    doc.setFontSize(14); doc.text("Totalização por Colaboradora (Para NF)", 14, y); y+=10;
+                    doc.setFont(undefined, 'normal');
+                    doc.setFontSize(10);
+                    
+                    Object.values(aggregatedCollabs).forEach(ac => {
+                        doc.setFillColor(240, 240, 255);
+                        doc.rect(14, y-6, 180, 16, 'F');
+                        
+                        doc.setFont(undefined, 'bold');
+                        doc.text(`${ac.name}`, 16, y);
+                        doc.setFont(undefined, 'normal');
+                        
+                        doc.text(`Total Produzido (Bruto): R$ ${ac.totalServices.toFixed(2)}`, 16, y+6);
+                        doc.text(`Valor a Receber (Líquido): R$ ${ac.totalPay.toFixed(2)}`, 110, y+6);
+                        
+                        y += 20;
+                    });
+                    
+                    y += 5; // Espaço extra antes das semanas
 
                     doc.setFont(undefined, 'normal');
                     doc.setFontSize(14); doc.text("Detalhamento por Semana", 14, y); y+=10;
