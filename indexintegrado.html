@@ -23,7 +23,9 @@
             getAuth, 
             onAuthStateChanged, 
             GoogleAuthProvider, 
-            signInWithPopup, 
+            signInWithPopup,
+            signInWithRedirect, // Adicionado para mobile
+            getRedirectResult,  // Adicionado para tratar o retorno do mobile
             signOut, 
             setPersistence, 
             browserLocalPersistence 
@@ -75,6 +77,20 @@
                 window.auth = getAuth(window.app);
                 
                 await setPersistence(window.auth, browserLocalPersistence);
+
+                // Tratamento do retorno do Login via Redirect (Mobile)
+                try {
+                    const result = await getRedirectResult(window.auth);
+                    if (result) {
+                        console.log("Login via redirect bem sucedido");
+                    }
+                } catch (error) {
+                    console.error("Erro no retorno do redirect:", error);
+                    // Se der erro aqui, geralmente é o browser do zap bloqueando cookies
+                    if (error.code === 'auth/web-storage-unsupported') {
+                        window.appLogic.showMessage('Abra no Chrome/Safari (navegador do Zap bloqueia login)', 'error');
+                    }
+                }
 
                 onAuthStateChanged(window.auth, async (user) => {
                     if (user) {
@@ -134,8 +150,26 @@
 
         window.signInWithGoogle = async () => {
             const provider = new GoogleAuthProvider();
-            try { await signInWithPopup(window.auth, provider); } 
-            catch (e) { window.appLogic.showMessage("Erro no login: " + e.message, 'error'); }
+            try { 
+                // Detecta se é dispositivo móvel
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                
+                if (isMobile) {
+                    // No mobile, usa redirect para evitar bloqueio de popup
+                    // Se estiver no navegador do WhatsApp, ainda pode dar BO, mas é mais robusto
+                    await signInWithRedirect(window.auth, provider);
+                } else {
+                    // No desktop, popup é mais fluido
+                    await signInWithPopup(window.auth, provider);
+                }
+            } 
+            catch (e) { 
+                console.error(e);
+                let msg = "Erro no login: " + e.message;
+                if (e.code === 'auth/popup-blocked') msg = "Popup bloqueado. Permita popups.";
+                if (e.code === 'auth/web-storage-unsupported') msg = "Navegador bloqueando cookies. Abra no Chrome/Safari.";
+                window.appLogic.showMessage(msg, 'error'); 
+            }
         };
 
         window.signOutUser = async () => {
