@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Espaço Fran Kokott - Sistema Integrado</title>
     
     <!-- Fonts -->
@@ -87,7 +87,7 @@
                         window.userId = null;
                         window.userEmail = null;
                         updateAuthUI(null);
-                        document.getElementById('nav-fechamento').classList.add('hidden');
+                        document.getElementById('nav-fechamento').classList.add('hidden'); // Garante hidden no inicio
                         window.appLogic.switchTab('fichas');
                     }
                 });
@@ -105,7 +105,10 @@
                 adminTab.classList.remove('hidden');
             } else {
                 adminTab.classList.add('hidden');
-                window.appLogic.switchTab('fichas');
+                // Se não é admin, força a ida para fichas caso esteja na aba errada
+                if(window.appLogic.currentTab === 'fechamento') {
+                    window.appLogic.switchTab('fichas');
+                }
             }
         }
 
@@ -114,16 +117,16 @@
             if (user) {
                 container.innerHTML = `
                     <div class="flex flex-col items-end mr-3">
-                        <span class="text-xs font-bold text-gray-700">${user.displayName || 'Usuário'}</span>
-                        <span class="text-[10px] text-gray-500">${user.email}</span>
+                        <span class="text-xs font-bold text-gray-700 truncate max-w-[100px]">${user.displayName || 'Usuário'}</span>
+                        <span class="text-[10px] text-gray-500 truncate max-w-[100px]">${user.email}</span>
                     </div>
-                    <button onclick="signOutUser()" class="text-xs bg-red-100 text-red-600 px-3 py-1 rounded hover:bg-red-200 font-medium transition-colors">Sair</button>
+                    <button onclick="signOutUser()" class="text-xs bg-red-100 text-red-600 px-3 py-2 rounded hover:bg-red-200 font-medium transition-colors">Sair</button>
                 `;
             } else {
                 container.innerHTML = `
                     <button onclick="signInWithGoogle()" class="text-sm bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 font-medium flex items-center transition-colors">
                         <svg class="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
-                        Login Google
+                        Login
                     </button>
                 `;
             }
@@ -155,22 +158,23 @@
 
     <style>
         :root { --primary: #6366f1; --secondary: #8b5cf6; --success: #10b981; --danger: #ef4444; }
-        body { font-family: 'Inter', sans-serif; background: #f3f4f6; padding: 1rem; }
+        body { font-family: 'Inter', sans-serif; background: #f3f4f6; padding: 1rem; -webkit-tap-highlight-color: transparent; }
         
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
-        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; /* Mobile touch size */ }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); }
         .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3); }
         .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(99, 102, 241, 0.4); }
         .btn-danger { background: var(--danger); color: white; }
         .btn-success { background: var(--success); color: white; }
+        .btn-secondary { background: #4b5563; color: white; }
         
         .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid rgba(0,0,0,0.05); }
         
-        .nav-pill { padding: 0.75rem 1.5rem; border-radius: 999px; cursor: pointer; font-weight: 600; color: #6b7280; transition: all 0.2s; border: 1px solid transparent; }
+        .nav-pill { padding: 0.75rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; color: #6b7280; transition: all 0.2s; border: 1px solid transparent; font-size: 0.9rem; }
         .nav-pill:hover { color: var(--primary); background: #eff6ff; }
         .nav-pill.active { background: var(--primary); color: white; box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4); border-color: transparent; }
         
@@ -178,11 +182,19 @@
         .loading-spinner { border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        .input-field { width: 100%; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.5rem 0.75rem; transition: all 0.2s; }
+        .input-field { width: 100%; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.6rem 0.75rem; transition: all 0.2s; font-size: 16px; /* Prevents iOS zoom */ }
         .input-field:focus { outline: none; border-color: var(--primary); ring: 2px; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
 
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; justify-content: center; align-items: center; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; justify-content: center; align-items: center; padding: 1rem; }
         .modal.open { display: flex; }
+
+        /* Mobile Optimization for History Table */
+        @media (max-width: 640px) {
+            .mobile-hide-header { display: none; }
+            .mobile-card-row { display: block; border-bottom: 1px solid #e5e7eb; padding: 1rem; }
+            .mobile-card-row td { display: block; padding: 2px 0; border: none; text-align: left; }
+            .mobile-card-row td:last-child { margin-top: 0.5rem; }
+        }
     </style>
 </head>
 <body>
@@ -190,29 +202,29 @@
     <div class="max-w-6xl mx-auto pb-20">
         
         <!-- Header -->
-        <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 pt-4">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 pt-2">
             <div class="text-center md:text-left">
                 <h1 class="text-2xl font-bold text-gray-800 tracking-tight">Espaço Fran Kokott</h1>
-                <p class="text-sm text-gray-500 font-medium">Sistema de Gestão Integrado</p>
+                <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Sistema de Gestão Integrado</p>
             </div>
             
-            <div class="bg-white p-1.5 rounded-full shadow-sm border border-gray-100 flex">
-                <div onclick="window.appLogic.switchTab('fichas')" id="nav-fichas" class="nav-pill active flex items-center">
+            <div class="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex overflow-x-auto max-w-full">
+                <div onclick="window.appLogic.switchTab('fichas')" id="nav-fichas" class="nav-pill active flex items-center whitespace-nowrap">
                     <span class="mr-2">📝</span> Fichas
                 </div>
                 <!-- Aba Restrita -->
-                <div onclick="window.appLogic.switchTab('fechamento')" id="nav-fechamento" class="nav-pill hidden flex items-center">
+                <div onclick="window.appLogic.switchTab('fechamento')" id="nav-fechamento" class="nav-pill hidden flex items-center whitespace-nowrap">
                     <span class="mr-2">💰</span> Fechamento
                 </div>
             </div>
 
-            <div id="auth-status" class="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 flex items-center min-h-[50px]">
+            <div id="auth-status" class="bg-white px-3 py-2 rounded-xl shadow-sm border border-gray-100 flex items-center min-h-[50px]">
                 <!-- Auth inject -->
             </div>
         </div>
 
         <!-- Toast -->
-        <div id="toast" class="hidden fixed top-6 right-6 bg-gray-800 text-white px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center transform transition-all">
+        <div id="toast" class="hidden fixed top-6 right-6 left-6 md:left-auto bg-gray-800 text-white px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center transform transition-all justify-center md:justify-start">
             <span id="toast-msg">Mensagem</span>
         </div>
 
@@ -222,7 +234,7 @@
                 
                 <!-- Nova Ficha -->
                 <div class="lg:col-span-4">
-                    <div class="card sticky top-6 border-t-4 border-indigo-500">
+                    <div class="card sticky top-6 border-t-4 border-indigo-500 p-4 sm:p-6">
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="text-lg font-bold text-gray-800">Nova Ficha</h2>
                             <div class="text-xs font-semibold bg-indigo-50 text-indigo-600 px-2 py-1 rounded">Dia a Dia</div>
@@ -237,7 +249,7 @@
                             <div class="grid grid-cols-1 gap-4">
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label>
-                                    <input type="text" id="ficha-profissional" list="profissionais-list" placeholder="Quem atendeu?" class="input-field">
+                                    <input type="text" id="ficha-profissional" list="profissionais-list" placeholder="Quem atendeu?" class="input-field" autocomplete="off">
                                     <datalist id="profissionais-list">
                                         <option value="Fran">
                                         <option value="Gabi">
@@ -255,23 +267,23 @@
                                 <div id="ficha-items-container" class="space-y-3 mb-4"></div>
 
                                 <div class="flex gap-3 text-sm">
-                                    <button onclick="window.appLogic.addFichaItem('servico')" class="flex-1 py-2 border border-dashed border-indigo-300 text-indigo-600 rounded hover:bg-indigo-50 font-medium">+ Serviço</button>
-                                    <button onclick="window.appLogic.addFichaItem('produto')" class="flex-1 py-2 border border-dashed border-green-300 text-green-600 rounded hover:bg-green-50 font-medium">+ Produto</button>
+                                    <button onclick="window.appLogic.addFichaItem('servico')" class="flex-1 py-3 border border-dashed border-indigo-300 text-indigo-600 rounded hover:bg-indigo-50 font-medium">+ Serviço</button>
+                                    <button onclick="window.appLogic.addFichaItem('produto')" class="flex-1 py-3 border border-dashed border-green-300 text-green-600 rounded hover:bg-green-50 font-medium">+ Produto</button>
                                 </div>
                             </div>
 
                             <!-- Campo Observação Ficha -->
                             <div>
-                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Observações</label>
-                                <textarea id="ficha-obs" class="input-field bg-gray-50 text-sm h-20" placeholder="Ex: Cliente pagou adiantado, Vale para Gabi..."></textarea>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Observações da Ficha</label>
+                                <textarea id="ficha-obs" class="input-field bg-gray-50 text-sm h-20" placeholder="Ex: Pagamento pendente, Vale, Pix direto..."></textarea>
                             </div>
 
-                            <div class="bg-gray-50 p-4 rounded-lg flex justify-between items-center border border-gray-100">
+                            <div class="bg-gray-50 p-4 rounded-lg flex justify-between items-center border border-gray-100 shadow-inner">
                                 <span class="text-sm font-medium text-gray-500">Total</span>
                                 <div class="text-xl font-bold text-gray-800" id="ficha-total-display">R$ 0,00</div>
                             </div>
 
-                            <button onclick="window.appLogic.saveFicha()" id="btn-save-ficha" class="btn btn-primary w-full py-3.5 shadow-lg active:scale-95 text-base">
+                            <button onclick="window.appLogic.saveFicha()" id="btn-save-ficha" class="btn btn-primary w-full py-4 shadow-lg active:scale-95 text-base">
                                 Salvar Ficha
                             </button>
                         </div>
@@ -280,15 +292,15 @@
 
                 <!-- Histórico (Filtrado) -->
                 <div class="lg:col-span-8">
-                    <div class="card h-full">
+                    <div class="card h-full p-4 sm:p-6">
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="text-lg font-bold text-gray-800">Meus Registros Recentes</h2>
-                            <button onclick="window.appLogic.loadFichas()" class="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded hover:bg-gray-200">↻ Atualizar</button>
+                            <button onclick="window.appLogic.loadFichas()" class="text-xs bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200">↻ Atualizar</button>
                         </div>
                         
-                        <div class="overflow-x-auto rounded-lg border border-gray-100">
+                        <div class="overflow-hidden rounded-lg border border-gray-100">
                             <table class="w-full text-sm text-left">
-                                <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs">
+                                <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs mobile-hide-header">
                                     <tr>
                                         <th class="p-4">Data</th>
                                         <th class="p-4">Profissional</th>
@@ -298,9 +310,10 @@
                                         <th class="p-4 text-center">Ação</th>
                                     </tr>
                                 </thead>
-                                <tbody id="fichas-history-body" class="divide-y divide-gray-100 bg-white"></tbody>
+                                <tbody id="fichas-history-body" class="bg-white"></tbody>
                             </table>
                         </div>
+                        <p class="text-xs text-gray-400 mt-4 text-center">Mostrando suas últimas 20 fichas.</p>
                     </div>
                 </div>
             </div>
@@ -308,7 +321,7 @@
 
         <!-- TAB 2: FECHAMENTO (Admin) -->
         <div id="tab-fechamento" class="tab-content">
-            <div class="card border-t-4 border-green-500">
+            <div class="card border-t-4 border-green-500 p-4 sm:p-6">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <div>
                         <h2 class="text-lg font-bold text-gray-800 flex items-center">
@@ -319,24 +332,30 @@
                     </div>
                 </div>
 
-                <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                        <div class="md:col-span-3">
+                <div class="bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                        <div>
                             <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Início</label>
                             <input type="date" id="closing-start-date" class="input-field bg-white">
                         </div>
-                        <div class="md:col-span-3">
+                        <div>
                             <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Fim</label>
                             <input type="date" id="closing-end-date" class="input-field bg-white">
                         </div>
-                        <div class="md:col-span-3">
-                            <button onclick="window.appLogic.generateClosingReport()" id="btn-generate-report" class="btn btn-success w-full h-[46px] shadow-sm">
-                                Processar Tudo
+                        
+                        <!-- Botões Principais no Topo -->
+                        <div class="flex gap-2 lg:col-span-2">
+                            <button onclick="window.appLogic.generateClosingReport()" id="btn-generate-report" class="btn btn-success flex-1 h-[46px] shadow-sm text-xs sm:text-sm">
+                                Processar
                             </button>
-                        </div>
-                        <div class="md:col-span-3">
-                             <button onclick="window.appLogic.exportClosingPDF()" id="btn-export-pdf" class="btn btn-primary w-full h-[46px] shadow-sm bg-gray-800 border-gray-800" disabled>
+                            <button onclick="window.appLogic.saveWeeklyClosing()" id="btn-save-cloud" class="btn btn-secondary flex-1 h-[46px] shadow-sm text-xs sm:text-sm" disabled>
+                                ☁️ Nuvem
+                            </button>
+                            <button onclick="window.appLogic.exportClosingPDF()" id="btn-export-pdf" class="btn btn-primary flex-1 h-[46px] shadow-sm bg-gray-800 border-gray-800 text-xs sm:text-sm" disabled>
                                 PDF Geral
+                            </button>
+                             <button onclick="window.appLogic.exportLocalBackup()" id="btn-local-backup" class="btn bg-gray-300 text-gray-700 flex-none h-[46px] shadow-sm" title="Backup JSON Local" disabled>
+                                💾
                             </button>
                         </div>
                     </div>
@@ -346,7 +365,7 @@
             <!-- Resultados Fechamento -->
             <div id="closing-results" class="hidden animate-fade-in space-y-6">
                 <!-- KPIs -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
                         <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Bruto</span>
                         <span class="text-3xl font-bold text-gray-800" id="total-gross">R$ 0,00</span>
@@ -361,20 +380,9 @@
                     </div>
                 </div>
 
-                <!-- Campo Observação Fechamento -->
-                <div class="card p-4">
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Observações do Fechamento (Admin)</label>
-                    <textarea id="closing-notes" class="input-field h-20 text-sm" placeholder="Ex: Cobrar serviço extra da Gabi, Descontar produto..."></textarea>
-                    <div class="mt-2 text-right">
-                        <button onclick="window.appLogic.saveWeeklyClosing()" id="btn-save-cloud" class="btn btn-secondary text-sm">
-                            ☁️ Salvar Fechamento na Nuvem
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Detalhes Colaboradoras -->
+                <!-- Detalhes Colaboradoras (Agora com Obs Individual) -->
                 <div>
-                    <h3 class="text-lg font-bold text-gray-800 mb-4 px-1">Comissões a Pagar</h3>
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 px-1">Comissões & Observações</h3>
                     <div id="collaborators-report-container" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
                 </div>
                 
@@ -455,8 +463,9 @@
             currentTab: 'fichas',
             fichas: [],
             reportData: null,
-            targetCollabForPDF: null, // Para armazenar quem está gerando PDF
-            cardRates: { 'pix': 0, 'dinheiro': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
+            targetCollabForPDF: null, 
+            // 'pendente': 0 (conta pro total, sem taxa)
+            cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
                 const today = new Date().toISOString().split('T')[0];
@@ -466,7 +475,6 @@
                 const d = new Date(); d.setDate(d.getDate() - d.getDay()); 
                 if(document.getElementById('closing-start-date')) document.getElementById('closing-start-date').value = d.toISOString().split('T')[0];
 
-                // Set default month for monthly report
                 const m = new Date().toISOString().slice(0, 7);
                 if(document.getElementById('monthly-report-date')) document.getElementById('monthly-report-date').value = m;
 
@@ -497,9 +505,10 @@
 
             toggleLoading(btnId, isLoading) {
                 const btn = document.getElementById(btnId);
+                if (!btn) return;
                 if(isLoading) {
                     btn.setAttribute('data-original-text', btn.innerHTML);
-                    btn.innerHTML = `<span class="loading-spinner"></span> Processando...`;
+                    btn.innerHTML = `<span class="loading-spinner"></span>`;
                     btn.disabled = true;
                 } else {
                     btn.innerHTML = btn.getAttribute('data-original-text');
@@ -510,6 +519,8 @@
             enableFeatures() {
                 document.querySelectorAll('button').forEach(b => b.disabled = false);
                 document.getElementById('btn-export-pdf').disabled = true;
+                document.getElementById('btn-save-cloud').disabled = true;
+                document.getElementById('btn-local-backup').disabled = true;
             },
             
             // --- FICHAS ---
@@ -525,16 +536,18 @@
 
                 div.innerHTML = `
                     <span class="text-sm w-6 text-center select-none ${cl}">${ico}</span>
-                    <input type="text" placeholder="${ph}" class="item-name flex-grow input-field text-sm bg-white !py-1.5">
-                    <input type="number" step="0.01" placeholder="0,00" class="item-value w-24 input-field text-sm text-right bg-white !py-1.5" oninput="window.appLogic.calcFichaTotal()">
-                    <select class="item-method w-28 input-field text-sm text-xs bg-white !py-1.5">
+                    <input type="text" placeholder="${ph}" class="item-name flex-grow input-field text-sm bg-white !py-2.5">
+                    <input type="number" step="0.01" placeholder="0,00" class="item-value w-24 input-field text-sm text-right bg-white !py-2.5" oninput="window.appLogic.calcFichaTotal()">
+                    <select class="item-method w-28 input-field text-sm text-xs bg-white !py-2.5">
                         <option value="pix">Pix</option>
                         <option value="credito_1x">Créd. 1x</option>
                         <option value="credito_2x">Créd. 2x</option>
+                        <option value="credito_3x">Créd. 3x</option>
                         <option value="debito">Débito</option>
                         <option value="dinheiro">Dinheiro</option>
+                        <option value="pendente">Pendente</option>
                     </select>
-                    <button onclick="this.parentElement.remove(); window.appLogic.calcFichaTotal()" class="text-gray-400 hover:text-red-500 p-1">✕</button>
+                    <button onclick="this.parentElement.remove(); window.appLogic.calcFichaTotal()" class="text-gray-400 hover:text-red-500 p-2">✕</button>
                 `;
                 container.appendChild(div);
             },
@@ -551,7 +564,7 @@
                 const date = document.getElementById('ficha-date').value;
                 const client = document.getElementById('ficha-cliente').value.trim();
                 const professional = document.getElementById('ficha-profissional').value.trim();
-                const obs = document.getElementById('ficha-obs').value.trim(); // Nova observação
+                const obs = document.getElementById('ficha-obs').value.trim(); 
 
                 if(!date || !client || !professional) return this.showMessage("Preencha todos os campos", "error");
 
@@ -569,7 +582,7 @@
                     await window.addDoc(window.collection(window.db, path), {
                         createdBy: window.userId,
                         creatorEmail: window.auth.currentUser.email,
-                        date, clientName: client, professionalName: professional, items, obs, // Salva obs
+                        date, clientName: client, professionalName: professional, items, obs,
                         total: this.calcFichaTotal(),
                         createdAt: window.Timestamp.now()
                     });
@@ -603,17 +616,16 @@
                 tbody.innerHTML = '';
                 data.slice(0, 20).forEach(f => {
                     const date = new Date(f.date + 'T12:00').toLocaleDateString('pt-BR');
-                    // Mostra obs se tiver
                     const clientDisplay = f.obs ? `${f.clientName} <br><span class="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">Obs: ${f.obs}</span>` : f.clientName;
                     
                     tbody.innerHTML += `
-                        <tr class="hover:bg-gray-50 border-b border-gray-100">
+                        <tr class="hover:bg-gray-50 border-b border-gray-100 mobile-card-row">
                             <td class="p-4 text-gray-500 font-medium">${date}</td>
                             <td class="p-4 font-bold text-indigo-900">${f.professionalName}</td>
                             <td class="p-4 text-gray-800">${clientDisplay}</td>
                             <td class="p-4 text-xs text-gray-400">${f.items.length} itens</td>
                             <td class="p-4 text-right font-bold text-gray-700">R$ ${f.total.toFixed(2)}</td>
-                            <td class="p-4 text-center"><button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-300 hover:text-red-500">✕</button></td>
+                            <td class="p-4 text-center"><button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-300 hover:text-red-500 p-2">✕</button></td>
                         </tr>
                     `;
                 });
@@ -659,6 +671,8 @@
                     document.getElementById('closing-empty-state').classList.add('hidden');
                     document.getElementById('closing-results').classList.remove('hidden');
                     document.getElementById('btn-export-pdf').disabled = false;
+                    document.getElementById('btn-save-cloud').disabled = false;
+                    document.getElementById('btn-local-backup').disabled = false;
                 } catch(e) { console.error(e); this.showMessage("Erro: " + e.message, "error"); }
                 finally { this.toggleLoading('btn-generate-report', false); }
             },
@@ -669,12 +683,12 @@
 
                 fichas.forEach(f => {
                     const prof = f.professionalName || 'Desconhecido';
-                    if(!collabs[prof]) collabs[prof] = { name: prof, total: 0, items: [], obsList: [] };
+                    if(!collabs[prof]) collabs[prof] = { name: prof, total: 0, items: [], obsList: [], adminNote: '' };
 
-                    // Agrega observações das fichas
                     if(f.obs) collabs[prof].obsList.push(`${f.date.split('-').reverse().slice(0,2).join('/')} (${f.clientName}): ${f.obs}`);
 
                     f.items.forEach(i => {
+                        // Pendente conta no total, mas não tem taxa
                         const fee = i.value * (this.cardRates[i.method] || 0);
                         fees += fee; gross += i.value;
 
@@ -696,12 +710,11 @@
                     const pay = c.total - share;
                     paidToStaff += pay;
 
-                    // Lista de Obs das fichas para exibir no card
                     const obsHtml = c.obsList.length > 0 ? 
                         `<div class="mt-3 bg-amber-50 p-2 rounded text-[10px] text-amber-800 border border-amber-100"><strong>Obs Fichas:</strong><br>${c.obsList.join('<br>')}</div>` : '';
 
                     cContainer.innerHTML += `
-                        <div class="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+                        <div class="bg-white border border-gray-100 rounded-xl p-6 shadow-sm relative">
                             <div class="flex justify-between items-start mb-4 border-b pb-4">
                                 <div><h4 class="font-bold text-lg text-gray-800">${c.name}</h4><span class="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">${c.items.length} serviços</span></div>
                                 <div class="text-right"><span class="text-xs font-semibold text-gray-400 uppercase">A Pagar</span><div class="font-bold text-2xl text-green-600">R$ ${pay.toFixed(2)}</div></div>
@@ -711,9 +724,13 @@
                                 <div><span class="text-xs text-gray-400 uppercase block">Retenção (30%)</span><span class="font-bold text-red-500">- R$ ${share.toFixed(2)}</span></div>
                             </div>
                             ${obsHtml}
-                            <div class="flex justify-between items-center mt-4">
-                                <details><summary class="text-xs font-bold text-indigo-500 cursor-pointer">Ver Detalhes</summary><ul class="mt-2 text-xs text-gray-600 space-y-1">${c.items.map(i=>`<li>${i.c} - ${i.s}: R$${i.v.toFixed(0)}</li>`).join('')}</ul></details>
-                                <button onclick="window.appLogic.promptCollaboratorPDF('${c.name}')" class="text-xs bg-gray-800 text-white px-3 py-1.5 rounded hover:bg-gray-700">📄 PDF Individual</button>
+                            <div class="mt-4">
+                                <label class="block text-xs font-bold text-gray-500 mb-1">Obs. Admin (Individual)</label>
+                                <textarea class="w-full border border-gray-200 rounded p-2 text-sm h-16 admin-collab-note" data-collab="${c.name}" placeholder="Ex: Cobrança extra, ajuste..."></textarea>
+                            </div>
+                            <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+                                <details><summary class="text-xs font-bold text-indigo-500 cursor-pointer">Ver Detalhes</summary><ul class="mt-2 text-xs text-gray-600 space-y-1 max-h-40 overflow-y-auto">${c.items.map(i=>`<li>${i.c} - ${i.s}: R$${i.v.toFixed(0)} (${i.m})</li>`).join('')}</ul></details>
+                                <button onclick="window.appLogic.promptCollaboratorPDF('${c.name}')" class="text-xs bg-gray-800 text-white px-3 py-2 rounded hover:bg-gray-700">📄 PDF Individual</button>
                             </div>
                         </div>
                     `;
@@ -731,28 +748,53 @@
                 this.reportData = { start: document.getElementById('closing-start-date').value, end: document.getElementById('closing-end-date').value, gross, fees, net, collabs, products, paidToStaff };
             },
 
+            // --- UPDATES NOTES FROM UI BEFORE ACTION ---
+            updateReportNotes() {
+                if(!this.reportData) return;
+                // Pega as notas de cada textarea e salva no objeto
+                document.querySelectorAll('.admin-collab-note').forEach(el => {
+                    const name = el.dataset.collab;
+                    if(this.reportData.collabs[name]) {
+                        this.reportData.collabs[name].adminNote = el.value;
+                    }
+                });
+            },
+
             // --- SALVAR FECHAMENTO NA NUVEM ---
             async saveWeeklyClosing() {
                 if(!this.reportData) return;
-                const adminNotes = document.getElementById('closing-notes').value;
-                this.reportData.adminNotes = adminNotes; // Anexa nota do admin ao objeto
+                this.updateReportNotes(); // Salva o que foi digitado
 
                 this.toggleLoading('btn-save-cloud', true);
                 try {
                     const path = `artifacts/${window.appId}/public/data/fechamentos_semanais`;
-                    // Adicionamos mês/ano para facilitar query do relatório mensal
                     const dateObj = new Date(this.reportData.start);
-                    this.reportData.monthYear = dateObj.toISOString().slice(0, 7); // "2023-11"
+                    this.reportData.monthYear = dateObj.toISOString().slice(0, 7); 
                     this.reportData.savedAt = window.Timestamp.now();
 
                     await window.addDoc(window.collection(window.db, path), this.reportData);
-                    this.showMessage("Fechamento salvo na nuvem com sucesso!", "success");
+                    this.showMessage("Fechamento salvo na nuvem!", "success");
                 } catch(e) { this.showMessage("Erro ao salvar: " + e.message, "error"); }
                 finally { this.toggleLoading('btn-save-cloud', false); }
             },
 
-            // --- PDF INDIVIDUAL (Colaboradora) ---
+            // --- BACKUP LOCAL JSON ---
+            exportLocalBackup() {
+                if(!this.reportData) return;
+                this.updateReportNotes();
+                
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.reportData));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", `Backup_Fechamento_${this.reportData.start}_${this.reportData.end}.json`);
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            },
+
+            // --- PDF INDIVIDUAL ---
             promptCollaboratorPDF(collabName) {
+                this.updateReportNotes(); // Garante que a nota esteja salva
                 this.targetCollabForPDF = collabName;
                 document.getElementById('receipt-collab-name').textContent = collabName;
                 document.getElementById('receipt-modal').classList.add('open');
@@ -768,20 +810,16 @@
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
                 
-                // Header
                 let y = 20;
                 doc.setFontSize(16); doc.text("Espaço Fran Kokott", 105, y, {align:"center"}); y+=10;
                 doc.setFontSize(12); doc.text(`Extrato de Pagamento: ${collabName}`, 105, y, {align:"center"}); y+=8;
                 doc.setFontSize(10); doc.text(`Período: ${this.formatDate(this.reportData.start)} a ${this.formatDate(this.reportData.end)}`, 105, y, {align:"center"}); y+=15;
 
-                // Valores
                 const share = cData.total * 0.30;
                 const pay = cData.total - share;
 
                 doc.setFillColor(240,240,240); doc.rect(14, y, 180, 10, 'F');
-                doc.setFont(undefined, 'bold');
-                doc.text("Resumo", 16, y+6);
-                y+=15;
+                doc.setFont(undefined, 'bold'); doc.text("Resumo", 16, y+6); y+=15;
 
                 doc.setFont(undefined, 'normal');
                 doc.text(`Total Serviços: R$ ${cData.total.toFixed(2)}`, 16, y); y+=7;
@@ -789,25 +827,22 @@
                 doc.setFont(undefined, 'bold'); doc.setFontSize(12);
                 doc.text(`Líquido a Receber: R$ ${pay.toFixed(2)}`, 16, y); y+=15;
 
-                // Obs Admin
-                const adminNotes = document.getElementById('closing-notes').value;
-                if(adminNotes) {
-                    doc.setFontSize(10); doc.setTextColor(100,0,0);
-                    doc.text(`Obs Admin: ${adminNotes}`, 16, y); y+=10; doc.setTextColor(0,0,0);
+                // Obs Admin Individual
+                if(cData.adminNote) {
+                    doc.setFontSize(10); doc.setTextColor(150,0,0);
+                    doc.text(`Obs Admin: ${cData.adminNote}`, 16, y); y+=10; doc.setTextColor(0,0,0);
                 }
 
-                // Detalhes
                 doc.setFontSize(10); doc.setFont(undefined, 'bold');
                 doc.text("Serviços Realizados:", 16, y); y+=8;
                 doc.setFont(undefined, 'normal');
                 
                 cData.items.forEach(i => {
                     if(y > 270) { doc.addPage(); y=20; }
-                    doc.text(`${i.c} - ${i.s} (R$ ${i.v.toFixed(2)})`, 16, y);
+                    doc.text(`${i.c} - ${i.s} (R$ ${i.v.toFixed(2)}) [${i.m}]`, 16, y);
                     y+=6;
                 });
 
-                // Comprovante
                 if (hasReceipt) {
                     const fileInput = document.getElementById('receipt-file');
                     if (fileInput.files && fileInput.files[0]) {
@@ -815,23 +850,19 @@
                             const base64Img = await this.fileToBase64(fileInput.files[0]);
                             doc.addPage();
                             doc.text("Comprovante de Pagamento", 105, 20, {align:"center"});
-                            // Ajusta imagem para caber (A4 é ~210x297mm)
                             doc.addImage(base64Img, 'JPEG', 15, 30, 180, 160, undefined, 'FAST');
-                        } catch (e) {
-                            console.error("Erro imagem", e);
-                            alert("Erro ao anexar imagem. O PDF será gerado sem ela.");
-                        }
+                        } catch (e) { alert("Erro ao anexar imagem."); }
                     }
                 }
 
                 doc.save(`Pagamento_${collabName}.pdf`);
                 modal.classList.remove('open');
-                document.getElementById('receipt-file').value = ""; // Reset
+                document.getElementById('receipt-file').value = ""; 
             },
 
             // --- RELATÓRIO MENSAL ---
             async generateMonthlyReport() {
-                const monthInput = document.getElementById('monthly-report-date').value; // "YYYY-MM"
+                const monthInput = document.getElementById('monthly-report-date').value; 
                 if(!monthInput) return this.showMessage("Selecione o mês", "error");
 
                 this.toggleLoading('btn-monthly-report', true);
@@ -856,7 +887,6 @@
                         weeks.push(d);
                     });
 
-                    // Gerar PDF Mensal
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF();
                     let y = 20;
@@ -874,26 +904,16 @@
                     doc.setFont(undefined, 'normal');
                     doc.setFontSize(14); doc.text("Detalhamento por Semana", 14, y); y+=10;
 
-                    weeks.sort((a,b) => a.start.localeCompare(b.start)); // Ordena por data
+                    weeks.sort((a,b) => a.start.localeCompare(b.start)); 
 
                     weeks.forEach((w, idx) => {
                         if(y > 250) { doc.addPage(); y=20; }
-                        doc.setFillColor(245,245,245); doc.rect(14, y-6, 180, 25, 'F');
-                        
+                        doc.setFillColor(245,245,245); doc.rect(14, y-6, 180, 20, 'F');
                         doc.setFontSize(11); doc.setFont(undefined, 'bold');
                         doc.text(`Semana ${idx+1}: ${this.formatDate(w.start)} a ${this.formatDate(w.end)}`, 16, y);
                         y+=7;
-                        
                         doc.setFontSize(10); doc.setFont(undefined, 'normal');
                         doc.text(`Bruto: R$ ${w.gross.toFixed(2)}  |  Líquido: R$ ${w.net.toFixed(2)}`, 16, y);
-                        y+=7;
-                        if(w.adminNotes) {
-                            doc.setTextColor(100,0,0);
-                            doc.text(`Obs: ${w.adminNotes}`, 16, y);
-                            doc.setTextColor(0,0,0);
-                        } else {
-                            doc.text(`Sem observações.`, 16, y);
-                        }
                         y+=15;
                     });
 
@@ -906,6 +926,7 @@
 
             exportClosingPDF() {
                 if (!this.reportData) return;
+                this.updateReportNotes();
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF(); const d = this.reportData;
                 let y = 20;
@@ -918,15 +939,8 @@
                 doc.text(`Bruto: R$ ${d.gross.toFixed(2)}`, 14, y); y+=7;
                 doc.text(`Taxas: - R$ ${d.fees.toFixed(2)}`, 14, y); y+=7;
                 doc.text(`Repasses: - R$ ${d.paidToStaff.toFixed(2)}`, 14, y); y+=10;
-                doc.setFont(undefined, 'bold'); doc.text(`Líquido Salão: R$ ${d.net.toFixed(2)}`, 14, y); y+=10;
+                doc.setFont(undefined, 'bold'); doc.text(`Líquido Salão: R$ ${d.net.toFixed(2)}`, 14, y); y+=20;
                 
-                const adminNotes = document.getElementById('closing-notes').value;
-                if(adminNotes) {
-                    doc.setFont(undefined, 'normal'); doc.setTextColor(150,0,0);
-                    doc.text(`Obs: ${adminNotes}`, 14, y); doc.setTextColor(0,0,0); y+=10;
-                }
-                y+=10;
-
                 doc.setFontSize(14); doc.setFont(undefined, 'normal'); doc.text("Profissionais", 14, y); y+=10;
                 Object.values(d.collabs).forEach(c => {
                     if(y>250){doc.addPage();y=20;}
@@ -936,7 +950,10 @@
                     doc.text(`Pagar: R$ ${pay.toFixed(2)}`, 190, y, {align:"right"}); y+=8;
                     doc.setFont(undefined, 'normal'); doc.setFontSize(9);
                     
-                    // Obs das fichas no PDF Geral
+                    if(c.adminNote) {
+                        doc.setTextColor(150,0,0); doc.text(`Obs Admin: ${c.adminNote}`, 16, y); y+=6; doc.setTextColor(0,0,0);
+                    }
+
                     if(c.obsList.length > 0) {
                         doc.setTextColor(100,50,0);
                         c.obsList.forEach(obs => {
