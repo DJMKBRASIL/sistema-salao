@@ -617,7 +617,17 @@
             async loadFichas() {
                 if(!window.userId || !window.db) return;
                 const path = `artifacts/${window.appId}/public/data/fichas`;
-                const q = window.query(window.collection(window.db, path), window.where('createdBy', '==', window.userId));
+                
+                // --- LÓGICA DE VISUALIZAÇÃO ATUALIZADA ---
+                let q;
+                if (ADMIN_EMAILS.includes(window.userEmail)) {
+                    // Admin vê TUDO (sem filtro de createdBy)
+                    q = window.query(window.collection(window.db, path));
+                } else {
+                    // Colaborador vê SÓ O DELE
+                    q = window.query(window.collection(window.db, path), window.where('createdBy', '==', window.userId));
+                }
+                // ------------------------------------------
                 
                 const snapshot = await window.getDocs(q);
                 let data = [];
