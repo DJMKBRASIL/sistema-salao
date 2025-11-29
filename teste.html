@@ -618,7 +618,7 @@
                 if(!window.userId || !window.db) return;
                 const path = `artifacts/${window.appId}/public/data/fichas`;
                 
-                // --- LÓGICA DE VISUALIZAÇÃO ATUALIZADA ---
+                // CORREÇÃO: Lógica de visualização do Admin restaurada
                 let q;
                 if (ADMIN_EMAILS.includes(window.userEmail)) {
                     // Admin vê TUDO (sem filtro de createdBy)
@@ -627,7 +627,6 @@
                     // Colaborador vê SÓ O DELE
                     q = window.query(window.collection(window.db, path), window.where('createdBy', '==', window.userId));
                 }
-                // ------------------------------------------
                 
                 const snapshot = await window.getDocs(q);
                 let data = [];
@@ -654,7 +653,7 @@
             },
 
             deleteFicha(id) {
-                // VERIFICAÇÃO DE SEGURANÇA ADICIONADA
+                // CORREÇÃO: Trava de segurança restaurada
                 if (!ADMIN_EMAILS.includes(window.userEmail)) {
                     return this.showMessage("Apenas administradores podem excluir registros salvos.", "error");
                 }
