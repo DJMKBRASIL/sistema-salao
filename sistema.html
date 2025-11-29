@@ -23,7 +23,7 @@
             getAuth, 
             onAuthStateChanged, 
             GoogleAuthProvider, 
-            signInWithPopup, // Voltamos para o Popup universalmente
+            signInWithPopup, 
             signOut, 
             setPersistence, 
             browserLocalPersistence 
@@ -57,7 +57,9 @@
         const ADMIN_EMAILS = [
             "djmkbrasil@gmail.com", 
             // Adicione outros se precisar
-        ]; 
+        ];
+        // EXPORTANDO PARA O SISTEMA GLOBAL
+        window.ADMIN_EMAILS = ADMIN_EMAILS;
         // -----------------------------------------------------------
 
         // Globais
@@ -74,7 +76,6 @@
                 window.db = getFirestore(window.app);
                 window.auth = getAuth(window.app);
                 
-                // Persistência local para manter o usuário logado mesmo fechando o navegador
                 await setPersistence(window.auth, browserLocalPersistence);
 
                 onAuthStateChanged(window.auth, async (user) => {
@@ -88,13 +89,13 @@
                         window.userId = null;
                         window.userEmail = null;
                         updateAuthUI(null);
-                        document.getElementById('nav-fechamento').classList.add('hidden'); // Garante hidden no inicio
+                        document.getElementById('nav-fechamento').classList.add('hidden'); 
                         window.appLogic.switchTab('fichas');
                     }
                 });
             } catch (error) {
                 console.error("Erro Firebase:", error);
-                window.appLogic.showMessage('Erro de conexão.', 'error');
+                if(window.appLogic && window.appLogic.showMessage) window.appLogic.showMessage('Erro de conexão.', 'error');
             }
         }
 
@@ -106,7 +107,6 @@
                 adminTab.classList.remove('hidden');
             } else {
                 adminTab.classList.add('hidden');
-                // Se não é admin, força a ida para fichas caso esteja na aba errada
                 if(window.appLogic.currentTab === 'fechamento') {
                     window.appLogic.switchTab('fichas');
                 }
@@ -136,22 +136,19 @@
         window.signInWithGoogle = async () => {
             const provider = new GoogleAuthProvider();
             try { 
-                // Usando Popup para todos os dispositivos.
-                // Isso evita o loop de redirecionamento que perde o estado no mobile.
                 await signInWithPopup(window.auth, provider);
             } 
             catch (e) { 
                 console.error(e);
                 let msg = "Erro no login: " + e.message;
-                // Tratamento específico para popup bloqueado
                 if (e.code === 'auth/popup-blocked') {
                     msg = "O navegador bloqueou a janela de login. Por favor, permita pop-ups para este site.";
-                    alert(msg); // Alerta nativo chama mais atenção para desbloquear
+                    alert(msg);
                 }
                 if (e.code === 'auth/web-storage-unsupported') {
                     msg = "Navegador bloqueando cookies. Tente abrir no Chrome ou Safari.";
                 }
-                window.appLogic.showMessage(msg, 'error'); 
+                if(window.appLogic && window.appLogic.showMessage) window.appLogic.showMessage(msg, 'error'); 
             }
         };
 
@@ -485,12 +482,25 @@
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
-                const today = new Date().toISOString().split('T')[0];
+                // FIXED: Use local date correctly
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const today = `${year}-${month}-${day}`;
+
                 const els = ['ficha-date', 'closing-end-date'];
                 els.forEach(id => { if(document.getElementById(id)) document.getElementById(id).value = today; });
                 
-                const d = new Date(); d.setDate(d.getDate() - d.getDay()); 
-                if(document.getElementById('closing-start-date')) document.getElementById('closing-start-date').value = d.toISOString().split('T')[0];
+                // Start of current week (Sunday)
+                const d = new Date();
+                d.setDate(d.getDate() - d.getDay()); 
+                const sYear = d.getFullYear();
+                const sMonth = String(d.getMonth() + 1).padStart(2, '0');
+                const sDay = String(d.getDate()).padStart(2, '0');
+                const startOfWeek = `${sYear}-${sMonth}-${sDay}`;
+
+                if(document.getElementById('closing-start-date')) document.getElementById('closing-start-date').value = startOfWeek;
 
                 const m = new Date().toISOString().slice(0, 7);
                 if(document.getElementById('monthly-report-date')) document.getElementById('monthly-report-date').value = m;
@@ -622,33 +632,53 @@
             async loadFichas() {
                 if(!window.userId || !window.db) return;
                 const path = `artifacts/${window.appId}/public/data/fichas`;
-                const q = window.query(window.collection(window.db, path), window.where('createdBy', '==', window.userId));
                 
-                const snapshot = await window.getDocs(q);
-                let data = [];
-                snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
-                data.sort((a,b) => b.createdAt - a.createdAt);
-                
-                const tbody = document.getElementById('fichas-history-body');
-                tbody.innerHTML = '';
-                data.slice(0, 20).forEach(f => {
-                    const date = new Date(f.date + 'T12:00').toLocaleDateString('pt-BR');
-                    const clientDisplay = f.obs ? `${f.clientName} <br><span class="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">Obs: ${f.obs}</span>` : f.clientName;
+                try {
+                    let q;
+                    // FIX: Ensure ADMIN_EMAILS is accessible. 
+                    // Using window.ADMIN_EMAILS which we exposed in module
+                    if (window.ADMIN_EMAILS && window.ADMIN_EMAILS.includes(window.userEmail)) {
+                        // Admin sees ALL
+                        q = window.query(window.collection(window.db, path));
+                    } else {
+                        // Others see OWN
+                        q = window.query(window.collection(window.db, path), window.where('createdBy', '==', window.userId));
+                    }
                     
-                    tbody.innerHTML += `
-                        <tr class="hover:bg-gray-50 border-b border-gray-100 mobile-card-row">
-                            <td class="p-4 text-gray-500 font-medium">${date}</td>
-                            <td class="p-4 font-bold text-indigo-900">${f.professionalName}</td>
-                            <td class="p-4 text-gray-800">${clientDisplay}</td>
-                            <td class="p-4 text-xs text-gray-400">${f.items.length} itens</td>
-                            <td class="p-4 text-right font-bold text-gray-700">R$ ${f.total.toFixed(2)}</td>
-                            <td class="p-4 text-center"><button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-300 hover:text-red-500 p-2">✕</button></td>
-                        </tr>
-                    `;
-                });
+                    const snapshot = await window.getDocs(q);
+                    let data = [];
+                    snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
+                    data.sort((a,b) => b.createdAt - a.createdAt);
+                    
+                    const tbody = document.getElementById('fichas-history-body');
+                    tbody.innerHTML = '';
+                    data.slice(0, 20).forEach(f => {
+                        const date = new Date(f.date + 'T12:00').toLocaleDateString('pt-BR');
+                        const clientDisplay = f.obs ? `${f.clientName} <br><span class="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">Obs: ${f.obs}</span>` : f.clientName;
+                        
+                        tbody.innerHTML += `
+                            <tr class="hover:bg-gray-50 border-b border-gray-100 mobile-card-row">
+                                <td class="p-4 text-gray-500 font-medium">${date}</td>
+                                <td class="p-4 font-bold text-indigo-900">${f.professionalName}</td>
+                                <td class="p-4 text-gray-800">${clientDisplay}</td>
+                                <td class="p-4 text-xs text-gray-400">${f.items.length} itens</td>
+                                <td class="p-4 text-right font-bold text-gray-700">R$ ${f.total.toFixed(2)}</td>
+                                <td class="p-4 text-center"><button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-300 hover:text-red-500 p-2">✕</button></td>
+                            </tr>
+                        `;
+                    });
+                } catch (e) {
+                    console.error("Erro ao carregar fichas:", e);
+                    // Silent fail or alert if needed
+                }
             },
 
             deleteFicha(id) {
+                // FIX: Use exposed window.ADMIN_EMAILS
+                if (!window.ADMIN_EMAILS || !window.ADMIN_EMAILS.includes(window.userEmail)) {
+                    return this.showMessage("Apenas administradores podem excluir registros salvos.", "error");
+                }
+
                 const m = document.getElementById('confirm-modal');
                 m.classList.add('open');
                 document.getElementById('confirm-modal-btn').onclick = async () => {
@@ -786,7 +816,10 @@
                 try {
                     const path = `artifacts/${window.appId}/public/data/fechamentos_semanais`;
                     const dateObj = new Date(this.reportData.start);
-                    this.reportData.monthYear = dateObj.toISOString().slice(0, 7); 
+                    // Use local date for monthYear to prevent UTC shift
+                    const y = dateObj.getFullYear();
+                    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    this.reportData.monthYear = `${y}-${m}`; 
                     this.reportData.savedAt = window.Timestamp.now();
 
                     await window.addDoc(window.collection(window.db, path), this.reportData);
