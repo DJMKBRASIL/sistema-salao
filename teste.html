@@ -58,7 +58,7 @@
             "djmkbrasil@gmail.com", 
             // Adicione outros se precisar
         ];
-        // EXPORTANDO PARA O SISTEMA GLOBAL (CORREÇÃO DO BUG)
+        // EXPORTANDO PARA O SISTEMA GLOBAL
         window.ADMIN_EMAILS = ADMIN_EMAILS;
         // -----------------------------------------------------------
 
@@ -482,12 +482,25 @@
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
-                const today = new Date().toISOString().split('T')[0];
+                // FIXED: Use local date correctly
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const today = `${year}-${month}-${day}`;
+
                 const els = ['ficha-date', 'closing-end-date'];
                 els.forEach(id => { if(document.getElementById(id)) document.getElementById(id).value = today; });
                 
-                const d = new Date(); d.setDate(d.getDate() - d.getDay()); 
-                if(document.getElementById('closing-start-date')) document.getElementById('closing-start-date').value = d.toISOString().split('T')[0];
+                // Start of current week (Sunday)
+                const d = new Date();
+                d.setDate(d.getDate() - d.getDay()); 
+                const sYear = d.getFullYear();
+                const sMonth = String(d.getMonth() + 1).padStart(2, '0');
+                const sDay = String(d.getDate()).padStart(2, '0');
+                const startOfWeek = `${sYear}-${sMonth}-${sDay}`;
+
+                if(document.getElementById('closing-start-date')) document.getElementById('closing-start-date').value = startOfWeek;
 
                 const m = new Date().toISOString().slice(0, 7);
                 if(document.getElementById('monthly-report-date')) document.getElementById('monthly-report-date').value = m;
@@ -803,7 +816,10 @@
                 try {
                     const path = `artifacts/${window.appId}/public/data/fechamentos_semanais`;
                     const dateObj = new Date(this.reportData.start);
-                    this.reportData.monthYear = dateObj.toISOString().slice(0, 7); 
+                    // Use local date for monthYear to prevent UTC shift
+                    const y = dateObj.getFullYear();
+                    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    this.reportData.monthYear = `${y}-${m}`; 
                     this.reportData.savedAt = window.Timestamp.now();
 
                     await window.addDoc(window.collection(window.db, path), this.reportData);
