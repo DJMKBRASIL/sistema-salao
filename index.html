@@ -106,8 +106,8 @@
     <footer class="bg-gray-50 py-6 text-center border-t border-gray-100 relative z-20">
         <p class="text-xs text-gray-400 mb-2">© 2025 Espaço Fran Kokott. Todos os direitos reservados.</p>
         
-        <!-- Link para o Sistema (Discreto para a equipe) -->
-        <a href="sistema.html" class="text-[10px] text-gray-300 hover:text-indigo-500 transition-colors uppercase tracking-widest font-semibold">
+        <!-- Link para o Sistema Protegido por Senha -->
+        <a href="#" onclick="checkSystemAccess(event)" class="text-[10px] text-gray-300 hover:text-indigo-500 transition-colors uppercase tracking-widest font-semibold cursor-pointer">
             Área da Equipe 🔒
         </a>
     </footer>
@@ -126,5 +126,22 @@
             }
         }
     </style>
+
+    <!-- Script de Proteção por Senha -->
+    <script>
+        function checkSystemAccess(e) {
+            e.preventDefault(); // Impede o link de abrir imediatamente
+            
+            // Pergunta a senha
+            const password = prompt("Digite a senha de acesso ao sistema:");
+            
+            // Verifica a senha (equipe2026)
+            if (password === "equipe2026") {
+                window.location.href = "sistema.html"; // Redireciona se correto
+            } else if (password !== null) { // Se não clicou em cancelar
+                alert("Senha incorreta. Acesso negado.");
+            }
+        }
+    </script>
 </body>
 </html>
