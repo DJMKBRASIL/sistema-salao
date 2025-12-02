@@ -250,6 +250,7 @@
             </div>
             
             <div class="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex overflow-x-auto max-w-full">
+                <!-- Nova ordem: Agenda primeiro -->
                 <div onclick="window.appLogic.switchTab('agenda')" id="nav-agenda" class="nav-pill active flex items-center whitespace-nowrap">
                     <span class="mr-2">📅</span> Agenda
                 </div>
@@ -320,7 +321,7 @@
                                 </div>
                             </div>
 
-                            <!-- AGORA MULTI-SERVIÇOS NA AGENDA (IGUAL FICHA, MAS SEM VALOR) -->
+                            <!-- MULTI-SERVIÇOS NA AGENDA -->
                             <div class="border-t border-gray-100 my-4 pt-4">
                                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Serviços</label>
                                 <div id="agenda-items-container" class="space-y-2 mb-3"></div>
@@ -452,7 +453,7 @@
                                 <tbody id="fichas-history-body" class="bg-white"></tbody>
                             </table>
                         </div>
-                        <p class="text-xs text-gray-400 mt-4 text-center">Mostrando suas últimas 20 fichas.</p>
+                        <p class="text-xs text-gray-400 mt-4 text-center">Mostrando todo o histórico.</p>
                     </div>
                 </div>
             </div>
@@ -1765,7 +1766,7 @@
                         y += 20;
                     });
                     
-                    y += 5; // Espaço extra antes das semanas
+                    y += 5; 
 
                     doc.setFont(undefined, 'normal');
                     doc.setFontSize(14); doc.text("Detalhamento por Semana", 14, y); y+=10;
