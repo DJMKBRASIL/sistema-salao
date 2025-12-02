@@ -250,12 +250,14 @@
             </div>
             
             <div class="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex overflow-x-auto max-w-full">
-                <!-- Nova ordem: Agenda primeiro -->
                 <div onclick="window.appLogic.switchTab('agenda')" id="nav-agenda" class="nav-pill active flex items-center whitespace-nowrap">
                     <span class="mr-2">📅</span> Agenda
                 </div>
                 <div onclick="window.appLogic.switchTab('fichas')" id="nav-fichas" class="nav-pill flex items-center whitespace-nowrap">
                     <span class="mr-2">📝</span> Fichas
+                </div>
+                <div onclick="window.appLogic.switchTab('clientes')" id="nav-clientes" class="nav-pill flex items-center whitespace-nowrap">
+                    <span class="mr-2">👥</span> Clientes
                 </div>
                 <!-- Aba Restrita -->
                 <div onclick="window.appLogic.switchTab('fechamento')" id="nav-fechamento" class="nav-pill hidden flex items-center whitespace-nowrap">
@@ -273,13 +275,25 @@
             <span id="toast-msg">Mensagem</span>
         </div>
 
-        <!-- TAB 0: AGENDA (Nova) -->
+        <!-- TAB 0: AGENDA -->
         <div id="tab-agenda" class="tab-content active">
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
-                <!-- Coluna Esquerda: Agendar -->
-                <div class="lg:col-span-4">
-                    <div class="card sticky top-6 border-t-4 border-yellow-500 p-4 sm:p-6">
+                <!-- Coluna Esquerda: Agendar + Aniversariantes -->
+                <div class="lg:col-span-4 space-y-6">
+                    
+                    <!-- CARD ANIVERSARIANTES (NOVO) -->
+                    <div id="birthdays-card" class="card border-t-4 border-purple-500 p-4 sm:p-6 hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-bold text-gray-800">🎉 Aniversariantes</h2>
+                            <div class="text-xs font-semibold bg-purple-50 text-purple-600 px-2 py-1 rounded">Hoje</div>
+                        </div>
+                        <ul id="birthdays-list" class="space-y-2">
+                            <!-- Lista de aniversariantes -->
+                        </ul>
+                    </div>
+
+                    <div class="card border-t-4 border-yellow-500 p-4 sm:p-6">
                         <div class="flex justify-between items-center mb-6">
                             <h2 class="text-lg font-bold text-gray-800">Novo Agendamento</h2>
                             <div class="text-xs font-semibold bg-yellow-50 text-yellow-600 px-2 py-1 rounded">Agenda</div>
@@ -302,7 +316,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cliente</label>
-                                    <input type="text" id="agenda-cliente" placeholder="Nome da Cliente" class="input-field">
+                                    <input type="text" id="agenda-cliente" list="clientes-list" placeholder="Nome da Cliente" class="input-field" autocomplete="off">
                                 </div>
                             </div>
 
@@ -375,7 +389,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cliente</label>
-                                    <input type="text" id="ficha-cliente" placeholder="Nome da Cliente" class="input-field">
+                                    <input type="text" id="ficha-cliente" list="clientes-list" placeholder="Nome da Cliente" class="input-field" autocomplete="off">
                                 </div>
                             </div>
 
@@ -433,6 +447,77 @@
                         <p class="text-xs text-gray-400 mt-4 text-center">Mostrando suas últimas 20 fichas.</p>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: CLIENTES (Novo) -->
+        <div id="tab-clientes" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Form Cliente -->
+                <div class="lg:col-span-4">
+                    <div class="card sticky top-6 border-t-4 border-pink-500 p-4 sm:p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-lg font-bold text-gray-800">Novo Cliente</h2>
+                            <div class="text-xs font-semibold bg-pink-50 text-pink-600 px-2 py-1 rounded">Cadastro</div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nome Completo</label>
+                                <input type="text" id="client-name" class="input-field" placeholder="Nome da cliente">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">WhatsApp</label>
+                                <input type="tel" id="client-phone" class="input-field" placeholder="(41) 99999-9999">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Data Nascimento</label>
+                                <input type="date" id="client-birth" class="input-field">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Observações Técnicas</label>
+                                <textarea id="client-obs" class="input-field bg-gray-50 text-sm h-20" placeholder="Tintura, alergias, preferências..."></textarea>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="window.appLogic.cancelClientEdit()" id="btn-cancel-client" class="btn bg-gray-200 text-gray-700 w-1/3 hidden">Cancelar</button>
+                                <button onclick="window.appLogic.saveClient()" id="btn-save-client" class="btn btn-primary flex-grow py-3.5 shadow-lg bg-gradient-to-r from-pink-500 to-rose-500 border-none">
+                                    Cadastrar Cliente
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista Clientes -->
+                <div class="lg:col-span-8">
+                    <div class="card h-full p-4 sm:p-6">
+                        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                            <h2 class="text-lg font-bold text-gray-800">Base de Clientes</h2>
+                            <div class="relative w-full sm:w-64">
+                                <input type="text" id="client-search" class="input-field pl-8 py-2" placeholder="Buscar cliente..." oninput="window.appLogic.filterClients(this.value)">
+                                <svg class="w-4 h-4 absolute left-2.5 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-hidden rounded-lg border border-gray-100">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs">
+                                    <tr>
+                                        <th class="p-4">Nome</th>
+                                        <th class="p-4 hidden sm:table-cell">Contato</th>
+                                        <th class="p-4 hidden sm:table-cell">Obs</th>
+                                        <th class="p-4 text-center">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clients-list-body" class="bg-white divide-y divide-gray-100">
+                                    <!-- Lista carregada aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -553,6 +638,9 @@
         </div>
     </div>
 
+    <!-- Datalist de Clientes (Sugestão) -->
+    <datalist id="clientes-list"></datalist>
+
     <!-- Modals -->
     <div id="confirm-modal" class="modal">
         <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
@@ -611,10 +699,12 @@
     <!-- LOGIC -->
     <script>
         window.appLogic = {
-            currentTab: 'agenda', // Padrão agora é Agenda
+            currentTab: 'agenda', 
             fichas: [],
+            clients: [], // Cache de clientes
             reportData: null,
             targetCollabForPDF: null, 
+            editingClientId: null, // Estado de edição
             // 'pendente': 0 (conta pro total, sem taxa)
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
@@ -641,35 +731,72 @@
                 const m = new Date().toISOString().slice(0, 7);
                 if(document.getElementById('monthly-report-date')) document.getElementById('monthly-report-date').value = m;
 
-                // AUTO-CLEANUP (O Gate de Limpeza)
                 this.cleanupOldAgenda(today);
-
+                this.checkBirthdays(); // Checa aniversariantes
                 this.addFichaItem('servico');
                 this.loadFichas();
                 this.loadAgenda(); 
+                this.loadClients(); // Carrega clientes
                 this.enableFeatures();
             },
 
-            // --- AUTO CLEANUP AGENDA ---
             async cleanupOldAgenda(todayDate) {
                 if(!window.db) return;
                 try {
-                    // Busca agendamentos com data MENOR que hoje
-                    const q = window.query(
-                        window.collection(window.db, `artifacts/${window.appId}/public/data/agenda`),
-                        window.where('date', '<', todayDate)
-                    );
-                    
+                    const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/agenda`), window.where('date', '<', todayDate));
                     const snapshot = await window.getDocs(q);
-                    
-                    // Deleta um por um (Clean Sweep)
-                    snapshot.forEach(async (doc) => {
-                        await window.deleteDoc(doc.ref);
+                    snapshot.forEach(async (doc) => { await window.deleteDoc(doc.ref); });
+                } catch (e) { console.error(e); }
+            },
+
+            // --- BIRTHDAYS ---
+            async checkBirthdays() {
+                if(!window.db) return;
+                const today = new Date();
+                const currentMonth = today.getMonth() + 1;
+                const currentDay = today.getDate();
+                
+                // Pega todos os clientes para filtrar localmente (Firestore não filtra substring de data fácil)
+                const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/clientes`));
+                const snapshot = await window.getDocs(q);
+                
+                const birthdays = [];
+                snapshot.forEach(doc => {
+                    const c = doc.data();
+                    if (c.birth) {
+                        const [bYear, bMonth, bDay] = c.birth.split('-').map(Number);
+                        
+                        // Se é aniversário hoje
+                        if (bMonth === currentMonth && bDay === currentDay) {
+                            birthdays.push({ name: c.name, phone: c.phone, date: `${bDay}/${bMonth}`, isToday: true });
+                        }
+                        // Se é na próxima semana (lógica simples: mesmo mês, dias a frente)
+                        else if (bMonth === currentMonth && bDay > currentDay && bDay <= currentDay + 7) {
+                            birthdays.push({ name: c.name, phone: c.phone, date: `${bDay}/${bMonth}`, isToday: false });
+                        }
+                    }
+                });
+
+                const listEl = document.getElementById('birthdays-list');
+                const cardEl = document.getElementById('birthdays-card');
+                listEl.innerHTML = '';
+
+                if (birthdays.length > 0) {
+                    cardEl.classList.remove('hidden');
+                    birthdays.forEach(b => {
+                        const icon = b.isToday ? '🎂 HOJE!' : '🎈';
+                        const style = b.isToday ? 'font-bold text-purple-700 bg-purple-50' : 'text-gray-600';
+                        const wppLink = b.phone ? `https://wa.me/55${b.phone.replace(/\D/g,'')}` : '#';
+                        
+                        listEl.innerHTML += `
+                            <li class="flex justify-between items-center p-2 rounded ${style}">
+                                <span>${icon} ${b.name} (${b.date})</span>
+                                ${b.phone ? `<a href="${wppLink}" target="_blank" class="text-green-600 hover:scale-110 transition-transform">💬</a>` : ''}
+                            </li>
+                        `;
                     });
-                    
-                    if(!snapshot.empty) console.log(`🧹 Limpeza Automática: ${snapshot.size} agendamentos antigos removidos.`);
-                } catch (e) {
-                    console.error("Erro na limpeza automática:", e);
+                } else {
+                    cardEl.classList.add('hidden');
                 }
             },
 
@@ -713,7 +840,136 @@
                 document.getElementById('btn-local-backup').disabled = true;
             },
             
-            // --- AGENDA (New Track) ---
+            // --- CLIENTES ---
+            async saveClient() {
+                const name = document.getElementById('client-name').value.trim();
+                const phone = document.getElementById('client-phone').value.trim();
+                const birth = document.getElementById('client-birth').value;
+                const obs = document.getElementById('client-obs').value;
+
+                if(!name) return this.showMessage("Nome é obrigatório", "error");
+                
+                this.toggleLoading('btn-save-client', true);
+                try {
+                    const collectionRef = window.collection(window.db, `artifacts/${window.appId}/public/data/clientes`);
+                    
+                    if (this.editingClientId) {
+                        // Update existing
+                        await window.updateDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/clientes`, this.editingClientId), {
+                            name, phone, birth, obs
+                        });
+                        this.showMessage("Cliente atualizado!", "success");
+                    } else {
+                        // Create new
+                        await window.addDoc(collectionRef, {
+                            name, phone, birth, obs,
+                            createdAt: window.Timestamp.now()
+                        });
+                        this.showMessage("Cliente salvo!", "success");
+                    }
+                    
+                    this.cancelClientEdit(); // Reset form state
+                    this.loadClients();
+                    this.checkBirthdays(); // Atualiza lista de aniversariantes
+                } catch(e) { this.showMessage("Erro: "+e.message, "error"); }
+                finally { this.toggleLoading('btn-save-client', false); }
+            },
+
+            startEditClient(client) {
+                this.editingClientId = client.id;
+                document.getElementById('client-name').value = client.name || '';
+                document.getElementById('client-phone').value = client.phone || '';
+                document.getElementById('client-birth').value = client.birth || '';
+                document.getElementById('client-obs').value = client.obs || '';
+
+                const btn = document.getElementById('btn-save-client');
+                btn.innerHTML = "Salvar Alterações";
+                btn.className = "btn btn-primary flex-grow py-3.5 shadow-lg bg-gradient-to-r from-blue-500 to-indigo-500 border-none text-white";
+                
+                document.getElementById('btn-cancel-client').classList.remove('hidden');
+                
+                // Scroll to form
+                document.getElementById('client-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            },
+
+            cancelClientEdit() {
+                this.editingClientId = null;
+                document.getElementById('client-name').value = '';
+                document.getElementById('client-phone').value = '';
+                document.getElementById('client-birth').value = '';
+                document.getElementById('client-obs').value = '';
+
+                const btn = document.getElementById('btn-save-client');
+                btn.innerHTML = "Cadastrar Cliente";
+                btn.className = "btn btn-primary flex-grow py-3.5 shadow-lg bg-gradient-to-r from-pink-500 to-rose-500 border-none text-white";
+                
+                document.getElementById('btn-cancel-client').classList.add('hidden');
+            },
+
+            async loadClients() {
+                if(!window.userId || !window.db) return;
+                const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/clientes`));
+                const snapshot = await window.getDocs(q);
+                
+                this.clients = [];
+                snapshot.forEach(doc => this.clients.push({id: doc.id, ...doc.data()}));
+                this.clients.sort((a,b) => a.name.localeCompare(b.name));
+
+                this.updateClientDatalist(); // Atualiza sugestão
+                this.renderClientsList(this.clients);
+            },
+
+            updateClientDatalist() {
+                const datalist = document.getElementById('clientes-list');
+                datalist.innerHTML = '';
+                this.clients.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.name;
+                    datalist.appendChild(option);
+                });
+            },
+
+            renderClientsList(listData) {
+                const tbody = document.getElementById('clients-list-body');
+                tbody.innerHTML = '';
+                
+                listData.forEach(c => {
+                    const wppLink = c.phone ? `https://wa.me/55${c.phone.replace(/\D/g,'')}` : '#';
+                    const wppDisplay = c.phone ? `<a href="${wppLink}" target="_blank" class="text-green-600 hover:underline flex items-center"><svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.506-.669-.516-.173-.009-.371-.009-.57-.009-.198 0-.52.074-.792.372-.272.297-1.04 1.017-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>${c.phone}</a>` : '-';
+
+                    // Passando objeto seguro para a função
+                    const clientStr = encodeURIComponent(JSON.stringify(c));
+
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50 mobile-card-row">
+                            <td class="p-4 font-medium text-gray-900">${c.name}</td>
+                            <td class="p-4 text-gray-600">${wppDisplay}</td>
+                            <td class="p-4 text-sm text-gray-500 max-w-xs truncate">${c.obs || '-'}</td>
+                            <td class="p-4 text-center">
+                                <button onclick="window.appLogic.startEditClient(JSON.parse(decodeURIComponent('${clientStr}')))" class="text-gray-400 hover:text-blue-500 p-2 mr-1">✏️</button>
+                                <button onclick="window.appLogic.deleteClient('${c.id}')" class="text-gray-400 hover:text-red-500 p-2">🗑️</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            },
+
+            filterClients(term) {
+                const lower = term.toLowerCase();
+                const filtered = this.clients.filter(c => c.name.toLowerCase().includes(lower));
+                this.renderClientsList(filtered);
+            },
+
+            deleteClient(id) {
+                if(!confirm("Excluir cliente?")) return;
+                window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/clientes`, id))
+                .then(() => {
+                    this.loadClients();
+                    this.showMessage("Cliente removido.");
+                });
+            },
+
+            // --- AGENDA ---
             async saveAgenda() {
                 if(!window.userId) return this.showMessage("Faça login", "error");
                 
@@ -779,12 +1035,10 @@
                         };
                         const cls = statusColors[item.status] || '';
                         
-                        // Botão Virar Ficha só se concluido
                         const turnBtn = item.status === 'concluido' 
                             ? `<button onclick='window.appLogic.turnToFicha(${JSON.stringify(item)})' class="text-xs bg-indigo-600 text-white px-2 py-1 rounded shadow ml-2">Virar Ficha ➡️</button>` 
                             : '';
 
-                        // Botão Excluir Agenda
                         const deleteBtn = `<button onclick="window.appLogic.deleteAgendaItem('${item.id}', '${item.createdBy}')" class="text-gray-400 hover:text-red-500 p-1 ml-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
 
                         const div = document.createElement('div');
@@ -840,24 +1094,19 @@
             async updateAgendaStatus(id, status) {
                 try {
                     await window.updateDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/agenda`, id), { status });
-                    this.loadAgenda(); // Reload to update UI colors/buttons
+                    this.loadAgenda(); 
                 } catch(e) { this.showMessage("Erro ao atualizar", "error"); }
             },
 
             turnToFicha(item) {
-                // Switch tab
                 this.switchTab('fichas');
-                // Pre-fill form
                 document.getElementById('ficha-date').value = item.date;
                 document.getElementById('ficha-profissional').value = item.prof;
                 document.getElementById('ficha-cliente').value = item.client;
                 document.getElementById('ficha-obs').value = item.obs || '';
-                
-                // Clear items and add service
                 document.getElementById('ficha-items-container').innerHTML = '';
                 this.addFichaItem('servico');
                 
-                // Try to set service name in the newly created input
                 setTimeout(() => {
                     const inputs = document.querySelectorAll('.item-name');
                     if(inputs.length > 0) inputs[0].value = item.service || '';
@@ -1496,3 +1745,4 @@
     </script>
 </body>
 </html>
+
