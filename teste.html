@@ -200,18 +200,25 @@
         .loading-spinner { border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        /* Correção para Inputs não vazarem */
+        /* FIX VAZAMENTO IPHONE */
         .input-field { 
             width: 100%; 
-            max-width: 100%; /* Garante que não ultrapasse o pai */
-            box-sizing: border-box; /* Inclui padding no cálculo da largura */
+            max-width: 100%;
+            min-width: 0; /* Importante para Flexbox no mobile */
+            box-sizing: border-box;
             border: 1px solid #e5e7eb; 
             border-radius: 0.5rem; 
             padding: 0.6rem 0.75rem; 
             transition: all 0.2s; 
-            font-size: 16px; /* Prevents iOS zoom */ 
+            font-size: 16px; 
+            -webkit-appearance: none; /* Remove estilo nativo do iOS */
         }
         .input-field:focus { outline: none; border-color: var(--primary); ring: 2px; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+        /* Ajuste específico para inputs de data e hora no mobile */
+        input[type="date"], input[type="time"] {
+            -webkit-appearance: none;
+            display: block; /* Garante comportamento de bloco */
+        }
 
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; justify-content: center; align-items: center; padding: 1rem; }
         .modal.open { display: flex; }
@@ -634,10 +641,36 @@
                 const m = new Date().toISOString().slice(0, 7);
                 if(document.getElementById('monthly-report-date')) document.getElementById('monthly-report-date').value = m;
 
+                // AUTO-CLEANUP (O Gate de Limpeza)
+                this.cleanupOldAgenda(today);
+
                 this.addFichaItem('servico');
                 this.loadFichas();
-                this.loadAgenda(); // Carrega agenda inicial
+                this.loadAgenda(); 
                 this.enableFeatures();
+            },
+
+            // --- AUTO CLEANUP AGENDA ---
+            async cleanupOldAgenda(todayDate) {
+                if(!window.db) return;
+                try {
+                    // Busca agendamentos com data MENOR que hoje
+                    const q = window.query(
+                        window.collection(window.db, `artifacts/${window.appId}/public/data/agenda`),
+                        window.where('date', '<', todayDate)
+                    );
+                    
+                    const snapshot = await window.getDocs(q);
+                    
+                    // Deleta um por um (Clean Sweep)
+                    snapshot.forEach(async (doc) => {
+                        await window.deleteDoc(doc.ref);
+                    });
+                    
+                    if(!snapshot.empty) console.log(`🧹 Limpeza Automática: ${snapshot.size} agendamentos antigos removidos.`);
+                } catch (e) {
+                    console.error("Erro na limpeza automática:", e);
+                }
             },
 
             switchTab(tab) {
@@ -751,6 +784,9 @@
                             ? `<button onclick='window.appLogic.turnToFicha(${JSON.stringify(item)})' class="text-xs bg-indigo-600 text-white px-2 py-1 rounded shadow ml-2">Virar Ficha ➡️</button>` 
                             : '';
 
+                        // Botão Excluir Agenda
+                        const deleteBtn = `<button onclick="window.appLogic.deleteAgendaItem('${item.id}', '${item.createdBy}')" class="text-gray-400 hover:text-red-500 p-1 ml-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
+
                         const div = document.createElement('div');
                         div.className = `p-4 rounded-lg border shadow-sm flex flex-col gap-2 ${cls} border-opacity-50`;
                         div.innerHTML = `
@@ -764,12 +800,15 @@
                                     </div>
                                 </div>
                                 <div class="flex flex-col items-end gap-1">
-                                    <select onchange="window.appLogic.updateAgendaStatus('${item.id}', this.value)" class="text-xs border rounded p-1 bg-white bg-opacity-50">
-                                        <option value="agendado" ${item.status==='agendado'?'selected':''}>🟡 Agendado</option>
-                                        <option value="confirmado" ${item.status==='confirmado'?'selected':''}>🟢 Confirmado</option>
-                                        <option value="concluido" ${item.status==='concluido'?'selected':''}>✅ Concluído</option>
-                                        <option value="cancelado" ${item.status==='cancelado'?'selected':''}>🔴 Cancelado</option>
-                                    </select>
+                                    <div class="flex items-center">
+                                        <select onchange="window.appLogic.updateAgendaStatus('${item.id}', this.value)" class="text-xs border rounded p-1 bg-white bg-opacity-50">
+                                            <option value="agendado" ${item.status==='agendado'?'selected':''}>🟡 Agendado</option>
+                                            <option value="confirmado" ${item.status==='confirmado'?'selected':''}>🟢 Confirmado</option>
+                                            <option value="concluido" ${item.status==='concluido'?'selected':''}>✅ Concluído</option>
+                                            <option value="cancelado" ${item.status==='cancelado'?'selected':''}>🔴 Cancelado</option>
+                                        </select>
+                                        ${deleteBtn}
+                                    </div>
                                     ${turnBtn}
                                 </div>
                             </div>
@@ -779,6 +818,23 @@
                     });
 
                 } catch(e) { console.error(e); list.innerHTML="Erro ao carregar"; }
+            },
+            
+            deleteAgendaItem(id, creatorId) {
+                const isAdmin = window.ADMIN_EMAILS.includes(window.userEmail);
+                const isOwner = creatorId === window.userId;
+
+                if (!isAdmin && !isOwner) {
+                    return this.showMessage("Você só pode excluir seus agendamentos.", "error");
+                }
+                
+                if(confirm("Excluir este agendamento?")) {
+                     window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/agenda`, id))
+                     .then(() => {
+                         this.loadAgenda();
+                         this.showMessage("Agendamento excluído.");
+                     });
+                }
             },
 
             async updateAgendaStatus(id, status) {
