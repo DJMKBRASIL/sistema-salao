@@ -1117,6 +1117,8 @@
                 listData.forEach(c => {
                     const wppLink = c.phone ? `https://wa.me/55${c.phone.replace(/\D/g,'')}` : '#';
                     const wppDisplay = c.phone ? `<a href="${wppLink}" target="_blank" class="text-green-600 hover:underline flex items-center"><svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.506-.669-.516-.173-.009-.371-.009-.57-.009-.198 0-.52.074-.792.372-.272.297-1.04 1.017-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>${c.phone}</a>` : '-';
+
+                    // Passando objeto seguro para a função
                     const clientStr = encodeURIComponent(JSON.stringify(c));
 
                     tbody.innerHTML += `
@@ -1171,6 +1173,7 @@
                 const client = document.getElementById('agenda-cliente').value;
                 const obs = document.getElementById('agenda-obs').value;
 
+                // Captura múltiplos serviços
                 const services = [];
                 document.querySelectorAll('.agenda-item-name').forEach(input => {
                     if(input.value.trim()) services.push(input.value.trim());
@@ -1182,11 +1185,13 @@
                 this.toggleLoading('btn-save-agenda', true);
                 try {
                     if (this.editingAgendaId) {
+                         // Update
                         await window.updateDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/agenda`, this.editingAgendaId), {
                             date, time, prof, client, services, obs
                         });
                         this.showMessage("Agendamento atualizado!", "success");
                     } else {
+                        // Create new
                         await window.addDoc(window.collection(window.db, `artifacts/${window.appId}/public/data/agenda`), {
                             date, time, prof, client, services, obs, 
                             status: 'agendado', 
@@ -1196,7 +1201,7 @@
                         this.showMessage("Agendado!", "success");
                     }
                     
-                    this.cancelAgendaEdit(); 
+                    this.cancelAgendaEdit(); // Reset form
                     this.loadAgenda();
                 } catch(e) { this.showMessage("Erro: "+e.message, "error"); }
                 finally { this.toggleLoading('btn-save-agenda', false); }
@@ -1205,12 +1210,14 @@
             startEditAgenda(item) {
                 this.editingAgendaId = item.id;
                 
+                // Preencher campos
                 document.getElementById('agenda-date-input').value = item.date;
                 document.getElementById('agenda-time-input').value = item.time;
                 document.getElementById('agenda-profissional').value = item.prof;
                 document.getElementById('agenda-cliente').value = item.client;
                 document.getElementById('agenda-obs').value = item.obs || '';
                 
+                // Recriar linhas de serviços
                 const container = document.getElementById('agenda-items-container');
                 container.innerHTML = '';
                 
@@ -1220,10 +1227,12 @@
                     this.addAgendaItem('servico', item.service || '');
                 }
 
+                // Mudar Botões
                 const btn = document.getElementById('btn-save-agenda');
                 btn.innerHTML = "Salvar Alterações";
                 btn.className = "btn btn-primary w-full py-4 shadow-lg active:scale-95 text-base bg-gradient-to-r from-blue-500 to-indigo-500 border-none text-white";
                 
+                // Adicionar botão cancelar se não existir (ou mostrar se já existir)
                 let cancelBtn = document.getElementById('btn-cancel-agenda');
                 if(!cancelBtn) {
                      cancelBtn = document.createElement('button');
@@ -1236,6 +1245,7 @@
                     cancelBtn.classList.remove('hidden');
                 }
                 
+                // Scroll para o topo do form
                 document.querySelector('#tab-agenda').scrollIntoView({ behavior: 'smooth' });
             },
             
@@ -1293,12 +1303,14 @@
                             ? `<button onclick='window.appLogic.turnToFicha(${JSON.stringify(item)})' class="text-xs bg-indigo-600 text-white px-2 py-1 rounded shadow ml-2 hover:bg-indigo-700 transition-colors">Virar Ficha ➡️</button>` 
                             : '';
 
+                        // Passando objeto seguro para edição
                         const itemStr = encodeURIComponent(JSON.stringify(item));
                         
                         const editBtn = `<button onclick="window.appLogic.startEditAgenda(JSON.parse(decodeURIComponent('${itemStr}')))" class="text-gray-400 hover:text-blue-500 p-1 mr-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>`;
                         
                         const deleteBtn = `<button onclick="window.appLogic.deleteAgendaItem('${item.id}', '${item.createdBy}')" class="text-gray-400 hover:text-red-500 p-1 ml-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
 
+                        // Lidar com legado (string) ou novo (array)
                         const servicesDisplay = Array.isArray(item.services) ? item.services.join(', ') : (item.service || 'Serviço não especificado');
 
                         const div = document.createElement('div');
@@ -1368,13 +1380,16 @@
                 document.getElementById('ficha-cliente').value = item.client;
                 document.getElementById('ficha-obs').value = item.obs || '';
                 
+                // Limpa container
                 document.getElementById('ficha-items-container').innerHTML = '';
                 
+                // Se for array (novo formato), cria uma linha pra cada
                 if (Array.isArray(item.services) && item.services.length > 0) {
                     item.services.forEach(svc => {
-                        this.addFichaItem('servico', svc); 
+                        this.addFichaItem('servico', svc); // Passa o nome do serviço
                     });
                 } else {
+                    // Legado (string única)
                     this.addFichaItem('servico', item.service || '');
                 }
 
@@ -1382,6 +1397,7 @@
             },
 
             // --- FICHAS ---
+            // Atualizado para aceitar valor inicial (presetValue)
             addFichaItem(type, presetValue = '') {
                 const container = document.getElementById('ficha-items-container');
                 const div = document.createElement('div');
@@ -1631,10 +1647,20 @@
 
                     const obsHtml = c.obsList.length > 0 ? 
                         `<div class="mt-3 bg-amber-50 p-2 rounded text-[10px] text-amber-800 border border-amber-100"><strong>Obs Fichas:</strong><br>${c.obsList.join('<br>')}</div>` : '';
+                    
+                    let statsHtml = `
+                        <div><span class="text-xs text-gray-400 uppercase block">Bruto</span><span class="font-bold text-gray-700">R$ ${c.total.toFixed(2)}</span></div>
+                        <div><span class="text-xs text-gray-400 uppercase block">Retenção (30%)</span><span class="font-bold text-red-500">- R$ ${share.toFixed(2)}</span></div>
+                    `;
 
-                    // Linha de Adiantamento (se houver)
-                    const advanceHtml = c.advances > 0 ? 
-                        `<div class="text-red-600 font-bold mt-1">(-) Adiantamentos/Sinais: R$ ${c.advances.toFixed(2)}</div>` : '';
+                    if (c.advances > 0) {
+                        statsHtml += `
+                            <div class="col-span-2 border-t border-gray-200 pt-2 mt-1">
+                                <span class="text-xs text-gray-400 uppercase block">Adiantamentos / Sinais</span>
+                                <span class="font-bold text-red-500">- R$ ${c.advances.toFixed(2)}</span>
+                            </div>
+                        `;
+                    }
 
                     cContainer.innerHTML += `
                         <div class="bg-white border border-gray-100 rounded-xl p-6 shadow-sm relative">
@@ -1643,10 +1669,8 @@
                                 <div class="text-right"><span class="text-xs font-semibold text-gray-400 uppercase">A Pagar</span><div class="font-bold text-2xl text-green-600">R$ ${pay.toFixed(2)}</div></div>
                             </div>
                             <div class="grid grid-cols-2 gap-4 text-sm mb-4 bg-gray-50 p-3 rounded-lg">
-                                <div><span class="text-xs text-gray-400 uppercase block">Bruto</span><span class="font-bold text-gray-700">R$ ${c.total.toFixed(2)}</span></div>
-                                <div><span class="text-xs text-gray-400 uppercase block">Retenção (30%)</span><span class="font-bold text-red-500">- R$ ${share.toFixed(2)}</span></div>
+                                ${statsHtml}
                             </div>
-                            ${advanceHtml}
                             ${obsHtml}
                             <div class="mt-4">
                                 <label class="block text-xs font-bold text-gray-500 mb-1">Obs. Admin (Individual)</label>
