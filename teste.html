@@ -173,6 +173,9 @@
 
     <style>
         :root { --primary: #6366f1; --secondary: #8b5cf6; --success: #10b981; --danger: #ef4444; }
+        /* RESET GLOBAL PARA EVITAR OVERFLOW */
+        * { box-sizing: border-box; }
+        
         body { font-family: 'Inter', sans-serif; background: #f3f4f6; padding: 1rem; -webkit-tap-highlight-color: transparent; }
         
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
@@ -197,7 +200,17 @@
         .loading-spinner { border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        .input-field { width: 100%; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.6rem 0.75rem; transition: all 0.2s; font-size: 16px; /* Prevents iOS zoom */ }
+        /* Correção para Inputs não vazarem */
+        .input-field { 
+            width: 100%; 
+            max-width: 100%; /* Garante que não ultrapasse o pai */
+            box-sizing: border-box; /* Inclui padding no cálculo da largura */
+            border: 1px solid #e5e7eb; 
+            border-radius: 0.5rem; 
+            padding: 0.6rem 0.75rem; 
+            transition: all 0.2s; 
+            font-size: 16px; /* Prevents iOS zoom */ 
+        }
         .input-field:focus { outline: none; border-color: var(--primary); ring: 2px; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
 
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; justify-content: center; align-items: center; padding: 1rem; }
@@ -608,7 +621,9 @@
                 const els = ['ficha-date', 'closing-end-date', 'agenda-date-input', 'agenda-filter-date'];
                 els.forEach(id => { if(document.getElementById(id)) document.getElementById(id).value = today; });
                 
-                const d = new Date(); d.setDate(d.getDate() - d.getDay()); 
+                // Start of current week (Sunday)
+                const d = new Date();
+                d.setDate(d.getDate() - d.getDay()); 
                 const sYear = d.getFullYear();
                 const sMonth = String(d.getMonth() + 1).padStart(2, '0');
                 const sDay = String(d.getDate()).padStart(2, '0');
