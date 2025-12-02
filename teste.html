@@ -90,7 +90,7 @@
                         window.userEmail = null;
                         updateAuthUI(null);
                         document.getElementById('nav-fechamento').classList.add('hidden'); 
-                        window.appLogic.switchTab('fichas');
+                        window.appLogic.switchTab('agenda'); // Padrão: Agenda
                     }
                 });
             } catch (error) {
@@ -108,7 +108,7 @@
             } else {
                 adminTab.classList.add('hidden');
                 if(window.appLogic.currentTab === 'fechamento') {
-                    window.appLogic.switchTab('fichas');
+                    window.appLogic.switchTab('agenda');
                 }
             }
         }
@@ -203,6 +203,12 @@
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; justify-content: center; align-items: center; padding: 1rem; }
         .modal.open { display: flex; }
 
+        /* Status colors */
+        .status-agendado { background-color: #fef3c7; color: #92400e; }
+        .status-confirmado { background-color: #d1fae5; color: #065f46; }
+        .status-concluido { background-color: #e0e7ff; color: #3730a3; }
+        .status-cancelado { background-color: #fee2e2; color: #991b1b; opacity: 0.7; }
+
         /* Mobile Optimization for History Table */
         @media (max-width: 640px) {
             .mobile-hide-header { display: none; }
@@ -224,7 +230,11 @@
             </div>
             
             <div class="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex overflow-x-auto max-w-full">
-                <div onclick="window.appLogic.switchTab('fichas')" id="nav-fichas" class="nav-pill active flex items-center whitespace-nowrap">
+                <!-- Nova ordem: Agenda primeiro -->
+                <div onclick="window.appLogic.switchTab('agenda')" id="nav-agenda" class="nav-pill active flex items-center whitespace-nowrap">
+                    <span class="mr-2">📅</span> Agenda
+                </div>
+                <div onclick="window.appLogic.switchTab('fichas')" id="nav-fichas" class="nav-pill flex items-center whitespace-nowrap">
                     <span class="mr-2">📝</span> Fichas
                 </div>
                 <!-- Aba Restrita -->
@@ -243,8 +253,80 @@
             <span id="toast-msg">Mensagem</span>
         </div>
 
+        <!-- TAB 0: AGENDA (Nova) -->
+        <div id="tab-agenda" class="tab-content active">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Coluna Esquerda: Agendar -->
+                <div class="lg:col-span-4">
+                    <div class="card sticky top-6 border-t-4 border-yellow-500 p-4 sm:p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-lg font-bold text-gray-800">Novo Agendamento</h2>
+                            <div class="text-xs font-semibold bg-yellow-50 text-yellow-600 px-2 py-1 rounded">Agenda</div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Dia</label>
+                                <input type="date" id="agenda-date-input" class="input-field bg-gray-50">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Hora</label>
+                                <input type="time" id="agenda-time-input" class="input-field bg-gray-50">
+                            </div>
+                            
+                            <div class="grid grid-cols-1 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label>
+                                    <input type="text" id="agenda-profissional" list="profissionais-list" placeholder="Quem vai atender?" class="input-field" autocomplete="off">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cliente</label>
+                                    <input type="text" id="agenda-cliente" placeholder="Nome da Cliente" class="input-field">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Serviço(s)</label>
+                                <input type="text" id="agenda-servico" placeholder="Ex: Corte, Mechas..." class="input-field">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Observações</label>
+                                <textarea id="agenda-obs" class="input-field bg-gray-50 text-sm h-20" placeholder="Ex: Cliente pediu pra confirmar antes..."></textarea>
+                            </div>
+
+                            <button onclick="window.appLogic.saveAgenda()" id="btn-save-agenda" class="btn btn-primary w-full py-4 shadow-lg active:scale-95 text-base bg-gradient-to-r from-yellow-500 to-orange-500 border-none">
+                                Agendar Horário
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna Direita: Lista Agenda -->
+                <div class="lg:col-span-8">
+                    <div class="card h-full p-4 sm:p-6">
+                        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                            <h2 class="text-lg font-bold text-gray-800">Agenda do Dia</h2>
+                            <div class="flex gap-2 w-full sm:w-auto">
+                                <input type="date" id="agenda-filter-date" class="input-field py-1 text-sm w-full sm:w-auto" onchange="window.appLogic.loadAgenda()">
+                                <button onclick="window.appLogic.loadAgenda()" class="text-xs bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200">↻</button>
+                            </div>
+                        </div>
+                        
+                        <div id="agenda-list" class="space-y-3">
+                            <!-- Cards de Agenda -->
+                        </div>
+                        <div id="agenda-empty" class="text-center py-12 text-gray-400 hidden">
+                            Nenhum agendamento para este dia.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- TAB 1: FICHAS -->
-        <div id="tab-fichas" class="tab-content active">
+        <div id="tab-fichas" class="tab-content">
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
                 <!-- Nova Ficha -->
@@ -509,7 +591,7 @@
     <!-- LOGIC -->
     <script>
         window.appLogic = {
-            currentTab: 'fichas',
+            currentTab: 'agenda', // Padrão agora é Agenda
             fichas: [],
             reportData: null,
             targetCollabForPDF: null, 
@@ -517,19 +599,16 @@
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
-                // FIXED: Use local date correctly
                 const now = new Date();
                 const year = now.getFullYear();
                 const month = String(now.getMonth() + 1).padStart(2, '0');
                 const day = String(now.getDate()).padStart(2, '0');
                 const today = `${year}-${month}-${day}`;
 
-                const els = ['ficha-date', 'closing-end-date'];
+                const els = ['ficha-date', 'closing-end-date', 'agenda-date-input', 'agenda-filter-date'];
                 els.forEach(id => { if(document.getElementById(id)) document.getElementById(id).value = today; });
                 
-                // Start of current week (Sunday)
-                const d = new Date();
-                d.setDate(d.getDate() - d.getDay()); 
+                const d = new Date(); d.setDate(d.getDate() - d.getDay()); 
                 const sYear = d.getFullYear();
                 const sMonth = String(d.getMonth() + 1).padStart(2, '0');
                 const sDay = String(d.getDate()).padStart(2, '0');
@@ -542,6 +621,7 @@
 
                 this.addFichaItem('servico');
                 this.loadFichas();
+                this.loadAgenda(); // Carrega agenda inicial
                 this.enableFeatures();
             },
 
@@ -585,11 +665,141 @@
                 document.getElementById('btn-local-backup').disabled = true;
             },
             
+            // --- AGENDA (New Track) ---
+            async saveAgenda() {
+                if(!window.userId) return this.showMessage("Faça login", "error");
+                
+                const date = document.getElementById('agenda-date-input').value;
+                const time = document.getElementById('agenda-time-input').value;
+                const prof = document.getElementById('agenda-profissional').value;
+                const client = document.getElementById('agenda-cliente').value;
+                const service = document.getElementById('agenda-servico').value;
+                const obs = document.getElementById('agenda-obs').value;
+
+                if(!date || !time || !prof || !client) return this.showMessage("Preencha Data, Hora, Profissional e Cliente", "error");
+
+                this.toggleLoading('btn-save-agenda', true);
+                try {
+                    await window.addDoc(window.collection(window.db, `artifacts/${window.appId}/public/data/agenda`), {
+                        date, time, prof, client, service, obs,
+                        status: 'agendado', // Default
+                        createdBy: window.userId,
+                        createdAt: window.Timestamp.now()
+                    });
+                    this.showMessage("Agendado!", "success");
+                    // Reset fields but keep date
+                    document.getElementById('agenda-cliente').value = '';
+                    document.getElementById('agenda-servico').value = '';
+                    document.getElementById('agenda-obs').value = '';
+                    this.loadAgenda();
+                } catch(e) { this.showMessage("Erro: "+e.message, "error"); }
+                finally { this.toggleLoading('btn-save-agenda', false); }
+            },
+
+            async loadAgenda() {
+                if(!window.userId || !window.db) return;
+                const filterDate = document.getElementById('agenda-filter-date').value;
+                const list = document.getElementById('agenda-list');
+                const empty = document.getElementById('agenda-empty');
+                
+                list.innerHTML = '<div class="text-center py-4"><span class="loading-spinner border-gray-400"></span></div>';
+                
+                try {
+                    const q = window.query(
+                        window.collection(window.db, `artifacts/${window.appId}/public/data/agenda`),
+                        window.where('date', '==', filterDate)
+                    );
+                    const snapshot = await window.getDocs(q);
+                    
+                    list.innerHTML = '';
+                    if(snapshot.empty) {
+                        empty.classList.remove('hidden');
+                        return;
+                    }
+                    empty.classList.add('hidden');
+
+                    const items = [];
+                    snapshot.forEach(doc => items.push({id: doc.id, ...doc.data()}));
+                    items.sort((a,b) => a.time.localeCompare(b.time));
+
+                    items.forEach(item => {
+                        const statusColors = {
+                            'agendado': 'status-agendado',
+                            'confirmado': 'status-confirmado',
+                            'concluido': 'status-concluido',
+                            'cancelado': 'status-cancelado'
+                        };
+                        const cls = statusColors[item.status] || '';
+                        
+                        // Botão Virar Ficha só se concluido
+                        const turnBtn = item.status === 'concluido' 
+                            ? `<button onclick='window.appLogic.turnToFicha(${JSON.stringify(item)})' class="text-xs bg-indigo-600 text-white px-2 py-1 rounded shadow ml-2">Virar Ficha ➡️</button>` 
+                            : '';
+
+                        const div = document.createElement('div');
+                        div.className = `p-4 rounded-lg border shadow-sm flex flex-col gap-2 ${cls} border-opacity-50`;
+                        div.innerHTML = `
+                            <div class="flex justify-between items-start">
+                                <div class="flex gap-3">
+                                    <div class="text-2xl font-bold opacity-80">${item.time}</div>
+                                    <div>
+                                        <div class="font-bold text-lg leading-tight">${item.client}</div>
+                                        <div class="text-sm opacity-90">${item.service || 'Serviço não especificado'}</div>
+                                        <div class="text-xs font-semibold uppercase tracking-wide mt-1 opacity-75">${item.prof}</div>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col items-end gap-1">
+                                    <select onchange="window.appLogic.updateAgendaStatus('${item.id}', this.value)" class="text-xs border rounded p-1 bg-white bg-opacity-50">
+                                        <option value="agendado" ${item.status==='agendado'?'selected':''}>🟡 Agendado</option>
+                                        <option value="confirmado" ${item.status==='confirmado'?'selected':''}>🟢 Confirmado</option>
+                                        <option value="concluido" ${item.status==='concluido'?'selected':''}>✅ Concluído</option>
+                                        <option value="cancelado" ${item.status==='cancelado'?'selected':''}>🔴 Cancelado</option>
+                                    </select>
+                                    ${turnBtn}
+                                </div>
+                            </div>
+                            ${item.obs ? `<div class="text-xs mt-1 pt-2 border-t border-black border-opacity-10 opacity-80">Obs: ${item.obs}</div>` : ''}
+                        `;
+                        list.appendChild(div);
+                    });
+
+                } catch(e) { console.error(e); list.innerHTML="Erro ao carregar"; }
+            },
+
+            async updateAgendaStatus(id, status) {
+                try {
+                    await window.updateDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/agenda`, id), { status });
+                    this.loadAgenda(); // Reload to update UI colors/buttons
+                } catch(e) { this.showMessage("Erro ao atualizar", "error"); }
+            },
+
+            turnToFicha(item) {
+                // Switch tab
+                this.switchTab('fichas');
+                // Pre-fill form
+                document.getElementById('ficha-date').value = item.date;
+                document.getElementById('ficha-profissional').value = item.prof;
+                document.getElementById('ficha-cliente').value = item.client;
+                document.getElementById('ficha-obs').value = item.obs || '';
+                
+                // Clear items and add service
+                document.getElementById('ficha-items-container').innerHTML = '';
+                this.addFichaItem('servico');
+                
+                // Try to set service name in the newly created input
+                setTimeout(() => {
+                    const inputs = document.querySelectorAll('.item-name');
+                    if(inputs.length > 0) inputs[0].value = item.service || '';
+                }, 100);
+
+                this.showMessage("Dados copiados! Preencha o valor e salve.", "success");
+            },
+
             // --- FICHAS ---
             addFichaItem(type) {
                 const container = document.getElementById('ficha-items-container');
                 const div = document.createElement('div');
-                div.className = "flex flex-col gap-2 animate-fade-in item-row bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm mb-3"; // Changed to flex-col and updated style
+                div.className = "flex flex-col gap-2 animate-fade-in item-row bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm mb-3"; 
                 div.dataset.type = type;
                 
                 const ph = type === 'servico' ? 'Ex: Corte' : 'Ex: Shampoo';
@@ -679,13 +889,9 @@
                 
                 try {
                     let q;
-                    // FIX: Ensure ADMIN_EMAILS is accessible. 
-                    // Using window.ADMIN_EMAILS which we exposed in module
                     if (window.ADMIN_EMAILS && window.ADMIN_EMAILS.includes(window.userEmail)) {
-                        // Admin sees ALL
                         q = window.query(window.collection(window.db, path));
                     } else {
-                        // Others see OWN
                         q = window.query(window.collection(window.db, path), window.where('createdBy', '==', window.userId));
                     }
                     
@@ -713,12 +919,10 @@
                     });
                 } catch (e) {
                     console.error("Erro ao carregar fichas:", e);
-                    // Silent fail or alert if needed
                 }
             },
 
             deleteFicha(id) {
-                // FIX: Use exposed window.ADMIN_EMAILS
                 if (!window.ADMIN_EMAILS || !window.ADMIN_EMAILS.includes(window.userEmail)) {
                     return this.showMessage("Apenas administradores podem excluir registros salvos.", "error");
                 }
@@ -758,7 +962,6 @@
                         return;
                     }
 
-                    // Prepara objeto reportData baseado nas fichas processadas
                     const report = this.calculateReportData(fichas, start, end);
                     
                     this.reportData = report;
@@ -854,7 +1057,6 @@
                 document.getElementById('products-report-total').textContent = `Total: R$ ${d.products.reduce((a,b)=>a+b.v,0).toFixed(2)}`;
             },
 
-            // --- UPDATES NOTES FROM UI BEFORE ACTION ---
             updateReportNotes() {
                 if(!this.reportData) return;
                 document.querySelectorAll('.admin-collab-note').forEach(el => {
@@ -865,7 +1067,6 @@
                 });
             },
 
-            // --- SALVAR/ATUALIZAR FECHAMENTO NA NUVEM (OVERWRITE LOGIC) ---
             async saveWeeklyClosing() {
                 if(!this.reportData) return;
                 this.updateReportNotes(); 
@@ -879,7 +1080,6 @@
                     this.reportData.monthYear = `${y}-${m}`; 
                     this.reportData.savedAt = window.Timestamp.now();
 
-                    // Check for existing
                     const q = window.query(
                         window.collection(window.db, path),
                         window.where('start', '==', this.reportData.start),
@@ -888,12 +1088,10 @@
                     const snapshot = await window.getDocs(q);
 
                     if (!snapshot.empty) {
-                        // Overwrite existing
                         const docId = snapshot.docs[0].id;
                         await window.updateDoc(window.doc(window.db, path, docId), this.reportData);
                         this.showMessage("Fechamento ATUALIZADO com sucesso!", "success");
                     } else {
-                        // Create new
                         await window.addDoc(window.collection(window.db, path), this.reportData);
                         this.showMessage("Fechamento salvo na nuvem!", "success");
                     }
@@ -901,7 +1099,6 @@
                 finally { this.toggleLoading('btn-save-cloud', false); }
             },
 
-            // --- GERENCIADOR DE SALVOS (Browser) ---
             async openSavedClosingsModal() {
                 const modal = document.getElementById('saved-closings-modal');
                 const list = document.getElementById('saved-closings-list');
@@ -915,7 +1112,7 @@
 
                 try {
                     const path = `artifacts/${window.appId}/public/data/fechamentos_semanais`;
-                    const q = window.query(window.collection(window.db, path)); // Pega tudo, ordenação no cliente
+                    const q = window.query(window.collection(window.db, path)); 
                     const snapshot = await window.getDocs(q);
 
                     loader.classList.add('hidden');
@@ -928,7 +1125,6 @@
                     const docs = [];
                     snapshot.forEach(doc => docs.push({id: doc.id, ...doc.data()}));
                     
-                    // Ordenar por data mais recente
                     docs.sort((a,b) => new Date(b.start) - new Date(a.start));
 
                     docs.forEach(d => {
@@ -945,10 +1141,8 @@
                             </td>
                         `;
                         
-                        // Event Listeners
                         tr.querySelector('.btn-load').onclick = () => {
                             this.reportData = d;
-                            // Set inputs visually
                             document.getElementById('closing-start-date').value = d.start;
                             document.getElementById('closing-end-date').value = d.end;
                             this.renderClosingUI();
@@ -983,7 +1177,6 @@
                 }
             },
 
-            // --- BACKUP LOCAL JSON ---
             exportLocalBackup() {
                 if(!this.reportData) return;
                 this.updateReportNotes();
@@ -997,9 +1190,8 @@
                 downloadAnchorNode.remove();
             },
 
-            // --- PDF INDIVIDUAL ---
             promptCollaboratorPDF(collabName) {
-                this.updateReportNotes(); // Garante que a nota esteja salva
+                this.updateReportNotes(); 
                 this.targetCollabForPDF = collabName;
                 document.getElementById('receipt-collab-name').textContent = collabName;
                 document.getElementById('receipt-modal').classList.add('open');
@@ -1032,7 +1224,6 @@
                 doc.setFont(undefined, 'bold'); doc.setFontSize(12);
                 doc.text(`Líquido a Receber: R$ ${pay.toFixed(2)}`, 16, y); y+=15;
 
-                // Obs Admin Individual
                 if(cData.adminNote) {
                     doc.setFontSize(10); doc.setTextColor(150,0,0);
                     doc.text(`Obs Admin: ${cData.adminNote}`, 16, y); y+=10; doc.setTextColor(0,0,0);
@@ -1065,7 +1256,6 @@
                 document.getElementById('receipt-file').value = ""; 
             },
 
-            // --- RELATÓRIO MENSAL ---
             async generateMonthlyReport() {
                 const monthInput = document.getElementById('monthly-report-date').value; 
                 if(!monthInput) return this.showMessage("Selecione o mês", "error");
@@ -1083,7 +1273,7 @@
 
                     let totalGross = 0, totalNet = 0, totalFees = 0;
                     const weeks = [];
-                    const aggregatedCollabs = {}; // Agrega dados por colaboradora
+                    const aggregatedCollabs = {}; 
 
                     snapshot.forEach(doc => {
                         const d = doc.data();
@@ -1092,7 +1282,6 @@
                         totalFees += d.fees;
                         weeks.push(d);
 
-                        // Agrega dados das colaboradoras
                         if (d.collabs) {
                             Object.values(d.collabs).forEach(c => {
                                 if (!aggregatedCollabs[c.name]) {
@@ -1125,7 +1314,6 @@
                     doc.setFont(undefined, 'bold');
                     doc.text(`Lucro Líquido Total: R$ ${totalNet.toFixed(2)}`, 14, y); y+=15;
 
-                    // Nova Seção: Faturamento por Colaboradora (Para NF)
                     doc.setFont(undefined, 'bold');
                     doc.setFontSize(14); doc.text("Totalização por Colaboradora (Para NF)", 14, y); y+=10;
                     doc.setFont(undefined, 'normal');
@@ -1145,7 +1333,7 @@
                         y += 20;
                     });
                     
-                    y += 5; // Espaço extra antes das semanas
+                    y += 5; 
 
                     doc.setFont(undefined, 'normal');
                     doc.setFontSize(14); doc.text("Detalhamento por Semana", 14, y); y+=10;
