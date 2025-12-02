@@ -1407,6 +1407,40 @@
                 } catch(e) { console.error(e); this.showMessage("Erro: " + e.message, "error"); }
                 finally { this.toggleLoading('btn-generate-report', false); }
             },
+            
+            calculateAdvances(obs) {
+                if (!obs) return 0;
+                let total = 0;
+                // Split by line to handle multiple lines properly
+                const lines = obs.split('\n');
+                lines.forEach(line => {
+                    // Check if line contains "sinal" (case insensitive)
+                    if (line.toLowerCase().includes('sinal')) {
+                         // Regex to find monetary values (e.g., 50,00, -50.00, 50)
+                         // It looks for numbers that might be preceded by '-' and might have decimals
+                         // We use a simple regex to grab potential numbers
+                         const numbers = line.match(/-?\d+([.,]\d{1,2})?/g);
+                         if (numbers) {
+                             numbers.forEach(numStr => {
+                                 // Simple check to avoid dates like 02/12
+                                 if (line.includes(numStr + '/') || line.includes('/' + numStr)) return;
+                                 
+                                 // Convert formatted number string to float
+                                 let val = parseFloat(numStr.replace('.', '').replace(',', '.')); // Normalize 1.000,00 to 1000.00
+                                 
+                                 // If simple parsing failed, try just replacing comma
+                                 if (isNaN(val)) val = parseFloat(numStr.replace(',', '.'));
+                                 
+                                 if (!isNaN(val)) {
+                                     // We always treat "sinal" as a deduction, so we sum the absolute value
+                                     total += Math.abs(val);
+                                 }
+                             });
+                         }
+                    }
+                });
+                return total;
+            },
 
             calculateReportData(fichas, start, end) {
                 const collabs = {}; const products = [];
@@ -1414,9 +1448,14 @@
 
                 fichas.forEach(f => {
                     const prof = f.professionalName || 'Desconhecido';
-                    if(!collabs[prof]) collabs[prof] = { name: prof, total: 0, items: [], obsList: [], adminNote: '' };
+                    if(!collabs[prof]) collabs[prof] = { name: prof, total: 0, items: [], obsList: [], adminNote: '', advances: 0 };
 
-                    if(f.obs) collabs[prof].obsList.push(`${f.date.split('-').reverse().slice(0,2).join('/')} (${f.clientName}): ${f.obs}`);
+                    if(f.obs) {
+                        collabs[prof].obsList.push(`${f.date.split('-').reverse().slice(0,2).join('/')} (${f.clientName}): ${f.obs}`);
+                        // Calculate advances from this ficha's observation
+                        const advancesInFicha = this.calculateAdvances(f.obs);
+                        collabs[prof].advances += advancesInFicha;
+                    }
 
                     f.items.forEach(i => {
                         const fee = i.value * (this.cardRates[i.method] || 0);
@@ -1434,7 +1473,8 @@
                 let paidToStaff = 0;
                 Object.values(collabs).forEach(c => {
                     const share = c.total * 0.30;
-                    const pay = c.total - share;
+                    // Deduct advances from total pay
+                    const pay = c.total - share - c.advances;
                     paidToStaff += pay;
                 });
                 
@@ -1456,10 +1496,14 @@
 
                 Object.values(d.collabs).forEach(c => {
                     const share = c.total * 0.30;
-                    const pay = c.total - share;
+                    const pay = c.total - share - c.advances;
 
                     const obsHtml = c.obsList.length > 0 ? 
                         `<div class="mt-3 bg-amber-50 p-2 rounded text-[10px] text-amber-800 border border-amber-100"><strong>Obs Fichas:</strong><br>${c.obsList.join('<br>')}</div>` : '';
+                    
+                    // HTML for advances line if > 0
+                    const advancesHtml = c.advances > 0 ? 
+                        `<div><span class="text-xs text-gray-400 uppercase block">Adiantamentos/Sinais</span><span class="font-bold text-red-600">- R$ ${c.advances.toFixed(2)}</span></div>` : '';
 
                     cContainer.innerHTML += `
                         <div class="bg-white border border-gray-100 rounded-xl p-6 shadow-sm relative">
@@ -1470,6 +1514,7 @@
                             <div class="grid grid-cols-2 gap-4 text-sm mb-4 bg-gray-50 p-3 rounded-lg">
                                 <div><span class="text-xs text-gray-400 uppercase block">Bruto</span><span class="font-bold text-gray-700">R$ ${c.total.toFixed(2)}</span></div>
                                 <div><span class="text-xs text-gray-400 uppercase block">Retenção (30%)</span><span class="font-bold text-red-500">- R$ ${share.toFixed(2)}</span></div>
+                                ${advancesHtml}
                             </div>
                             ${obsHtml}
                             <div class="mt-4">
@@ -1645,7 +1690,7 @@
                 doc.setFontSize(10); doc.text(`Período: ${this.formatDate(this.reportData.start)} a ${this.formatDate(this.reportData.end)}`, 105, y, {align:"center"}); y+=15;
 
                 const share = cData.total * 0.30;
-                const pay = cData.total - share;
+                const pay = cData.total - share - cData.advances;
 
                 doc.setFillColor(240,240,240); doc.rect(14, y, 180, 10, 'F');
                 doc.setFont(undefined, 'bold'); doc.text("Resumo", 16, y+6); y+=15;
@@ -1653,6 +1698,9 @@
                 doc.setFont(undefined, 'normal');
                 doc.text(`Total Serviços: R$ ${cData.total.toFixed(2)}`, 16, y); y+=7;
                 doc.text(`Retenção Salão (30%): - R$ ${share.toFixed(2)}`, 16, y); y+=7;
+                if (cData.advances > 0) {
+                    doc.text(`Adiantamentos/Sinais: - R$ ${cData.advances.toFixed(2)}`, 16, y); y+=7;
+                }
                 doc.setFont(undefined, 'bold'); doc.setFontSize(12);
                 doc.text(`Líquido a Receber: R$ ${pay.toFixed(2)}`, 16, y); y+=15;
 
@@ -1724,7 +1772,8 @@
                                     };
                                 }
                                 const share = c.total * 0.30;
-                                const pay = c.total - share;
+                                // Ensure we deduct advances in monthly calc too
+                                const pay = c.total - share - (c.advances || 0);
                                 
                                 aggregatedCollabs[c.name].totalServices += c.total;
                                 aggregatedCollabs[c.name].totalPay += pay;
@@ -1811,7 +1860,7 @@
                 doc.setFontSize(14); doc.setFont(undefined, 'normal'); doc.text("Profissionais", 14, y); y+=10;
                 Object.values(d.collabs).forEach(c => {
                     if(y>250){doc.addPage();y=20;}
-                    const pay = c.total * 0.70;
+                    const pay = c.total * 0.70 - c.advances;
                     doc.setFillColor(240,240,240); doc.rect(14, y-6, 180, 8, 'F');
                     doc.setFont(undefined, 'bold'); doc.text(`${c.name}`, 16, y); 
                     doc.text(`Pagar: R$ ${pay.toFixed(2)}`, 190, y, {align:"right"}); y+=8;
@@ -1819,6 +1868,13 @@
                     
                     if(c.adminNote) {
                         doc.setTextColor(150,0,0); doc.text(`Obs Admin: ${c.adminNote}`, 16, y); y+=6; doc.setTextColor(0,0,0);
+                    }
+                    
+                    // Show advances if any
+                    if (c.advances > 0) {
+                        doc.setTextColor(200,0,0);
+                        doc.text(`- Adiantamentos: R$ ${c.advances.toFixed(2)}`, 16, y); y+=5;
+                        doc.setTextColor(0,0,0);
                     }
 
                     if(c.obsList.length > 0) {
