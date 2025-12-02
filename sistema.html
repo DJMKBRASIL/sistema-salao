@@ -250,7 +250,6 @@
             </div>
             
             <div class="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex overflow-x-auto max-w-full">
-                <!-- Nova ordem: Agenda primeiro -->
                 <div onclick="window.appLogic.switchTab('agenda')" id="nav-agenda" class="nav-pill active flex items-center whitespace-nowrap">
                     <span class="mr-2">📅</span> Agenda
                 </div>
@@ -259,6 +258,9 @@
                 </div>
                 <div onclick="window.appLogic.switchTab('clientes')" id="nav-clientes" class="nav-pill flex items-center whitespace-nowrap">
                     <span class="mr-2">👥</span> Clientes
+                </div>
+                <div onclick="window.appLogic.switchTab('estoque')" id="nav-estoque" class="nav-pill flex items-center whitespace-nowrap">
+                    <span class="mr-2">📦</span> Estoque
                 </div>
                 <!-- Aba Restrita -->
                 <div onclick="window.appLogic.switchTab('fechamento')" id="nav-fechamento" class="nav-pill hidden flex items-center whitespace-nowrap">
@@ -530,6 +532,86 @@
             </div>
         </div>
 
+        <!-- TAB 4: ESTOQUE (Novo) -->
+        <div id="tab-estoque" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- Form Estoque -->
+                <div class="lg:col-span-4">
+                    <div class="card sticky top-6 border-t-4 border-blue-500 p-4 sm:p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-lg font-bold text-gray-800">Novo Produto</h2>
+                            <div class="text-xs font-semibold bg-blue-50 text-blue-600 px-2 py-1 rounded">Estoque</div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nome do Produto</label>
+                                <input type="text" id="stock-name" class="input-field" placeholder="Ex: Shampoo L'Oréal">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Categoria</label>
+                                <select id="stock-category" class="input-field">
+                                    <option value="venda">Venda (Cliente)</option>
+                                    <option value="uso_interno">Uso Interno (Insumo)</option>
+                                    <option value="bebidas">Bebidas/Bar</option>
+                                    <option value="outros">Outros</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Qtd Atual</label>
+                                    <input type="number" id="stock-qty" class="input-field" placeholder="0">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Mínimo</label>
+                                    <input type="number" id="stock-min" class="input-field" placeholder="2">
+                                </div>
+                            </div>
+                            
+                            <button onclick="window.appLogic.saveStockItem()" id="btn-save-stock" class="btn btn-primary w-full py-3.5 shadow-lg bg-gradient-to-r from-blue-500 to-cyan-500 border-none">
+                                Adicionar ao Estoque
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista Estoque -->
+                <div class="lg:col-span-8">
+                    <div class="card h-full p-4 sm:p-6">
+                        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                            <h2 class="text-lg font-bold text-gray-800">Controle de Estoque</h2>
+                            <div class="flex gap-2">
+                                <select id="stock-filter-cat" class="input-field text-sm py-1" onchange="window.appLogic.loadStock()">
+                                    <option value="all">Todas as Categorias</option>
+                                    <option value="venda">Venda</option>
+                                    <option value="uso_interno">Uso Interno</option>
+                                    <option value="bebidas">Bebidas</option>
+                                </select>
+                                <button onclick="window.appLogic.loadStock()" class="text-xs bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200">↻</button>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-hidden rounded-lg border border-gray-100">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs">
+                                    <tr>
+                                        <th class="p-4">Produto</th>
+                                        <th class="p-4 text-center">Qtd</th>
+                                        <th class="p-4 text-center">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stock-list-body" class="bg-white divide-y divide-gray-100">
+                                    <!-- Lista carregada aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
         <!-- TAB 2: FECHAMENTO (Admin) -->
         <div id="tab-fechamento" class="tab-content">
             <div class="card border-t-4 border-green-500 p-4 sm:p-6">
@@ -710,12 +792,12 @@
         window.appLogic = {
             currentTab: 'agenda', 
             fichas: [],
-            clients: [], // Cache de clientes
+            clients: [], 
+            stock: [], // Cache de estoque
             reportData: null,
             targetCollabForPDF: null, 
-            editingClientId: null, // Estado de edição clientes
-            editingAgendaId: null, // Estado de edição agenda
-            // 'pendente': 0 (conta pro total, sem taxa)
+            editingClientId: null, 
+            editingAgendaId: null, 
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
@@ -728,9 +810,7 @@
                 const els = ['ficha-date', 'closing-end-date', 'agenda-date-input', 'agenda-filter-date'];
                 els.forEach(id => { if(document.getElementById(id)) document.getElementById(id).value = today; });
                 
-                // Start of current week (Sunday)
-                const d = new Date();
-                d.setDate(d.getDate() - d.getDay()); 
+                const d = new Date(); d.setDate(d.getDate() - d.getDay()); 
                 const sYear = d.getFullYear();
                 const sMonth = String(d.getMonth() + 1).padStart(2, '0');
                 const sDay = String(d.getDate()).padStart(2, '0');
@@ -744,13 +824,15 @@
                 this.cleanupOldAgenda(today);
                 this.checkBirthdays(); 
                 this.addFichaItem('servico');
-                this.addAgendaItem('servico'); // Inicializa o primeiro item da agenda
+                this.addAgendaItem('servico'); 
                 this.loadFichas();
                 this.loadAgenda(); 
-                this.loadClients(); 
+                this.loadClients();
+                this.loadStock(); // Carrega estoque
                 this.enableFeatures();
             },
 
+            // --- AUTO CLEANUP ---
             async cleanupOldAgenda(todayDate) {
                 if(!window.db) return;
                 try {
@@ -767,7 +849,6 @@
                 const currentMonth = today.getMonth() + 1;
                 const currentDay = today.getDate();
                 
-                // Pega todos os clientes para filtrar localmente (Firestore não filtra substring de data fácil)
                 const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/clientes`));
                 const snapshot = await window.getDocs(q);
                 
@@ -776,13 +857,9 @@
                     const c = doc.data();
                     if (c.birth) {
                         const [bYear, bMonth, bDay] = c.birth.split('-').map(Number);
-                        
-                        // Se é aniversário hoje
                         if (bMonth === currentMonth && bDay === currentDay) {
                             birthdays.push({ name: c.name, phone: c.phone, date: `${bDay}/${bMonth}`, isToday: true });
-                        }
-                        // Se é na próxima semana (lógica simples: mesmo mês, dias a frente)
-                        else if (bMonth === currentMonth && bDay > currentDay && bDay <= currentDay + 7) {
+                        } else if (bMonth === currentMonth && bDay > currentDay && bDay <= currentDay + 7) {
                             birthdays.push({ name: c.name, phone: c.phone, date: `${bDay}/${bMonth}`, isToday: false });
                         }
                     }
@@ -851,6 +928,101 @@
                 document.getElementById('btn-local-backup').disabled = true;
             },
             
+            // --- ESTOQUE (Novo) ---
+            async saveStockItem() {
+                const name = document.getElementById('stock-name').value.trim();
+                const category = document.getElementById('stock-category').value;
+                const qty = parseInt(document.getElementById('stock-qty').value) || 0;
+                const min = parseInt(document.getElementById('stock-min').value) || 0;
+
+                if(!name) return this.showMessage("Nome do produto obrigatório", "error");
+
+                this.toggleLoading('btn-save-stock', true);
+                try {
+                    await window.addDoc(window.collection(window.db, `artifacts/${window.appId}/public/data/estoque`), {
+                        name, category, qty, min,
+                        createdAt: window.Timestamp.now()
+                    });
+                    this.showMessage("Item adicionado ao estoque!", "success");
+                    document.getElementById('stock-name').value = '';
+                    document.getElementById('stock-qty').value = '';
+                    this.loadStock();
+                } catch(e) { this.showMessage("Erro: "+e.message, "error"); }
+                finally { this.toggleLoading('btn-save-stock', false); }
+            },
+
+            async loadStock() {
+                if(!window.userId || !window.db) return;
+                const catFilter = document.getElementById('stock-filter-cat') ? document.getElementById('stock-filter-cat').value : 'all';
+                
+                let q;
+                if(catFilter === 'all') {
+                    q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/estoque`));
+                } else {
+                    q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/estoque`), window.where('category', '==', catFilter));
+                }
+
+                const snapshot = await window.getDocs(q);
+                this.stock = [];
+                snapshot.forEach(doc => this.stock.push({id: doc.id, ...doc.data()}));
+                this.stock.sort((a,b) => a.name.localeCompare(b.name));
+
+                const tbody = document.getElementById('stock-list-body');
+                if(tbody) {
+                    tbody.innerHTML = '';
+                    this.stock.forEach(item => {
+                        const isLow = item.qty <= item.min;
+                        const rowClass = isLow ? 'bg-red-50' : 'hover:bg-gray-50';
+                        const statusBadge = isLow ? `<span class="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">⚠️ Repor</span>` : '';
+                        
+                        const catMap = { 'venda': 'Venda', 'uso_interno': 'Uso Interno', 'bebidas': 'Bebidas', 'outros': 'Outros' };
+
+                        tbody.innerHTML += `
+                            <tr class="${rowClass} border-b border-gray-100 transition-colors">
+                                <td class="p-3">
+                                    <div class="font-medium text-gray-900">${item.name}</div>
+                                    <div class="text-xs text-gray-500 flex items-center gap-2">
+                                        ${catMap[item.category]} ${statusBadge}
+                                    </div>
+                                </td>
+                                <td class="p-3 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button onclick="window.appLogic.updateStockQty('${item.id}', -1)" class="w-8 h-8 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 font-bold">-</button>
+                                        <span class="w-8 text-center font-mono font-bold ${isLow ? 'text-red-600' : 'text-gray-800'}">${item.qty}</span>
+                                        <button onclick="window.appLogic.updateStockQty('${item.id}', 1)" class="w-8 h-8 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 font-bold">+</button>
+                                    </div>
+                                </td>
+                                <td class="p-3 text-center">
+                                    <button onclick="window.appLogic.deleteStockItem('${item.id}')" class="text-gray-400 hover:text-red-500 p-2">🗑️</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+            },
+
+            async updateStockQty(id, change) {
+                const item = this.stock.find(i => i.id === id);
+                if(!item) return;
+                
+                const newQty = Math.max(0, item.qty + change); // Evita negativo
+                try {
+                    await window.updateDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/estoque`, id), { qty: newQty });
+                    // Atualiza localmente para feedback instantâneo
+                    item.qty = newQty; 
+                    this.loadStock(); 
+                } catch(e) { console.error(e); }
+            },
+
+            deleteStockItem(id) {
+                if(!confirm("Remover item do estoque?")) return;
+                window.deleteDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/estoque`, id))
+                .then(() => {
+                    this.loadStock();
+                    this.showMessage("Item removido.");
+                });
+            },
+
             // --- CLIENTES ---
             async saveClient() {
                 const name = document.getElementById('client-name').value.trim();
@@ -881,7 +1053,7 @@
                     
                     this.cancelClientEdit(); // Reset form state
                     this.loadClients();
-                    this.checkBirthdays(); // Atualiza lista de aniversariantes
+                    this.checkBirthdays(); 
                 } catch(e) { this.showMessage("Erro: "+e.message, "error"); }
                 finally { this.toggleLoading('btn-save-client', false); }
             },
@@ -898,8 +1070,6 @@
                 btn.className = "btn btn-primary flex-grow py-3.5 shadow-lg bg-gradient-to-r from-blue-500 to-indigo-500 border-none text-white";
                 
                 document.getElementById('btn-cancel-client').classList.remove('hidden');
-                
-                // Scroll to form
                 document.getElementById('client-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
             },
 
@@ -926,7 +1096,7 @@
                 snapshot.forEach(doc => this.clients.push({id: doc.id, ...doc.data()}));
                 this.clients.sort((a,b) => a.name.localeCompare(b.name));
 
-                this.updateClientDatalist(); // Atualiza sugestão
+                this.updateClientDatalist(); 
                 this.renderClientsList(this.clients);
             },
 
@@ -1407,54 +1577,32 @@
                 } catch(e) { console.error(e); this.showMessage("Erro: " + e.message, "error"); }
                 finally { this.toggleLoading('btn-generate-report', false); }
             },
-            
-            calculateAdvances(obs) {
-                if (!obs) return 0;
-                let total = 0;
-                // Split by line to handle multiple lines properly
-                const lines = obs.split('\n');
-                lines.forEach(line => {
-                    // Check if line contains "sinal" (case insensitive)
-                    if (line.toLowerCase().includes('sinal')) {
-                         // Regex to find monetary values (e.g., 50,00, -50.00, 50)
-                         // It looks for numbers that might be preceded by '-' and might have decimals
-                         // We use a simple regex to grab potential numbers
-                         const numbers = line.match(/-?\d+([.,]\d{1,2})?/g);
-                         if (numbers) {
-                             numbers.forEach(numStr => {
-                                 // Simple check to avoid dates like 02/12
-                                 if (line.includes(numStr + '/') || line.includes('/' + numStr)) return;
-                                 
-                                 // Convert formatted number string to float
-                                 let val = parseFloat(numStr.replace('.', '').replace(',', '.')); // Normalize 1.000,00 to 1000.00
-                                 
-                                 // If simple parsing failed, try just replacing comma
-                                 if (isNaN(val)) val = parseFloat(numStr.replace(',', '.'));
-                                 
-                                 if (!isNaN(val)) {
-                                     // We always treat "sinal" as a deduction, so we sum the absolute value
-                                     total += Math.abs(val);
-                                 }
-                             });
-                         }
-                    }
-                });
-                return total;
-            },
 
             calculateReportData(fichas, start, end) {
                 const collabs = {}; const products = [];
                 let gross = 0; let fees = 0;
 
+                // Regex para capturar sinal (ex: "-50,00 sinal", "sinal 50", "Sinal: R$50")
+                const signalRegex = /(?:sinal|adiantamento)[^\d]*[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)/i;
+                const signalRegexReverse = /[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)\s*(?:sinal|adiantamento)/i;
+
                 fichas.forEach(f => {
                     const prof = f.professionalName || 'Desconhecido';
                     if(!collabs[prof]) collabs[prof] = { name: prof, total: 0, items: [], obsList: [], adminNote: '', advances: 0 };
 
+                    // Detectar adiantamento na OBS
                     if(f.obs) {
                         collabs[prof].obsList.push(`${f.date.split('-').reverse().slice(0,2).join('/')} (${f.clientName}): ${f.obs}`);
-                        // Calculate advances from this ficha's observation
-                        const advancesInFicha = this.calculateAdvances(f.obs);
-                        collabs[prof].advances += advancesInFicha;
+                        
+                        // Tenta encontrar valor de sinal
+                        let match = f.obs.match(signalRegex) || f.obs.match(signalRegexReverse);
+                        if(match) {
+                            // Se encontrou, converte pra float e soma como adiantamento
+                            let val = parseFloat(match[1].replace(',', '.'));
+                            if(!isNaN(val)) {
+                                collabs[prof].advances += val;
+                            }
+                        }
                     }
 
                     f.items.forEach(i => {
@@ -1473,8 +1621,7 @@
                 let paidToStaff = 0;
                 Object.values(collabs).forEach(c => {
                     const share = c.total * 0.30;
-                    // Deduct advances from total pay
-                    const pay = c.total - share - c.advances;
+                    const pay = c.total - share - c.advances; // Subtrai adiantamentos
                     paidToStaff += pay;
                 });
                 
@@ -1501,9 +1648,19 @@
                     const obsHtml = c.obsList.length > 0 ? 
                         `<div class="mt-3 bg-amber-50 p-2 rounded text-[10px] text-amber-800 border border-amber-100"><strong>Obs Fichas:</strong><br>${c.obsList.join('<br>')}</div>` : '';
                     
-                    // HTML for advances line if > 0
-                    const advancesHtml = c.advances > 0 ? 
-                        `<div><span class="text-xs text-gray-400 uppercase block">Adiantamentos/Sinais</span><span class="font-bold text-red-600">- R$ ${c.advances.toFixed(2)}</span></div>` : '';
+                    let statsHtml = `
+                        <div><span class="text-xs text-gray-400 uppercase block">Bruto</span><span class="font-bold text-gray-700">R$ ${c.total.toFixed(2)}</span></div>
+                        <div><span class="text-xs text-gray-400 uppercase block">Retenção (30%)</span><span class="font-bold text-red-500">- R$ ${share.toFixed(2)}</span></div>
+                    `;
+
+                    if (c.advances > 0) {
+                        statsHtml += `
+                            <div class="col-span-2 border-t border-gray-200 pt-2 mt-1">
+                                <span class="text-xs text-gray-400 uppercase block">Adiantamentos / Sinais</span>
+                                <span class="font-bold text-red-500">- R$ ${c.advances.toFixed(2)}</span>
+                            </div>
+                        `;
+                    }
 
                     cContainer.innerHTML += `
                         <div class="bg-white border border-gray-100 rounded-xl p-6 shadow-sm relative">
@@ -1512,9 +1669,7 @@
                                 <div class="text-right"><span class="text-xs font-semibold text-gray-400 uppercase">A Pagar</span><div class="font-bold text-2xl text-green-600">R$ ${pay.toFixed(2)}</div></div>
                             </div>
                             <div class="grid grid-cols-2 gap-4 text-sm mb-4 bg-gray-50 p-3 rounded-lg">
-                                <div><span class="text-xs text-gray-400 uppercase block">Bruto</span><span class="font-bold text-gray-700">R$ ${c.total.toFixed(2)}</span></div>
-                                <div><span class="text-xs text-gray-400 uppercase block">Retenção (30%)</span><span class="font-bold text-red-500">- R$ ${share.toFixed(2)}</span></div>
-                                ${advancesHtml}
+                                ${statsHtml}
                             </div>
                             ${obsHtml}
                             <div class="mt-4">
@@ -1690,7 +1845,7 @@
                 doc.setFontSize(10); doc.text(`Período: ${this.formatDate(this.reportData.start)} a ${this.formatDate(this.reportData.end)}`, 105, y, {align:"center"}); y+=15;
 
                 const share = cData.total * 0.30;
-                const pay = cData.total - share - cData.advances;
+                const pay = cData.total - share - c.advances; // Desconta adiantamentos
 
                 doc.setFillColor(240,240,240); doc.rect(14, y, 180, 10, 'F');
                 doc.setFont(undefined, 'bold'); doc.text("Resumo", 16, y+6); y+=15;
@@ -1698,9 +1853,14 @@
                 doc.setFont(undefined, 'normal');
                 doc.text(`Total Serviços: R$ ${cData.total.toFixed(2)}`, 16, y); y+=7;
                 doc.text(`Retenção Salão (30%): - R$ ${share.toFixed(2)}`, 16, y); y+=7;
-                if (cData.advances > 0) {
-                    doc.text(`Adiantamentos/Sinais: - R$ ${cData.advances.toFixed(2)}`, 16, y); y+=7;
+                
+                if (c.advances > 0) {
+                    doc.setTextColor(200, 0, 0);
+                    doc.text(`(-) Adiantamentos: R$ ${c.advances.toFixed(2)}`, 16, y); 
+                    doc.setTextColor(0, 0, 0);
+                    y+=7;
                 }
+
                 doc.setFont(undefined, 'bold'); doc.setFontSize(12);
                 doc.text(`Líquido a Receber: R$ ${pay.toFixed(2)}`, 16, y); y+=15;
 
@@ -1731,11 +1891,23 @@
                     }
                 }
 
-                doc.save(`Pagamento_${collabName}.pdf`);
+                // NAME FORMAT: Pagamento_Nome_DD-MM-YYYY.pdf
+                const now = new Date();
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+                const dateStr = `${day}-${month}-${year}`;
+                
+                // Sanitiza nome para arquivo
+                const safeName = collabName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+
+                doc.save(`Pagamento_${safeName}_${dateStr}.pdf`);
+                
                 modal.classList.remove('open');
                 document.getElementById('receipt-file').value = ""; 
             },
 
+            // --- RELATÓRIO MENSAL ---
             async generateMonthlyReport() {
                 const monthInput = document.getElementById('monthly-report-date').value; 
                 if(!monthInput) return this.showMessage("Selecione o mês", "error");
@@ -1762,6 +1934,7 @@
                         totalFees += d.fees;
                         weeks.push(d);
 
+                        // Agrega dados das colaboradoras
                         if (d.collabs) {
                             Object.values(d.collabs).forEach(c => {
                                 if (!aggregatedCollabs[c.name]) {
@@ -1772,8 +1945,9 @@
                                     };
                                 }
                                 const share = c.total * 0.30;
-                                // Ensure we deduct advances in monthly calc too
-                                const pay = c.total - share - (c.advances || 0);
+                                // Note: advances are per week, so we subtract them if they exist in the weekly record
+                                const adv = c.advances || 0;
+                                const pay = c.total - share - adv;
                                 
                                 aggregatedCollabs[c.name].totalServices += c.total;
                                 aggregatedCollabs[c.name].totalPay += pay;
@@ -1815,7 +1989,7 @@
                         y += 20;
                     });
                     
-                    y += 5; 
+                    y += 5; // Espaço extra antes das semanas
 
                     doc.setFont(undefined, 'normal');
                     doc.setFontSize(14); doc.text("Detalhamento por Semana", 14, y); y+=10;
@@ -1860,21 +2034,21 @@
                 doc.setFontSize(14); doc.setFont(undefined, 'normal'); doc.text("Profissionais", 14, y); y+=10;
                 Object.values(d.collabs).forEach(c => {
                     if(y>250){doc.addPage();y=20;}
-                    const pay = c.total * 0.70 - c.advances;
+                    const pay = c.total * 0.70 - (c.advances || 0);
                     doc.setFillColor(240,240,240); doc.rect(14, y-6, 180, 8, 'F');
                     doc.setFont(undefined, 'bold'); doc.text(`${c.name}`, 16, y); 
                     doc.text(`Pagar: R$ ${pay.toFixed(2)}`, 190, y, {align:"right"}); y+=8;
                     doc.setFont(undefined, 'normal'); doc.setFontSize(9);
                     
-                    if(c.adminNote) {
-                        doc.setTextColor(150,0,0); doc.text(`Obs Admin: ${c.adminNote}`, 16, y); y+=6; doc.setTextColor(0,0,0);
-                    }
-                    
-                    // Show advances if any
                     if (c.advances > 0) {
                         doc.setTextColor(200,0,0);
-                        doc.text(`- Adiantamentos: R$ ${c.advances.toFixed(2)}`, 16, y); y+=5;
+                        doc.text(`(-) Adiantamentos: R$ ${c.advances.toFixed(2)}`, 16, y);
                         doc.setTextColor(0,0,0);
+                        y+=5;
+                    }
+
+                    if(c.adminNote) {
+                        doc.setTextColor(150,0,0); doc.text(`Obs Admin: ${c.adminNote}`, 16, y); y+=6; doc.setTextColor(0,0,0);
                     }
 
                     if(c.obsList.length > 0) {
@@ -1914,6 +2088,7 @@
     </script>
 </body>
 </html>
+
 
 
 
