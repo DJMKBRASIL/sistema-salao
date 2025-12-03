@@ -316,8 +316,8 @@
                             
                             <div class="grid grid-cols-1 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label>
-                                    <input type="text" id="agenda-profissional" list="profissionais-list" placeholder="Quem vai atender?" class="input-field" autocomplete="off">
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Colaboradora</label>
+                                    <input type="text" id="agenda-profissional" list="profissionais-list" placeholder="Colaboradora" class="input-field" autocomplete="off">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cliente</label>
@@ -392,8 +392,8 @@
                             
                             <div class="grid grid-cols-1 gap-4">
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label>
-                                    <input type="text" id="ficha-profissional" list="profissionais-list" placeholder="Quem atendeu?" class="input-field" autocomplete="off">
+                                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Colaboradora</label>
+                                    <input type="text" id="ficha-profissional" list="profissionais-list" placeholder="Colaboradora" class="input-field" autocomplete="off">
                                     <datalist id="profissionais-list">
                                         <option value="Fran">
                                         <option value="Gabi">
@@ -450,7 +450,7 @@
                                 <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs mobile-hide-header">
                                     <tr>
                                         <th class="p-4">Data</th>
-                                        <th class="p-4">Profissional</th>
+                                        <th class="p-4">Colaboradora</th>
                                         <th class="p-4">Cliente/Obs</th>
                                         <th class="p-4">Itens</th>
                                         <th class="p-4 text-right">Valor</th>
@@ -1204,7 +1204,7 @@
                     if(input.value.trim()) services.push(input.value.trim());
                 });
 
-                if(!date || !time || !prof || !client) return this.showMessage("Preencha Data, Hora, Profissional e Cliente", "error");
+                if(!date || !time || !prof || !client) return this.showMessage("Preencha Data, Hora, Colaboradora e Cliente", "error");
                 if(services.length === 0) return this.showMessage("Adicione pelo menos um serviço", "error");
 
                 this.toggleLoading('btn-save-agenda', true);
@@ -1763,18 +1763,22 @@
                 const collabs = {}; const products = [];
                 let gross = 0; let fees = 0;
 
-                const signalRegex = /(?:sinal|adiantamento)[^\d]*[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)/i;
-                const signalRegexReverse = /[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)\s*(?:sinal|adiantamento)/i;
+                // Regex para capturar sinal (ex: "-50,00 sinal", "sinal 50", "Sinal: R$50")
+                const signalRegex = /(?:sinal|adiantamento|vale)[^\d]*[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)/i;
+                const signalRegexReverse = /[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)\s*(?:sinal|adiantamento|vale)/i;
 
                 fichas.forEach(f => {
                     const prof = f.professionalName || 'Desconhecido';
                     if(!collabs[prof]) collabs[prof] = { name: prof, total: 0, items: [], obsList: [], adminNote: '', advances: 0 };
 
+                    // Detectar adiantamento na OBS
                     if(f.obs) {
                         collabs[prof].obsList.push(`${f.date.split('-').reverse().slice(0,2).join('/')} (${f.clientName}): ${f.obs}`);
                         
+                        // Tenta encontrar valor de sinal
                         let match = f.obs.match(signalRegex) || f.obs.match(signalRegexReverse);
                         if(match) {
+                            // Se encontrou, converte pra float e soma como adiantamento
                             let val = parseFloat(match[1].replace(',', '.'));
                             if(!isNaN(val)) {
                                 collabs[prof].advances += val;
@@ -1798,7 +1802,7 @@
                 let paidToStaff = 0;
                 Object.values(collabs).forEach(c => {
                     const share = c.total * 0.30;
-                    const pay = c.total - share - c.advances; 
+                    const pay = c.total - share - c.advances; // Subtrai adiantamentos
                     paidToStaff += pay;
                 });
                 
@@ -1825,8 +1829,9 @@
                     const obsHtml = c.obsList.length > 0 ? 
                         `<div class="mt-3 bg-amber-50 p-2 rounded text-[10px] text-amber-800 border border-amber-100"><strong>Obs Fichas:</strong><br>${c.obsList.join('<br>')}</div>` : '';
 
+                    // Linha de Adiantamento (se houver)
                     const advanceHtml = c.advances > 0 ? 
-                        `<div class="text-red-600 font-bold mt-1">(-) Adiantamentos/Sinais: R$ ${c.advances.toFixed(2)}</div>` : '';
+                        `<div class="text-red-600 font-bold mt-1">(-) Adiantamentos/Sinais/Vales: R$ ${c.advances.toFixed(2)}</div>` : '';
 
                     cContainer.innerHTML += `
                         <div class="bg-white border border-gray-100 rounded-xl p-6 shadow-sm relative">
@@ -2054,7 +2059,7 @@
                     
                     if (cData.advances > 0) {
                         doc.setTextColor(200, 0, 0);
-                        doc.text(`(-) Adiantamentos: R$ ${cData.advances.toFixed(2)}`, 16, y); 
+                        doc.text(`(-) Adiantamentos/Sinais/Vales: R$ ${cData.advances.toFixed(2)}`, 16, y); 
                         doc.setTextColor(0, 0, 0);
                         y+=7;
                     }
@@ -2230,7 +2235,7 @@
                     
                     if (c.advances > 0) {
                         doc.setTextColor(200,0,0);
-                        doc.text(`(-) Adiantamentos: R$ ${c.advances.toFixed(2)}`, 16, y);
+                        doc.text(`(-) Adiantamentos/Sinais/Vales: R$ ${c.advances.toFixed(2)}`, 16, y);
                         doc.setTextColor(0,0,0);
                         y+=5;
                     }
