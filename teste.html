@@ -425,9 +425,12 @@
                                 <div class="text-xl font-bold text-gray-800" id="ficha-total-display">R$ 0,00</div>
                             </div>
 
-                            <button onclick="window.appLogic.saveFicha()" id="btn-save-ficha" class="btn btn-primary w-full py-4 shadow-lg active:scale-95 text-base">
-                                Salvar Ficha
-                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="window.appLogic.cancelFichaEdit()" id="btn-cancel-ficha" class="btn bg-gray-200 text-gray-700 w-1/3 hidden">Cancelar</button>
+                                <button onclick="window.appLogic.saveFicha()" id="btn-save-ficha" class="btn btn-primary flex-grow py-4 shadow-lg active:scale-95 text-base">
+                                    Salvar Ficha
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -801,7 +804,8 @@
             reportData: null,
             targetCollabForPDF: null, 
             editingClientId: null, 
-            editingAgendaId: null, 
+            editingAgendaId: null,
+            editingFichaId: null, // Estado de edição ficha
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
@@ -1402,7 +1406,7 @@
 
             // --- FICHAS ---
             // Atualizado para aceitar valor inicial (presetValue)
-            addFichaItem(type, presetValue = '') {
+            addFichaItem(type, presetValue = '', presetPrice = '', presetMethod = 'pix') {
                 const container = document.getElementById('ficha-items-container');
                 const div = document.createElement('div');
                 div.className = "flex flex-col gap-2 animate-fade-in item-row bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm mb-3"; 
@@ -1420,16 +1424,16 @@
                     <div class="flex items-center gap-2 w-full pl-8"> 
                         <div class="relative flex-grow">
                              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">R$</span>
-                             <input type="number" step="0.01" placeholder="0,00" class="item-value w-full input-field text-sm text-right bg-white !py-2.5 pl-8 font-bold text-gray-700" oninput="window.appLogic.calcFichaTotal()">
+                             <input type="number" step="0.01" placeholder="0,00" value="${presetPrice}" class="item-value w-full input-field text-sm text-right bg-white !py-2.5 pl-8 font-bold text-gray-700" oninput="window.appLogic.calcFichaTotal()">
                         </div>
                         <select class="item-method w-[40%] input-field text-sm text-xs bg-white !py-2.5 text-gray-600">
-                            <option value="pix">Pix</option>
-                            <option value="credito_1x">Créd. 1x</option>
-                            <option value="credito_2x">Créd. 2x</option>
-                            <option value="credito_3x">Créd. 3x</option>
-                            <option value="debito">Débito</option>
-                            <option value="dinheiro">Dinheiro</option>
-                            <option value="pendente">Pendente</option>
+                            <option value="pix" ${presetMethod === 'pix' ? 'selected' : ''}>Pix</option>
+                            <option value="credito_1x" ${presetMethod === 'credito_1x' ? 'selected' : ''}>Crédito 1x</option>
+                            <option value="credito_2x" ${presetMethod === 'credito_2x' ? 'selected' : ''}>Crédito 2x</option>
+                            <option value="credito_3x" ${presetMethod === 'credito_3x' ? 'selected' : ''}>Crédito 3x</option>
+                            <option value="debito" ${presetMethod === 'debito' ? 'selected' : ''}>Débito</option>
+                            <option value="dinheiro" ${presetMethod === 'dinheiro' ? 'selected' : ''}>Dinheiro</option>
+                            <option value="pendente" ${presetMethod === 'pendente' ? 'selected' : ''}>Pendente</option>
                         </select>
                         <button onclick="this.closest('.item-row').remove(); window.appLogic.calcFichaTotal()" class="text-gray-400 hover:text-red-500 p-2 bg-white rounded border border-gray-200 shadow-sm h-[42px] w-[42px] flex items-center justify-center">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -1459,34 +1463,79 @@
                 document.querySelectorAll('.item-row').forEach(row => {
                     const name = row.querySelector('.item-name').value.trim();
                     const value = parseFloat(row.querySelector('.item-value').value) || 0;
-                    if(name && value > 0) items.push({ name, value, method: row.querySelector('.item-method').value, type: row.dataset.type });
+                    const method = row.querySelector('.item-method').value;
+                    const type = row.dataset.type;
+                    if(name && value > 0) items.push({ name, value, method, type });
                 });
                 if(items.length === 0) return this.showMessage("Adicione itens com valor", "error");
 
                 this.toggleLoading('btn-save-ficha', true);
                 try {
-                    const path = `artifacts/${window.appId}/public/data/fichas`;
-                    await window.addDoc(window.collection(window.db, path), {
-                        createdBy: window.userId,
-                        creatorEmail: window.auth.currentUser.email,
-                        date, clientName: client, professionalName: professional, items, obs,
-                        total: this.calcFichaTotal(),
-                        createdAt: window.Timestamp.now()
-                    });
+                    // --- EDIÇÃO ---
+                    if (this.editingFichaId) {
+                        await window.updateDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/fichas`, this.editingFichaId), {
+                             date, clientName: client, professionalName: professional, items, obs,
+                             total: this.calcFichaTotal()
+                        });
+                        this.showMessage("Ficha atualizada!", "success");
+                    } else {
+                        // --- CRIAÇÃO ---
+                        await window.addDoc(window.collection(window.db, `artifacts/${window.appId}/public/data/fichas`), {
+                            createdBy: window.userId,
+                            creatorEmail: window.auth.currentUser.email,
+                            date, clientName: client, professionalName: professional, items, obs,
+                            total: this.calcFichaTotal(),
+                            createdAt: window.Timestamp.now()
+                        });
+                        this.showMessage("Ficha salva!", "success");
+                    }
                     
-                    this.showMessage("Ficha salva!", "success");
-                    this.resetFichaForm();
+                    this.cancelFichaEdit(); // Reseta form
                     this.loadFichas();
                 } catch (e) { console.error(e); this.showMessage("Erro: " + e.message, "error"); } 
                 finally { this.toggleLoading('btn-save-ficha', false); }
             },
 
-            resetFichaForm() {
+            startEditFicha(ficha) {
+                this.editingFichaId = ficha.id;
+                
+                // Preenche campos
+                document.getElementById('ficha-date').value = ficha.date;
+                document.getElementById('ficha-profissional').value = ficha.professionalName;
+                document.getElementById('ficha-cliente').value = ficha.clientName;
+                document.getElementById('ficha-obs').value = ficha.obs || '';
+                
+                // Recria itens
+                document.getElementById('ficha-items-container').innerHTML = '';
+                ficha.items.forEach(item => {
+                    this.addFichaItem(item.type, item.name, item.value, item.method);
+                });
+                this.calcFichaTotal();
+
+                // Muda botões
+                const btn = document.getElementById('btn-save-ficha');
+                btn.innerHTML = "Salvar Alterações";
+                btn.className = "btn btn-primary w-full py-4 shadow-lg active:scale-95 text-base bg-gradient-to-r from-blue-500 to-indigo-500 border-none text-white";
+                
+                document.getElementById('btn-cancel-ficha').classList.remove('hidden');
+                
+                // Scroll
+                document.querySelector('#tab-fichas').scrollIntoView({ behavior: 'smooth' });
+            },
+            
+            cancelFichaEdit() {
+                this.editingFichaId = null;
                 document.getElementById('ficha-cliente').value = '';
                 document.getElementById('ficha-obs').value = '';
                 document.getElementById('ficha-items-container').innerHTML = '';
                 this.addFichaItem('servico');
                 this.calcFichaTotal();
+                
+                const btn = document.getElementById('btn-save-ficha');
+                btn.innerHTML = "Salvar Ficha";
+                btn.className = "btn btn-primary w-full py-4 shadow-lg active:scale-95 text-base"; // Reset style to default
+                
+                document.getElementById('btn-cancel-ficha').classList.add('hidden');
             },
 
             async loadFichas() {
@@ -1508,9 +1557,16 @@
                     
                     const tbody = document.getElementById('fichas-history-body');
                     tbody.innerHTML = '';
-                    data.slice(0, 20).forEach(f => {
+                    data.forEach(f => {
                         const date = new Date(f.date + 'T12:00').toLocaleDateString('pt-BR');
                         const clientDisplay = f.obs ? `${f.clientName} <br><span class="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">Obs: ${f.obs}</span>` : f.clientName;
+                        const fichaStr = encodeURIComponent(JSON.stringify(f));
+
+                        // Botão Editar (Lápis) - Visível para Admin ou Dono
+                        let editBtn = '';
+                        if (window.ADMIN_EMAILS.includes(window.userEmail) || f.createdBy === window.userId) {
+                             editBtn = `<button onclick="window.appLogic.startEditFicha(JSON.parse(decodeURIComponent('${fichaStr}')))" class="text-gray-400 hover:text-blue-500 p-2 mr-1">✏️</button>`;
+                        }
                         
                         tbody.innerHTML += `
                             <tr class="hover:bg-gray-50 border-b border-gray-100 mobile-card-row">
@@ -1519,7 +1575,10 @@
                                 <td class="p-4 text-gray-800">${clientDisplay}</td>
                                 <td class="p-4 text-xs text-gray-400">${f.items.length} itens</td>
                                 <td class="p-4 text-right font-bold text-gray-700">R$ ${f.total.toFixed(2)}</td>
-                                <td class="p-4 text-center"><button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-300 hover:text-red-500 p-2">✕</button></td>
+                                <td class="p-4 text-center">
+                                    ${editBtn}
+                                    <button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-400 hover:text-red-500 p-2">✕</button>
+                                </td>
                             </tr>
                         `;
                     });
@@ -1978,6 +2037,7 @@
                     doc.setFont(undefined, 'bold');
                     doc.text(`Lucro Líquido Total: R$ ${totalNet.toFixed(2)}`, 14, y); y+=15;
 
+                    // Nova Seção: Faturamento por Colaboradora (Para NF)
                     doc.setFont(undefined, 'bold');
                     doc.setFontSize(14); doc.text("Totalização por Colaboradora (Para NF)", 14, y); y+=10;
                     doc.setFont(undefined, 'normal');
