@@ -90,6 +90,7 @@
                         window.userEmail = null;
                         updateAuthUI(null);
                         document.getElementById('nav-fechamento').classList.add('hidden'); 
+                        document.getElementById('nav-fluxo').classList.add('hidden'); // Esconde Fluxo se não logado
                         window.appLogic.switchTab('agenda'); 
                     }
                 });
@@ -102,11 +103,14 @@
         function checkPermissions(email) {
             const isAdmin = ADMIN_EMAILS.includes(email);
             const adminTab = document.getElementById('nav-fechamento');
+            const fluxoTab = document.getElementById('nav-fluxo');
             
             if (isAdmin) {
                 adminTab.classList.remove('hidden');
+                fluxoTab.classList.remove('hidden'); // Mostra Fluxo para Admin
             } else {
                 adminTab.classList.add('hidden');
+                fluxoTab.classList.add('hidden'); // Esconde Fluxo para outros
                 if(window.appLogic.currentTab === 'fechamento' || window.appLogic.currentTab === 'fluxo') {
                     window.appLogic.switchTab('agenda');
                 }
@@ -262,10 +266,10 @@
                 <div onclick="window.appLogic.switchTab('estoque')" id="nav-estoque" class="nav-pill flex items-center whitespace-nowrap">
                     <span class="mr-2">📦</span> Estoque
                 </div>
-                <div onclick="window.appLogic.switchTab('fluxo')" id="nav-fluxo" class="nav-pill flex items-center whitespace-nowrap">
+                <!-- Aba Restrita -->
+                <div onclick="window.appLogic.switchTab('fluxo')" id="nav-fluxo" class="nav-pill hidden flex items-center whitespace-nowrap">
                     <span class="mr-2">📊</span> Fluxo
                 </div>
-                <!-- Aba Restrita -->
                 <div onclick="window.appLogic.switchTab('fechamento')" id="nav-fechamento" class="nav-pill hidden flex items-center whitespace-nowrap">
                     <span class="mr-2">💰</span> Fechamento
                 </div>
