@@ -144,11 +144,11 @@
             
             if (user) {
                 container.innerHTML = `
-                    <div class="flex flex-col items-end mr-3">
-                        <span class="text-xs font-bold text-gray-700 truncate max-w-[100px]">${user.displayName || 'Usuário'}</span>
-                        <span class="text-[10px] text-gray-500 truncate max-w-[100px]">${user.email}</span>
+                    <div class="flex flex-col items-center md:items-end mr-0 md:mr-3 flex-shrink" style="max-width: calc(100% - 80px); min-width: 0;">
+                        <span class="text-xs font-bold text-gray-700 truncate w-full text-center md:text-right" style="max-width: 100%;">${user.displayName || 'Usuário'}</span>
+                        <span class="text-[10px] text-gray-500 truncate w-full text-center md:text-right" style="max-width: 100%;">${user.email}</span>
                     </div>
-                    <button onclick="signOutUser()" class="text-xs bg-red-100 text-red-600 px-3 py-2 rounded hover:bg-red-200 font-medium transition-colors">Sair</button>
+                    <button onclick="signOutUser()" class="text-xs bg-red-100 text-red-600 px-3 py-2 rounded hover:bg-red-200 font-medium transition-colors whitespace-nowrap flex-shrink-0">Sair</button>
                 `;
             } else {
                 container.innerHTML = `
@@ -363,11 +363,49 @@
             }
             .mobile-card-row td:last-child { margin-top: 0.5rem; }
             
+            /* Ajustar header */
+            #main-header {
+                gap: 0.5rem !important;
+                padding: 0.25rem 0 !important;
+                flex-wrap: wrap;
+            }
+            
+            /* Auth status em mobile */
+            #auth-status {
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 0.5rem !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            #auth-status .flex {
+                flex-wrap: wrap;
+                max-width: 100%;
+            }
+            
+            #auth-status button {
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            
+            /* Container de navegação */
+            .bg-white.p-1.rounded-full {
+                max-width: 100% !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                padding: 0.25rem !important;
+            }
+            
             /* Ajustar navegação */
             .nav-pill { 
-                font-size: 0.75rem; 
-                padding: 0.5rem 0.75rem;
+                font-size: 0.7rem; 
+                padding: 0.4rem 0.6rem;
                 white-space: nowrap;
+                flex-shrink: 0;
             }
             
             /* Cards menores */
@@ -381,9 +419,21 @@
             }
             
             /* Títulos menores */
-            h1 { font-size: 1.5rem !important; }
+            h1 { 
+                font-size: 1.25rem !important; 
+                line-height: 1.2 !important;
+                margin: 0 !important;
+            }
             h2 { font-size: 1.125rem !important; }
             h3 { font-size: 1rem !important; }
+            
+            /* Título do sistema */
+            .text-center.md\\:text-left {
+                width: 100%;
+                max-width: 100%;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
             
             /* Botões maiores para toque */
             .btn { 
@@ -516,7 +566,7 @@
     <div class="max-w-6xl mx-auto pb-20" style="max-width: 100vw; overflow-x: hidden; box-sizing: border-box; padding-left: 0.25rem; padding-right: 0.25rem;">
         
         <!-- Header -->
-        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 pt-2">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 pt-2" id="main-header">
             <div class="text-center md:text-left">
                 <h1 class="text-2xl font-bold text-gray-800 tracking-tight">Espaço Fran Kokott</h1>
                 <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Sistema de Gestão Integrado</p>
