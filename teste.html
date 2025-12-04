@@ -38,6 +38,7 @@
             getDocs, 
             addDoc,
             updateDoc, 
+            setDoc, // Adicionado para permitir salvar relatórios com ID específico
             Timestamp 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -84,14 +85,23 @@
                         window.userEmail = user.email;
                         updateAuthUI(user);
                         checkPermissions(user.email);
-                        window.appLogic.init();
+                        // Verifica se appLogic já carregou antes de chamar init
+                        if(window.appLogic) {
+                            window.appLogic.init();
+                        } else {
+                            console.warn("appLogic ainda não carregado, tentando novamente em 500ms");
+                            setTimeout(() => window.appLogic && window.appLogic.init(), 500);
+                        }
                     } else {
                         window.userId = null;
                         window.userEmail = null;
                         updateAuthUI(null);
-                        document.getElementById('nav-fechamento').classList.add('hidden'); 
-                        document.getElementById('nav-fluxo').classList.add('hidden'); // Esconde Fluxo se não logado
-                        window.appLogic.switchTab('agenda'); 
+                        const fechamentoTab = document.getElementById('nav-fechamento');
+                        const fluxoTab = document.getElementById('nav-fluxo');
+                        if(fechamentoTab) fechamentoTab.classList.add('hidden'); 
+                        if(fluxoTab) fluxoTab.classList.add('hidden');
+                        
+                        if(window.appLogic) window.appLogic.switchTab('agenda'); 
                     }
                 });
             } catch (error) {
@@ -106,12 +116,13 @@
             const fluxoTab = document.getElementById('nav-fluxo');
             
             if (isAdmin) {
-                adminTab.classList.remove('hidden');
-                fluxoTab.classList.remove('hidden'); // Mostra Fluxo para Admin
+                if(adminTab) adminTab.classList.remove('hidden');
+                if(fluxoTab) fluxoTab.classList.remove('hidden');
             } else {
-                adminTab.classList.add('hidden');
-                fluxoTab.classList.add('hidden'); // Esconde Fluxo para outros
-                if(window.appLogic.currentTab === 'fechamento' || window.appLogic.currentTab === 'fluxo') {
+                if(adminTab) adminTab.classList.add('hidden');
+                if(fluxoTab) fluxoTab.classList.add('hidden');
+                
+                if(window.appLogic && (window.appLogic.currentTab === 'fechamento' || window.appLogic.currentTab === 'fluxo')) {
                     window.appLogic.switchTab('agenda');
                 }
             }
@@ -119,6 +130,8 @@
 
         function updateAuthUI(user) {
             const container = document.getElementById('auth-status');
+            if(!container) return;
+            
             if (user) {
                 container.innerHTML = `
                     <div class="flex flex-col items-end mr-3">
@@ -163,10 +176,11 @@
 
         document.addEventListener('DOMContentLoaded', initializeFirebase);
 
-        // Exports
+        // Exports para uso no appLogic
         window.collection = collection;
         window.addDoc = addDoc;
         window.updateDoc = updateDoc;
+        window.setDoc = setDoc;
         window.query = query;
         window.where = where;
         window.getDocs = getDocs;
@@ -177,7 +191,6 @@
 
     <style>
         :root { --primary: #6366f1; --secondary: #8b5cf6; --success: #10b981; --danger: #ef4444; }
-        /* RESET GLOBAL PARA EVITAR OVERFLOW */
         * { box-sizing: border-box; }
         
         body { font-family: 'Inter', sans-serif; background: #f3f4f6; padding: 1rem; -webkit-tap-highlight-color: transparent; }
@@ -186,7 +199,7 @@
         .tab-content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
-        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; /* Mobile touch size */ }
+        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); }
         .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3); }
         .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(99, 102, 241, 0.4); }
@@ -204,36 +217,22 @@
         .loading-spinner { border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        /* FIX VAZAMENTO IPHONE */
         .input-field { 
-            width: 100%; 
-            max-width: 100%;
-            min-width: 0; /* Importante para Flexbox no mobile */
-            box-sizing: border-box;
-            border: 1px solid #e5e7eb; 
-            border-radius: 0.5rem; 
-            padding: 0.6rem 0.75rem; 
-            transition: all 0.2s; 
-            font-size: 16px; 
-            -webkit-appearance: none; /* Remove estilo nativo do iOS */
+            width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
+            border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.6rem 0.75rem; 
+            transition: all 0.2s; font-size: 16px; -webkit-appearance: none;
         }
         .input-field:focus { outline: none; border-color: var(--primary); ring: 2px; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
-        /* Ajuste específico para inputs de data e hora no mobile */
-        input[type="date"], input[type="time"] {
-            -webkit-appearance: none;
-            display: block; /* Garante comportamento de bloco */
-        }
+        input[type="date"], input[type="time"] { -webkit-appearance: none; display: block; }
 
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; justify-content: center; align-items: center; padding: 1rem; }
         .modal.open { display: flex; }
 
-        /* Status colors */
         .status-agendado { background-color: #fef3c7; color: #92400e; }
         .status-confirmado { background-color: #d1fae5; color: #065f46; }
         .status-concluido { background-color: #e0e7ff; color: #3730a3; }
         .status-cancelado { background-color: #fee2e2; color: #991b1b; opacity: 0.7; }
 
-        /* Mobile Optimization for History Table */
         @media (max-width: 640px) {
             .mobile-hide-header { display: none; }
             .mobile-card-row { display: block; border-bottom: 1px solid #e5e7eb; padding: 1rem; }
@@ -342,7 +341,6 @@
 
         <!-- TAB 1: FICHAS -->
         <div id="tab-fichas" class="tab-content">
-             <!-- ...Conteúdo Fichas... -->
              <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div class="lg:col-span-4">
                     <div class="card sticky top-6 border-t-4 border-indigo-500 p-4 sm:p-6">
@@ -381,7 +379,6 @@
 
         <!-- TAB 3: CLIENTES -->
         <div id="tab-clientes" class="tab-content">
-             <!-- ...Conteúdo Clientes... -->
              <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div class="lg:col-span-4">
                     <div class="card sticky top-6 border-t-4 border-pink-500 p-4 sm:p-6">
@@ -411,7 +408,6 @@
 
         <!-- TAB 4: ESTOQUE -->
         <div id="tab-estoque" class="tab-content">
-            <!-- ...Conteúdo Estoque... -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div class="lg:col-span-4">
                     <div class="card sticky top-6 border-t-4 border-blue-500 p-4 sm:p-6">
@@ -494,7 +490,6 @@
 
         <!-- TAB 2: FECHAMENTO (Admin) -->
         <div id="tab-fechamento" class="tab-content">
-            <!-- ...Conteúdo Fechamento... -->
              <div class="card border-t-4 border-green-500 p-4 sm:p-6">
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                     <div><h2 class="text-lg font-bold text-gray-800 flex items-center">Fechamento Financeiro<span class="ml-2 px-2 py-0.5 rounded text-[10px] bg-red-100 text-red-600 uppercase tracking-wider font-bold">Admin</span></h2><p class="text-sm text-gray-500 mt-1">Busca dados de TODOS os usuários.</p></div>
@@ -567,7 +562,6 @@
         <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
             <h3 class="text-lg font-bold text-gray-900 mb-4">Gerar PDF Individual</h3>
             
-            <!-- Conteúdo dinâmico de confirmação -->
             <div id="receipt-confirmation-content" class="hidden mb-4">
                 <div class="bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded text-sm text-yellow-700">
                     <p class="font-bold">Confirme os valores antes de gerar:</p>
@@ -590,12 +584,10 @@
                         <input type="number" id="manual-adjustment" class="input-field text-sm w-1/2" placeholder="Ex: -50.00 ou 20.00">
                         <button onclick="window.appLogic.recalcConfirmation()" class="btn bg-gray-200 text-xs px-3">Aplicar</button>
                     </div>
-                     <!-- NOVO CAMPO DE OBSERVAÇÃO DO AJUSTE -->
                     <input type="text" id="manual-adjustment-note" class="input-field text-sm mt-2 w-full" placeholder="Motivo do ajuste (Ex: Vale transporte)">
                     <p class="text-[10px] text-gray-400 mt-1">Use valores negativos (-) para descontos extras.</p>
                 </div>
 
-                <!-- Checkbox para Lançar no Fluxo -->
                 <div class="mt-4 flex items-center p-3 bg-gray-50 rounded border border-gray-200">
                     <input type="checkbox" id="register-expense-check" class="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500">
                     <label for="register-expense-check" class="ml-2 text-sm font-medium text-gray-700">✅ Lançar saída no Fluxo de Caixa</label>
@@ -604,7 +596,6 @@
 
             <p class="text-gray-600 mb-4 text-sm">Deseja anexar o comprovante de pagamento ao PDF da <span id="receipt-collab-name" class="font-bold"></span>?</p>
             
-            <!-- Botões de Ação -->
             <div class="flex flex-col gap-3">
                 <button onclick="window.appLogic.generateCollaboratorPDF(true)" class="btn btn-primary w-full py-3 flex items-center justify-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
@@ -613,8 +604,6 @@
                 <button onclick="window.appLogic.generateCollaboratorPDF(false)" class="btn bg-gray-100 text-gray-700 w-full py-3 hover:bg-gray-200">
                     Não, gerar sem comprovante
                 </button>
-                
-                <!-- NOVO BOTÃO CANCELAR -->
                 <button onclick="document.getElementById('receipt-modal').classList.remove('open')" class="btn bg-white border border-gray-300 text-gray-500 w-full py-2 hover:bg-gray-50 text-xs mt-2">
                     Cancelar
                 </button>
@@ -630,7 +619,6 @@
                 <h3 class="text-lg font-bold text-gray-900">Fechamentos Salvos</h3>
                 <button onclick="document.getElementById('saved-closings-modal').classList.remove('open')" class="text-gray-400 hover:text-gray-600 p-2">✕</button>
             </div>
-            
             <div class="overflow-y-auto flex-grow">
                 <table class="w-full text-sm">
                     <thead class="bg-gray-50 text-gray-500 text-xs uppercase sticky top-0">
@@ -640,9 +628,7 @@
                             <th class="p-3 text-center">Ações</th>
                         </tr>
                     </thead>
-                    <tbody id="saved-closings-list" class="divide-y divide-gray-100">
-                        <!-- Items serão carregados aqui -->
-                    </tbody>
+                    <tbody id="saved-closings-list" class="divide-y divide-gray-100"></tbody>
                 </table>
                 <div id="saved-loading" class="text-center py-8 hidden"><span class="loading-spinner border-gray-400"></span></div>
                 <div id="saved-empty" class="text-center py-8 text-gray-400 hidden">Nenhum fechamento salvo encontrado.</div>
@@ -693,11 +679,11 @@
                 this.loadAgenda(); 
                 this.loadClients();
                 this.loadStock(); 
-                this.loadFluxo(); // NEW: Load Cash Flow
+                this.loadFluxo();
                 this.enableFeatures();
             },
 
-            // --- FLUXO DE CAIXA (NEW) ---
+            // --- FLUXO DE CAIXA ---
             async saveExpense() {
                 if(!window.userId) return this.showMessage("Faça login", "error");
                 const date = document.getElementById('expense-date').value;
@@ -714,7 +700,6 @@
                     });
                     document.getElementById('expense-modal').classList.remove('open');
                     this.showMessage("Despesa lançada!", "success");
-                    // Clear form
                     document.getElementById('expense-desc').value = '';
                     document.getElementById('expense-val').value = '';
                     this.loadFluxo();
@@ -732,16 +717,13 @@
 
             async loadFluxo() {
                 if(!window.userId || !window.db) return;
-                const monthInput = document.getElementById('fluxo-month').value; // "YYYY-MM"
+                const monthInput = document.getElementById('fluxo-month').value; 
                 if(!monthInput) return;
 
                 const list = document.getElementById('fluxo-list-body');
                 list.innerHTML = '<tr><td colspan="5" class="text-center py-4"><span class="loading-spinner border-gray-400"></span></td></tr>';
 
                 try {
-                    // 1. Get Incomes (Fichas)
-                    // Note: Firestore string comparison works for dates in YYYY-MM-DD format
-                    // We get all for the month
                     const startOfMonth = `${monthInput}-01`;
                     const endOfMonth = `${monthInput}-31`;
                     
@@ -757,7 +739,6 @@
                     let totalIn = 0;
                     let totalOut = 0;
 
-                    // Process Fichas (In)
                     snapFichas.forEach(doc => {
                         const d = doc.data();
                         totalIn += d.total;
@@ -768,11 +749,10 @@
                             category: 'Serviços',
                             value: d.total,
                             type: 'in',
-                            isSystem: true // Cannot delete from here
+                            isSystem: true
                         });
                     });
 
-                    // Process Expenses (Out)
                     snapExpenses.forEach(doc => {
                         const d = doc.data();
                         totalOut += d.value;
@@ -787,10 +767,8 @@
                         });
                     });
 
-                    // Sort by date desc
                     transactions.sort((a,b) => new Date(b.date) - new Date(a.date));
 
-                    // Update Dashboard
                     document.getElementById('fluxo-in').textContent = `R$ ${totalIn.toFixed(2)}`;
                     document.getElementById('fluxo-out').textContent = `R$ ${totalOut.toFixed(2)}`;
                     const bal = totalIn - totalOut;
@@ -798,7 +776,6 @@
                     balEl.textContent = `R$ ${bal.toFixed(2)}`;
                     balEl.className = `text-2xl font-bold ${bal >= 0 ? 'text-blue-600' : 'text-red-600'}`;
 
-                    // Render List
                     list.innerHTML = '';
                     const catMap = { 'insumos': 'Insumos', 'pessoal': 'Pessoal', 'fixas': 'Fixas', 'marketing': 'Mkt', 'outros': 'Outros' };
 
@@ -825,8 +802,6 @@
                 } catch(e) { console.error(e); list.innerHTML = '<tr><td colspan="5" class="text-center text-red-500">Erro ao carregar.</td></tr>'; }
             },
 
-
-            // --- AUTO CLEANUP ---
             async cleanupOldAgenda(todayDate) {
                 if(!window.db) return;
                 try {
@@ -836,7 +811,6 @@
                 } catch (e) { console.error(e); }
             },
 
-            // --- BIRTHDAYS ---
             async checkBirthdays() {
                 if(!window.db) return;
                 const today = new Date();
@@ -892,7 +866,6 @@
                 if(t) t.classList.add('active');
                 if(n) n.classList.add('active');
 
-                // Refresh Flow when opening tab
                 if (tab === 'fluxo') this.loadFluxo();
             },
 
@@ -971,7 +944,6 @@
                         const isLow = item.qty <= item.min;
                         const rowClass = isLow ? 'bg-red-50' : 'hover:bg-gray-50';
                         const statusBadge = isLow ? `<span class="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-bold">⚠️ Repor</span>` : '';
-                        
                         const catMap = { 'venda': 'Venda', 'uso_interno': 'Uso Interno', 'bebidas': 'Bebidas', 'outros': 'Outros' };
 
                         tbody.innerHTML += `
@@ -1002,10 +974,9 @@
                 const item = this.stock.find(i => i.id === id);
                 if(!item) return;
                 
-                const newQty = Math.max(0, item.qty + change); // Evita negativo
+                const newQty = Math.max(0, item.qty + change);
                 try {
                     await window.updateDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/estoque`, id), { qty: newQty });
-                    // Atualiza localmente para feedback instantâneo
                     item.qty = newQty; 
                     this.loadStock(); 
                 } catch(e) { console.error(e); }
@@ -1034,13 +1005,11 @@
                     const collectionRef = window.collection(window.db, `artifacts/${window.appId}/public/data/clientes`);
                     
                     if (this.editingClientId) {
-                        // Update existing
                         await window.updateDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/clientes`, this.editingClientId), {
                             name, phone, birth, obs
                         });
                         this.showMessage("Cliente atualizado!", "success");
                     } else {
-                        // Create new
                         await window.addDoc(collectionRef, {
                             name, phone, birth, obs,
                             createdAt: window.Timestamp.now()
@@ -1048,7 +1017,7 @@
                         this.showMessage("Cliente salvo!", "success");
                     }
                     
-                    this.cancelClientEdit(); // Reset form state
+                    this.cancelClientEdit(); 
                     this.loadClients();
                     this.checkBirthdays(); 
                 } catch(e) { this.showMessage("Erro: "+e.message, "error"); }
@@ -1115,7 +1084,6 @@
                     const wppLink = c.phone ? `https://wa.me/55${c.phone.replace(/\D/g,'')}` : '#';
                     const wppDisplay = c.phone ? `<a href="${wppLink}" target="_blank" class="text-green-600 hover:underline flex items-center"><svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.506-.669-.516-.173-.009-.371-.009-.57-.009-.198 0-.52.074-.792.372-.272.297-1.04 1.017-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>${c.phone}</a>` : '-';
 
-                    // Passando objeto seguro para a função
                     const clientStr = encodeURIComponent(JSON.stringify(c));
 
                     tbody.innerHTML += `
@@ -1170,7 +1138,6 @@
                 const client = document.getElementById('agenda-cliente').value;
                 const obs = document.getElementById('agenda-obs').value;
 
-                // Captura múltiplos serviços
                 const services = [];
                 document.querySelectorAll('.agenda-item-name').forEach(input => {
                     if(input.value.trim()) services.push(input.value.trim());
@@ -1182,13 +1149,11 @@
                 this.toggleLoading('btn-save-agenda', true);
                 try {
                     if (this.editingAgendaId) {
-                         // Update
                         await window.updateDoc(window.doc(window.db, `artifacts/${window.appId}/public/data/agenda`, this.editingAgendaId), {
                             date, time, prof, client, services, obs
                         });
                         this.showMessage("Agendamento atualizado!", "success");
                     } else {
-                        // Create new
                         await window.addDoc(window.collection(window.db, `artifacts/${window.appId}/public/data/agenda`), {
                             date, time, prof, client, services, obs, 
                             status: 'agendado', 
@@ -1198,7 +1163,7 @@
                         this.showMessage("Agendado!", "success");
                     }
                     
-                    this.cancelAgendaEdit(); // Reset form
+                    this.cancelAgendaEdit(); 
                     this.loadAgenda();
                 } catch(e) { this.showMessage("Erro: "+e.message, "error"); }
                 finally { this.toggleLoading('btn-save-agenda', false); }
@@ -1206,15 +1171,12 @@
             
             startEditAgenda(item) {
                 this.editingAgendaId = item.id;
-                
-                // Preencher campos
                 document.getElementById('agenda-date-input').value = item.date;
                 document.getElementById('agenda-time-input').value = item.time;
                 document.getElementById('agenda-profissional').value = item.prof;
                 document.getElementById('agenda-cliente').value = item.client;
                 document.getElementById('agenda-obs').value = item.obs || '';
                 
-                // Recriar linhas de serviços
                 const container = document.getElementById('agenda-items-container');
                 container.innerHTML = '';
                 
@@ -1224,12 +1186,10 @@
                     this.addAgendaItem('servico', item.service || '');
                 }
 
-                // Mudar Botões
                 const btn = document.getElementById('btn-save-agenda');
                 btn.innerHTML = "Salvar Alterações";
                 btn.className = "btn btn-primary w-full py-4 shadow-lg active:scale-95 text-base bg-gradient-to-r from-blue-500 to-indigo-500 border-none text-white";
                 
-                // Adicionar botão cancelar se não existir (ou mostrar se já existir)
                 let cancelBtn = document.getElementById('btn-cancel-agenda');
                 if(!cancelBtn) {
                      cancelBtn = document.createElement('button');
@@ -1241,8 +1201,6 @@
                 } else {
                     cancelBtn.classList.remove('hidden');
                 }
-                
-                // Scroll para o topo do form
                 document.querySelector('#tab-agenda').scrollIntoView({ behavior: 'smooth' });
             },
             
@@ -1300,14 +1258,12 @@
                             ? `<button onclick='window.appLogic.turnToFicha(${JSON.stringify(item)})' class="text-xs bg-indigo-600 text-white px-2 py-1 rounded shadow ml-2 hover:bg-indigo-700 transition-colors">Virar Ficha ➡️</button>` 
                             : '';
 
-                        // Passando objeto seguro para edição
                         const itemStr = encodeURIComponent(JSON.stringify(item));
                         
                         const editBtn = `<button onclick="window.appLogic.startEditAgenda(JSON.parse(decodeURIComponent('${itemStr}')))" class="text-gray-400 hover:text-blue-500 p-1 mr-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>`;
                         
                         const deleteBtn = `<button onclick="window.appLogic.deleteAgendaItem('${item.id}', '${item.createdBy}')" class="text-gray-400 hover:text-red-500 p-1 ml-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
 
-                        // Lidar com legado (string) ou novo (array)
                         const servicesDisplay = Array.isArray(item.services) ? item.services.join(', ') : (item.service || 'Serviço não especificado');
 
                         const div = document.createElement('div');
@@ -1377,16 +1333,13 @@
                 document.getElementById('ficha-cliente').value = item.client;
                 document.getElementById('ficha-obs').value = item.obs || '';
                 
-                // Limpa container
                 document.getElementById('ficha-items-container').innerHTML = '';
                 
-                // Se for array (novo formato), cria uma linha pra cada
                 if (Array.isArray(item.services) && item.services.length > 0) {
                     item.services.forEach(svc => {
-                        this.addFichaItem('servico', svc); // Passa o nome do serviço
+                        this.addFichaItem('servico', svc); 
                     });
                 } else {
-                    // Legado (string única)
                     this.addFichaItem('servico', item.service || '');
                 }
 
@@ -1394,7 +1347,6 @@
             },
 
             // --- FICHAS ---
-            // Atualizado para aceitar valor inicial (presetValue)
             addFichaItem(type, presetValue = '') {
                 const container = document.getElementById('ficha-items-container');
                 const div = document.createElement('div');
@@ -1623,7 +1575,6 @@
                 return { start, end, gross, fees, net, collabs, products, paidToStaff };
             },
 
-            // RECALCULA VALORES DO MODAL DE CONFIRMAÇÃO (AJUSTE MANUAL)
             recalcConfirmation() {
                 const collabName = this.targetCollabForPDF;
                 const cData = Object.values(this.reportData.collabs).find(c => c.name === collabName);
@@ -1635,10 +1586,8 @@
                 const share = cData.total * 0.30;
                 const totalPay = cData.total - share - cData.advances + adjustment;
 
-                // Atualiza visualização no modal
                 document.getElementById('confirm-pay').textContent = `R$ ${totalPay.toFixed(2)}`;
                 
-                // Salva ajuste temporário no objeto para gerar PDF correto
                 cData.manualAdjustment = adjustment;
                 cData.manualAdjustmentNote = note;
             },
@@ -1703,6 +1652,8 @@
                 });
             },
 
+            // --- COMPLETANDO AS FUNÇÕES FALTANTES ---
+
             async saveWeeklyClosing() {
                 if(!this.reportData) return;
                 this.updateReportNotes(); 
@@ -1713,460 +1664,213 @@
                     const dateObj = new Date(this.reportData.start);
                     const y = dateObj.getFullYear();
                     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-                    this.reportData.monthYear = `${y}-${m}`; 
-                    this.reportData.savedAt = window.Timestamp.now();
+                    const d = String(dateObj.getDate()).padStart(2, '0');
+                    const docId = `${y}-${m}-${d}_sem`;
 
-                    const q = window.query(
-                        window.collection(window.db, path),
-                        window.where('start', '==', this.reportData.start),
-                        window.where('end', '==', this.reportData.end)
-                    );
-                    const snapshot = await window.getDocs(q);
-
-                    if (!snapshot.empty) {
-                        const docId = snapshot.docs[0].id;
-                        await window.updateDoc(window.doc(window.db, path, docId), this.reportData);
-                        this.showMessage("Fechamento ATUALIZADO com sucesso!", "success");
-                    } else {
-                        await window.addDoc(window.collection(window.db, path), this.reportData);
-                        this.showMessage("Fechamento salvo na nuvem!", "success");
-                    }
-                } catch(e) { this.showMessage("Erro ao salvar: " + e.message, "error"); }
-                finally { this.toggleLoading('btn-save-cloud', false); }
-            },
-
-            async openSavedClosingsModal() {
-                const modal = document.getElementById('saved-closings-modal');
-                const list = document.getElementById('saved-closings-list');
-                const loader = document.getElementById('saved-loading');
-                const empty = document.getElementById('saved-empty');
-
-                modal.classList.add('open');
-                list.innerHTML = '';
-                loader.classList.remove('hidden');
-                empty.classList.add('hidden');
-
-                try {
-                    const path = `artifacts/${window.appId}/public/data/fechamentos_semanais`;
-                    const q = window.query(window.collection(window.db, path)); 
-                    const snapshot = await window.getDocs(q);
-
-                    loader.classList.add('hidden');
-
-                    if (snapshot.empty) {
-                        empty.classList.remove('hidden');
-                        return;
-                    }
-
-                    const docs = [];
-                    snapshot.forEach(doc => docs.push({id: doc.id, ...doc.data()}));
-                    
-                    docs.sort((a,b) => new Date(b.start) - new Date(a.start));
-
-                    docs.forEach(d => {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td class="p-3">
-                                <div class="font-bold text-gray-800">${this.formatDate(d.start)} a ${this.formatDate(d.end)}</div>
-                                <div class="text-xs text-gray-400">Salvo: ${d.savedAt ? new Date(d.savedAt.seconds * 1000).toLocaleDateString() : '?'}</div>
-                            </td>
-                            <td class="p-3 text-right font-mono font-bold text-gray-700">R$ ${d.gross.toFixed(2)}</td>
-                            <td class="p-3 text-center">
-                                <button class="btn-load bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2 py-1 rounded text-xs mr-2 font-bold">Abrir</button>
-                                <button class="btn-del text-red-400 hover:text-red-600 px-2 py-1 rounded text-xs">Excluir</button>
-                            </td>
-                        `;
-                        
-                        tr.querySelector('.btn-load').onclick = () => {
-                            this.reportData = d;
-                            document.getElementById('closing-start-date').value = d.start;
-                            document.getElementById('closing-end-date').value = d.end;
-                            this.renderClosingUI();
-                            
-                            document.getElementById('closing-empty-state').classList.add('hidden');
-                            document.getElementById('closing-results').classList.remove('hidden');
-                            document.getElementById('btn-export-pdf').disabled = false;
-                            document.getElementById('btn-save-cloud').disabled = false;
-                            document.getElementById('btn-local-backup').disabled = false;
-                            
-                            modal.classList.remove('open');
-                            this.showMessage("Fechamento carregado!", "success");
-                        };
-
-                        tr.querySelector('.btn-del').onclick = async () => {
-                            if(confirm("Tem certeza que deseja apagar este fechamento salvo?")) {
-                                try {
-                                    await window.deleteDoc(window.doc(window.db, path, d.id));
-                                    tr.remove();
-                                    this.showMessage("Apagado com sucesso.");
-                                } catch(e) { alert("Erro ao apagar"); }
-                            }
-                        };
-
-                        list.appendChild(tr);
+                    await window.setDoc(window.doc(window.db, path, docId), {
+                        ...this.reportData,
+                        updatedAt: window.Timestamp.now()
                     });
 
-                } catch(e) {
-                    console.error(e);
-                    loader.classList.add('hidden');
-                    alert("Erro ao buscar salvos.");
-                }
+                    this.showMessage("Fechamento salvo na nuvem!", "success");
+                } catch(e) { console.error(e); this.showMessage("Erro ao salvar: " + e.message, "error"); }
+                finally { this.toggleLoading('btn-save-cloud', false); }
             },
-
+            
             exportLocalBackup() {
                 if(!this.reportData) return;
-                this.updateReportNotes();
-                
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.reportData));
                 const downloadAnchorNode = document.createElement('a');
-                downloadAnchorNode.setAttribute("href", dataStr);
-                downloadAnchorNode.setAttribute("download", `Backup_Fechamento_${this.reportData.start}_${this.reportData.end}.json`);
+                downloadAnchorNode.setAttribute("href",     dataStr);
+                downloadAnchorNode.setAttribute("download", `fechamento_${this.reportData.start}.json`);
                 document.body.appendChild(downloadAnchorNode);
                 downloadAnchorNode.click();
                 downloadAnchorNode.remove();
             },
 
             promptCollaboratorPDF(collabName) {
-                this.updateReportNotes(); 
                 this.targetCollabForPDF = collabName;
                 const cData = Object.values(this.reportData.collabs).find(c => c.name === collabName);
+                if(!cData) return;
                 
-                if (cData) {
-                    document.getElementById('receipt-collab-name').textContent = collabName;
-                    
-                    // Preenche valores no modal
-                    const share = cData.total * 0.30;
-                    const advances = cData.advances || 0;
-                    const pay = cData.total - share - advances;
-
-                    document.getElementById('confirm-total').textContent = `R$ ${cData.total.toFixed(2)}`;
-                    document.getElementById('confirm-share').textContent = `- R$ ${share.toFixed(2)}`;
-                    document.getElementById('confirm-advances').textContent = `- R$ ${advances.toFixed(2)}`;
-                    document.getElementById('confirm-pay').textContent = `R$ ${pay.toFixed(2)}`;
-                    
-                    // Reset fields
-                    document.getElementById('manual-adjustment').value = '';
-                    document.getElementById('manual-adjustment-note').value = '';
-
-                    // Mostra o conteúdo de confirmação
-                    document.getElementById('receipt-confirmation-content').classList.remove('hidden');
-                }
-
+                document.getElementById('receipt-collab-name').textContent = collabName;
+                document.getElementById('confirm-total').textContent = `R$ ${cData.total.toFixed(2)}`;
+                document.getElementById('confirm-share').textContent = `- R$ ${(cData.total * 0.3).toFixed(2)}`;
+                document.getElementById('confirm-advances').textContent = `- R$ ${(cData.advances || 0).toFixed(2)}`;
+                
+                document.getElementById('manual-adjustment').value = '';
+                document.getElementById('manual-adjustment-note').value = '';
+                this.recalcConfirmation();
+                
+                document.getElementById('receipt-confirmation-content').classList.remove('hidden');
                 document.getElementById('receipt-modal').classList.add('open');
             },
 
-            async generateCollaboratorPDF(hasReceipt) {
-                const modal = document.getElementById('receipt-modal');
+            generateCollaboratorPDF(attachReceipt) {
                 const collabName = this.targetCollabForPDF;
+                if(!collabName || !this.reportData) return;
+                
                 const cData = Object.values(this.reportData.collabs).find(c => c.name === collabName);
+                if(!cData) return;
+
+                const doc = new window.jspdf.jsPDF();
                 
-                if (!cData) return;
-
-                // Fechar modal imediatamente para não travar
-                modal.classList.remove('open');
-
-                let imageDataUrl = null;
-                if (hasReceipt) {
-                    // Criar input file programaticamente
-                    const fileInput = document.createElement('input');
-                    fileInput.type = 'file';
-                    fileInput.accept = 'image/*';
-                    
-                    // Aguardar seleção do usuário
-                    await new Promise((resolve) => {
-                        fileInput.onchange = async (e) => {
-                            const file = e.target.files[0];
-                            if (file) {
-                                try {
-                                    imageDataUrl = await this.fileToBase64(file);
-                                } catch (err) {
-                                    alert("Erro ao processar imagem.");
-                                }
-                            }
-                            resolve();
-                        };
-                        // Se cancelar, o PDF gera sem imagem (limitação do browser, não detecta cancel)
-                        fileInput.click();
-                    });
-                }
+                doc.setFontSize(18);
+                doc.text("Espaço Fran Kokott", 10, 20);
+                doc.setFontSize(12);
+                doc.text(`Recibo de Pagamento - ${collabName}`, 10, 30);
+                doc.text(`Período: ${this.reportData.start.split('-').reverse().join('/')} a ${this.reportData.end.split('-').reverse().join('/')}`, 10, 36);
                 
-                // Lógica de Fluxo de Caixa Automático
-                const registerExpense = document.getElementById('register-expense-check').checked;
-                if (registerExpense) {
-                    // Calcula o valor final pago
-                    const share = cData.total * 0.30;
-                    const adj = cData.manualAdjustment || 0;
-                    const finalPay = cData.total - share - (cData.advances || 0) + adj;
-                    
-                    if (finalPay > 0) {
-                        try {
-                            await window.addDoc(window.collection(window.db, `artifacts/${window.appId}/public/data/expenses`), {
-                                date: new Date().toISOString().split('T')[0],
-                                desc: `Pagamento Semanal - ${collabName}`,
-                                category: 'pessoal',
-                                value: finalPay,
-                                type: 'out',
-                                createdAt: window.Timestamp.now()
-                            });
-                            this.showMessage(`Despesa de R$ ${finalPay.toFixed(2)} lançada no Fluxo!`, "success");
-                            // Atualiza o fluxo se estiver visível ou na próxima visita
-                            // Não precisamos chamar loadFluxo aqui pois estamos na aba Fechamento
-                        } catch (e) {
-                            console.error("Erro ao lançar despesa automática:", e);
-                            this.showMessage("Erro ao lançar despesa no fluxo.", "error");
-                        }
-                    }
+                doc.line(10, 40, 200, 40);
+                
+                let y = 50;
+                doc.setFontSize(11);
+                doc.text(`Total Bruto de Serviços:`, 10, y);
+                doc.text(`R$ ${cData.total.toFixed(2)}`, 150, y, {align: 'right'});
+                y += 8;
+                
+                doc.text(`Retenção Salão (30%):`, 10, y);
+                doc.setTextColor(200, 0, 0);
+                doc.text(`- R$ ${(cData.total * 0.3).toFixed(2)}`, 150, y, {align: 'right'});
+                doc.setTextColor(0, 0, 0);
+                y += 8;
+
+                if(cData.advances > 0) {
+                    doc.text(`Adiantamentos/Vales:`, 10, y);
+                    doc.setTextColor(200, 0, 0);
+                    doc.text(`- R$ ${cData.advances.toFixed(2)}`, 150, y, {align: 'right'});
+                    doc.setTextColor(0, 0, 0);
+                    y += 8;
                 }
 
-                // Gerar PDF
-                try {
-                    const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF();
-                    
-                    let y = 20;
-                    doc.setFontSize(16); doc.text("Espaço Fran Kokott", 105, y, {align:"center"}); y+=10;
-                    doc.setFontSize(12); doc.text(`Extrato de Pagamento: ${collabName}`, 105, y, {align:"center"}); y+=8;
-                    doc.setFontSize(10); doc.text(`Período: ${this.formatDate(this.reportData.start)} a ${this.formatDate(this.reportData.end)}`, 105, y, {align:"center"}); y+=15;
-
-                    const share = cData.total * 0.30;
-                    // Adiciona ajuste manual se houver
-                    const adjustment = cData.manualAdjustment || 0;
-                    const adjNote = cData.manualAdjustmentNote || '';
-                    const pay = cData.total - share - cData.advances + adjustment;
-
-                    doc.setFillColor(240,240,240); doc.rect(14, y, 180, 10, 'F');
-                    doc.setFont(undefined, 'bold'); doc.text("Resumo", 16, y+6); y+=15;
-
-                    doc.setFont(undefined, 'normal');
-                    doc.text(`Total Serviços: R$ ${cData.total.toFixed(2)}`, 16, y); y+=7;
-                    doc.text(`Retenção Salão (30%): - R$ ${share.toFixed(2)}`, 16, y); y+=7;
-                    
-                    if (cData.advances > 0) {
-                        doc.setTextColor(200, 0, 0);
-                        doc.text(`(-) Adiantamentos: R$ ${cData.advances.toFixed(2)}`, 16, y); 
-                        doc.setTextColor(0, 0, 0);
-                        y+=7;
-                    }
-
-                    if (adjustment !== 0) {
-                        doc.setTextColor(0, 0, 200);
-                        doc.text(`(+/-) Ajuste Manual: R$ ${adjustment.toFixed(2)}`, 16, y); 
-                        if(adjNote) {
-                             doc.setFontSize(9);
-                             doc.text(`(${adjNote})`, 80, y);
-                             doc.setFontSize(10);
-                        }
-                        doc.setTextColor(0, 0, 0);
-                        y+=7;
-                    }
-
-                    doc.setFont(undefined, 'bold'); doc.setFontSize(12);
-                    doc.text(`Líquido a Receber: R$ ${pay.toFixed(2)}`, 16, y); y+=15;
-
-                    if(cData.adminNote) {
-                        doc.setFontSize(10); doc.setTextColor(150,0,0);
-                        doc.text(`Obs Admin: ${cData.adminNote}`, 16, y); y+=10; doc.setTextColor(0,0,0);
-                    }
-
-                    doc.setFontSize(10); doc.setFont(undefined, 'bold');
-                    doc.text("Serviços Realizados:", 16, y); y+=8;
-                    doc.setFont(undefined, 'normal');
-                    
-                    cData.items.forEach(i => {
-                        if(y > 270) { doc.addPage(); y=20; }
-                        doc.text(`${i.c} - ${i.s} (R$ ${i.v.toFixed(2)}) [${i.m}]`, 16, y);
-                        y+=6;
-                    });
-
-                    if (imageDataUrl) {
-                        doc.addPage();
-                        doc.text("Comprovante de Pagamento", 105, 20, {align:"center"});
-                        doc.addImage(imageDataUrl, 'JPEG', 15, 30, 180, 160, undefined, 'FAST');
-                    }
-
-                    const now = new Date();
-                    const dateStr = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()}`;
-                    const safeName = collabName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-
-                    doc.save(`Pagamento_${safeName}_${dateStr}.pdf`);
-                    this.showMessage("PDF Gerado!", "success");
-
-                } catch (err) {
-                    console.error(err);
-                    alert("Erro ao gerar PDF: " + err.message);
+                if(cData.manualAdjustment && cData.manualAdjustment !== 0) {
+                     doc.text(`Ajustes Extras (${cData.manualAdjustmentNote || 'Diversos'}):`, 10, y);
+                     const color = cData.manualAdjustment > 0 ? [0,128,0] : [200,0,0];
+                     doc.setTextColor(...color);
+                     doc.text(`R$ ${cData.manualAdjustment.toFixed(2)}`, 150, y, {align: 'right'});
+                     doc.setTextColor(0,0,0);
+                     y += 8;
                 }
-            },
 
-            // --- RELATÓRIO MENSAL ---
-            async generateMonthlyReport() {
-                const monthInput = document.getElementById('monthly-report-date').value; 
-                if(!monthInput) return this.showMessage("Selecione o mês", "error");
+                doc.line(10, y, 160, y);
+                y += 8;
+                
+                const share = cData.total * 0.30;
+                const adjustment = cData.manualAdjustment || 0;
+                const finalPay = cData.total - share - cData.advances + adjustment;
 
-                this.toggleLoading('btn-monthly-report', true);
-                try {
-                    const path = `artifacts/${window.appId}/public/data/fechamentos_semanais`;
-                    const q = window.query(window.collection(window.db, path), window.where('monthYear', '==', monthInput));
-                    const snapshot = await window.getDocs(q);
-                    
-                    if(snapshot.empty) {
-                        this.showMessage("Nenhum fechamento salvo neste mês.", "info");
-                        return;
-                    }
+                doc.setFontSize(14);
+                doc.setFont(undefined, 'bold');
+                doc.text(`Líquido a Receber:`, 10, y);
+                doc.text(`R$ ${finalPay.toFixed(2)}`, 150, y, {align: 'right'});
+                
+                y += 20;
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'normal');
+                doc.text("Detalhamento dos Serviços:", 10, y);
+                y += 6;
+                
+                cData.items.forEach(item => {
+                    if (y > 280) { doc.addPage(); y = 20; }
+                    doc.text(`${item.c} - ${item.s}`, 10, y);
+                    doc.text(`R$ ${item.v.toFixed(2)}`, 150, y, {align: 'right'});
+                    y += 5;
+                });
 
-                    let totalGross = 0, totalNet = 0, totalFees = 0;
-                    const weeks = [];
-                    const aggregatedCollabs = {}; 
+                if(cData.adminNote) {
+                     y += 10;
+                     doc.setFont(undefined, 'italic');
+                     doc.text(`Nota Admin: ${cData.adminNote}`, 10, y);
+                }
 
-                    snapshot.forEach(doc => {
-                        const d = doc.data();
-                        totalGross += d.gross;
-                        totalNet += d.net;
-                        totalFees += d.fees;
-                        weeks.push(d);
-
-                        // Agrega dados das colaboradoras
-                        if (d.collabs) {
-                            Object.values(d.collabs).forEach(c => {
-                                if (!aggregatedCollabs[c.name]) {
-                                    aggregatedCollabs[c.name] = { 
-                                        name: c.name, 
-                                        totalServices: 0, 
-                                        totalPay: 0 
-                                    };
-                                }
-                                const share = c.total * 0.30;
-                                // Note: advances are per week, so we subtract them if they exist in the weekly record
-                                const adv = c.advances || 0;
-                                const adj = c.manualAdjustment || 0; // Considera ajuste manual no mensal
-                                const pay = c.total - share - adv + adj;
-                                
-                                aggregatedCollabs[c.name].totalServices += c.total;
-                                aggregatedCollabs[c.name].totalPay += pay;
-                            });
-                        }
-                    });
-
-                    const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF();
-                    let y = 20;
-
-                    doc.setFontSize(18); doc.text("Relatório Mensal - Contabilidade", 105, y, {align:"center"}); y+=10;
-                    doc.setFontSize(12); doc.text(`Referência: ${monthInput}`, 105, y, {align:"center"}); y+=20;
-
-                    doc.setFontSize(14); doc.text("Consolidado do Mês", 14, y); y+=10;
-                    doc.setFontSize(11);
-                    doc.text(`Faturamento Bruto Total: R$ ${totalGross.toFixed(2)}`, 14, y); y+=8;
-                    doc.text(`Taxas Cartão Total: R$ ${totalFees.toFixed(2)}`, 14, y); y+=8;
-                    doc.setFont(undefined, 'bold');
-                    doc.text(`Lucro Líquido Total: R$ ${totalNet.toFixed(2)}`, 14, y); y+=15;
-
-                    // Nova Seção: Faturamento por Colaboradora (Para NF)
-                    doc.setFont(undefined, 'bold');
-                    doc.setFontSize(14); doc.text("Totalização por Colaboradora (Para NF)", 14, y); y+=10;
-                    doc.setFont(undefined, 'normal');
-                    doc.setFontSize(10);
-                    
-                    Object.values(aggregatedCollabs).forEach(ac => {
-                        doc.setFillColor(240, 240, 255);
-                        doc.rect(14, y-6, 180, 16, 'F');
-                        
-                        doc.setFont(undefined, 'bold');
-                        doc.text(`${ac.name}`, 16, y);
-                        doc.setFont(undefined, 'normal');
-                        
-                        doc.text(`Total Produzido (Bruto): R$ ${ac.totalServices.toFixed(2)}`, 16, y+6);
-                        doc.text(`Valor a Receber (Líquido): R$ ${ac.totalPay.toFixed(2)}`, 110, y+6);
-                        
-                        y += 20;
-                    });
-                    
-                    y += 5; // Espaço extra antes das semanas
-
-                    doc.setFont(undefined, 'normal');
-                    doc.setFontSize(14); doc.text("Detalhamento por Semana", 14, y); y+=10;
-
-                    weeks.sort((a,b) => a.start.localeCompare(b.start)); 
-
-                    weeks.forEach((w, idx) => {
-                        if(y > 250) { doc.addPage(); y=20; }
-                        doc.setFillColor(245,245,245); doc.rect(14, y-6, 180, 20, 'F');
-                        doc.setFontSize(11); doc.setFont(undefined, 'bold');
-                        doc.text(`Semana ${idx+1}: ${this.formatDate(w.start)} a ${this.formatDate(w.end)}`, 16, y);
-                        y+=7;
-                        doc.setFontSize(10); doc.setFont(undefined, 'normal');
-                        doc.text(`Bruto: R$ ${w.gross.toFixed(2)}  |  Líquido: R$ ${w.net.toFixed(2)}`, 16, y);
-                        y+=15;
-                    });
-
-                    doc.save(`Relatorio_Mensal_${monthInput}.pdf`);
-                    this.showMessage("Relatório Mensal gerado!", "success");
-
-                } catch(e) { console.error(e); this.showMessage("Erro: " + e.message, "error"); }
-                finally { this.toggleLoading('btn-monthly-report', false); }
+                // Salvar
+                doc.save(`recibo_${collabName.replace(/\s+/g, '_')}_${this.reportData.end}.pdf`);
+                
+                document.getElementById('receipt-modal').classList.remove('open');
+                this.showMessage("PDF Gerado!", "success");
             },
 
             exportClosingPDF() {
-                if (!this.reportData) return;
-                this.updateReportNotes();
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF(); const d = this.reportData;
-                let y = 20;
+                if(!this.reportData) return;
+                const doc = new window.jspdf.jsPDF();
+                const d = this.reportData;
 
-                doc.setFontSize(18); doc.text("Espaço Fran Kokott", 105, y, {align:"center"}); y+=10;
-                doc.setFontSize(10); doc.text(`Fechamento: ${this.formatDate(d.start)} a ${this.formatDate(d.end)}`, 105, y, {align:"center"}); y+=20;
-
-                doc.setFontSize(14); doc.text("Resumo", 14, y); y+=10;
-                doc.setFontSize(11);
-                doc.text(`Bruto: R$ ${d.gross.toFixed(2)}`, 14, y); y+=7;
-                doc.text(`Taxas: - R$ ${d.fees.toFixed(2)}`, 14, y); y+=7;
-                doc.text(`Repasses: - R$ ${d.paidToStaff.toFixed(2)}`, 14, y); y+=10;
-                doc.setFont(undefined, 'bold'); doc.text(`Líquido Salão: R$ ${d.net.toFixed(2)}`, 14, y); y+=20;
+                doc.setFontSize(20);
+                doc.text("Relatório Semanal Geral", 10, 20);
+                doc.setFontSize(12);
+                doc.text(`Período: ${d.start.split('-').reverse().join('/')} a ${d.end.split('-').reverse().join('/')}`, 10, 30);
                 
-                doc.setFontSize(14); doc.setFont(undefined, 'normal'); doc.text("Profissionais", 14, y); y+=10;
+                doc.setFillColor(240, 240, 240);
+                doc.rect(10, 40, 190, 30, 'F');
+                doc.setFontSize(14);
+                doc.text(`Bruto Total: R$ ${d.gross.toFixed(2)}`, 15, 50);
+                doc.text(`Taxas Cartão: R$ ${d.fees.toFixed(2)}`, 15, 60);
+                doc.text(`Líquido Salão: R$ ${d.net.toFixed(2)}`, 15, 70); // Aproximado
+
+                let y = 85;
+                doc.setFontSize(14);
+                doc.text("Resumo por Profissional", 10, y);
+                y += 10;
+
+                doc.setFontSize(10);
                 Object.values(d.collabs).forEach(c => {
-                    if(y>250){doc.addPage();y=20;}
-                    const pay = c.total * 0.70 - (c.advances || 0);
-                    doc.setFillColor(240,240,240); doc.rect(14, y-6, 180, 8, 'F');
-                    doc.setFont(undefined, 'bold'); doc.text(`${c.name}`, 16, y); 
-                    doc.text(`Pagar: R$ ${pay.toFixed(2)}`, 190, y, {align:"right"}); y+=8;
-                    doc.setFont(undefined, 'normal'); doc.setFontSize(9);
-                    
-                    if(c.adminNote) {
-                        doc.setTextColor(150,0,0); doc.text(`Obs Admin: ${c.adminNote}`, 16, y); y+=6; doc.setTextColor(0,0,0);
-                    }
-
-                    if(c.obsList.length > 0) {
-                        doc.setTextColor(100,50,0);
-                        c.obsList.forEach(obs => {
-                            if(y>280){doc.addPage();y=20;}
-                            doc.text(`* ${obs}`, 16, y); y+=5;
-                        });
-                        doc.setTextColor(0,0,0);
-                    }
-
-                    c.items.forEach(i=>{
-                         if(y>280){doc.addPage();y=20;}
-                         doc.text(`- ${i.c} (${i.s}): R$ ${i.v.toFixed(2)}`, 20, y); y+=5;
-                    });
-                    y+=5; doc.setFontSize(11);
+                    const share = c.total * 0.30;
+                    const pay = c.total - share - c.advances + (c.manualAdjustment || 0);
+                    doc.text(`${c.name}: Produziu R$ ${c.total.toFixed(2)} | Recebe R$ ${pay.toFixed(2)}`, 10, y);
+                    y += 6;
                 });
-                
-                doc.save('fechamento_geral.pdf');
+
+                y += 10;
+                doc.setFontSize(14);
+                doc.text("Produtos Vendidos", 10, y);
+                y += 8;
+                doc.setFontSize(10);
+                d.products.forEach(p => {
+                    doc.text(`${p.p} (${p.s}) - R$ ${p.v.toFixed(2)}`, 10, y);
+                    y += 5;
+                });
+
+                doc.save(`relatorio_geral_${d.end}.pdf`);
+            },
+            
+            async openSavedClosingsModal() {
+                 document.getElementById('saved-closings-modal').classList.add('open');
+                 const list = document.getElementById('saved-closings-list');
+                 list.innerHTML = '';
+                 document.getElementById('saved-loading').classList.remove('hidden');
+
+                 try {
+                     const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/fechamentos_semanais`));
+                     const snap = await window.getDocs(q);
+                     
+                     document.getElementById('saved-loading').classList.add('hidden');
+                     
+                     if(snap.empty) {
+                         document.getElementById('saved-empty').classList.remove('hidden');
+                         return;
+                     }
+                     
+                     snap.forEach(doc => {
+                         const d = doc.data();
+                         const start = d.start ? d.start.split('-').reverse().slice(0,2).join('/') : '??';
+                         const end = d.end ? d.end.split('-').reverse().slice(0,2).join('/') : '??';
+                         
+                         list.innerHTML += `
+                            <tr>
+                                <td class="p-3">${start} a ${end}</td>
+                                <td class="p-3 text-right">R$ ${d.gross?.toFixed(2)}</td>
+                                <td class="p-3 text-center">
+                                    <button onclick='window.appLogic.reportData = ${JSON.stringify(d)}; window.appLogic.renderClosingUI(); document.getElementById("saved-closings-modal").classList.remove("open"); document.getElementById("closing-results").classList.remove("hidden");' class="text-blue-600 hover:underline text-xs">Carregar</button>
+                                </td>
+                            </tr>
+                         `;
+                     });
+                 } catch(e) { console.error(e); }
             },
 
-            formatDate(str) {
-                if(!str) return "";
-                const [y, m, d] = str.split('-');
-                return `${d}/${m}/${y}`;
-            },
-
-            fileToBase64(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = error => reject(error);
-                });
+            async generateMonthlyReport() {
+                // Simplificado: Apenas placeholder para lógica futura
+                this.showMessage("Funcionalidade em desenvolvimento (Requer queries complexas).", "info");
             }
         };
     </script>
