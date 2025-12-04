@@ -24,7 +24,7 @@
             onAuthStateChanged, 
             GoogleAuthProvider, 
             signInWithPopup, 
-            signOut, 
+            signOut,
             setPersistence, 
             browserLocalPersistence 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -353,7 +353,10 @@
                             </div>
                             <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Observações da Ficha</label><textarea id="ficha-obs" class="input-field bg-gray-50 text-sm h-20" placeholder="Ex: Pagamento pendente, Vale, Pix direto..."></textarea></div>
                             <div class="bg-gray-50 p-4 rounded-lg flex justify-between items-center border border-gray-100 shadow-inner"><span class="text-sm font-medium text-gray-500">Total</span><div class="text-xl font-bold text-gray-800" id="ficha-total-display">R$ 0,00</div></div>
-                            <button onclick="window.appLogic.saveFicha()" id="btn-save-ficha" class="btn btn-primary w-full py-4 shadow-lg active:scale-95 text-base">Salvar Ficha</button>
+                            <div class="flex gap-2">
+                                <button onclick="window.appLogic.cancelFichaEdit()" id="btn-cancel-ficha" class="btn bg-gray-200 text-gray-700 w-1/3 hidden">Cancelar</button>
+                                <button onclick="window.appLogic.saveFicha()" id="btn-save-ficha" class="btn btn-primary flex-grow py-4 shadow-lg active:scale-95 text-base">Salvar Ficha</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -651,6 +654,7 @@
             editingClientId: null, 
             editingAgendaId: null, 
             editingExpenseId: null, // Nova variável para controle de edição do fluxo
+            editingFichaId: null, // Nova variável para controle de edição de fichas
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
@@ -1515,15 +1519,37 @@
                 this.toggleLoading('btn-save-ficha', true);
                 try {
                     const path = `artifacts/${window.appId}/public/data/fichas`;
-                    await window.addDoc(window.collection(window.db, path), {
-                        createdBy: window.userId,
-                        creatorEmail: window.auth.currentUser.email,
-                        date, clientName: client, professionalName: professional, items, obs,
-                        total: this.calcFichaTotal(),
-                        createdAt: window.Timestamp.now()
-                    });
+                    const total = this.calcFichaTotal();
                     
-                    this.showMessage("Ficha salva!", "success");
+                    if (this.editingFichaId) {
+                        // Modo de edição
+                        await window.updateDoc(window.doc(window.db, path, this.editingFichaId), {
+                            date, 
+                            clientName: client, 
+                            professionalName: professional, 
+                            items, 
+                            obs,
+                            total,
+                            updatedAt: window.Timestamp.now()
+                        });
+                        this.showMessage("Ficha atualizada!", "success");
+                        this.editingFichaId = null;
+                    } else {
+                        // Modo de criação
+                        await window.addDoc(window.collection(window.db, path), {
+                            createdBy: window.userId,
+                            creatorEmail: window.auth.currentUser.email,
+                            date, 
+                            clientName: client, 
+                            professionalName: professional, 
+                            items, 
+                            obs,
+                            total,
+                            createdAt: window.Timestamp.now()
+                        });
+                        this.showMessage("Ficha salva!", "success");
+                    }
+                    
                     this.resetFichaForm();
                     this.loadFichas();
                 } catch (e) { console.error(e); this.showMessage("Erro: " + e.message, "error"); } 
@@ -1532,10 +1558,28 @@
 
             resetFichaForm() {
                 document.getElementById('ficha-cliente').value = '';
+                document.getElementById('ficha-profissional').value = '';
                 document.getElementById('ficha-obs').value = '';
                 document.getElementById('ficha-items-container').innerHTML = '';
                 this.addFichaItem('servico');
                 this.calcFichaTotal();
+                
+                // Resetar o botão para o estado original
+                const submitBtn = document.getElementById('btn-save-ficha');
+                if(submitBtn) {
+                    submitBtn.textContent = 'Salvar Ficha';
+                    submitBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+                    submitBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+                }
+                
+                // Esconder botão de cancelar
+                const cancelBtn = document.getElementById('btn-cancel-ficha');
+                if(cancelBtn) {
+                    cancelBtn.classList.add('hidden');
+                }
+                
+                // Limpar o ID de edição
+                this.editingFichaId = null;
             },
 
             async loadFichas() {
@@ -1560,6 +1604,7 @@
                     data.slice(0, 20).forEach(f => {
                         const date = new Date(f.date + 'T12:00').toLocaleDateString('pt-BR');
                         const clientDisplay = f.obs ? `${f.clientName} <br><span class="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">Obs: ${f.obs}</span>` : f.clientName;
+                        const fichaStr = encodeURIComponent(JSON.stringify(f));
                         
                         tbody.innerHTML += `
                             <tr class="hover:bg-gray-50 border-b border-gray-100 mobile-card-row">
@@ -1568,7 +1613,10 @@
                                 <td class="p-4 text-gray-800">${clientDisplay}</td>
                                 <td class="p-4 text-xs text-gray-400">${f.items.length} itens</td>
                                 <td class="p-4 text-right font-bold text-gray-700">R$ ${f.total.toFixed(2)}</td>
-                                <td class="p-4 text-center"><button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-300 hover:text-red-500 p-2">✕</button></td>
+                                <td class="p-4 text-center">
+                                    <button onclick="window.appLogic.startEditFicha(JSON.parse(decodeURIComponent('${fichaStr}')))" class="text-gray-400 hover:text-blue-500 p-2 mr-1" title="Editar">✏️</button>
+                                    <button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-300 hover:text-red-500 p-2" title="Excluir">✕</button>
+                                </td>
                             </tr>
                         `;
                     });
@@ -1592,6 +1640,69 @@
                         m.classList.remove('open');
                     } catch(e) { this.showMessage("Erro ao excluir", "error"); }
                 };
+            },
+
+            startEditFicha(ficha) {
+                if (!window.ADMIN_EMAILS || !window.ADMIN_EMAILS.includes(window.userEmail)) {
+                    return this.showMessage("Apenas administradores podem editar registros salvos.", "error");
+                }
+
+                this.editingFichaId = ficha.id;
+                
+                // Preencher os campos do formulário
+                document.getElementById('ficha-date').value = ficha.date;
+                document.getElementById('ficha-profissional').value = ficha.professionalName;
+                document.getElementById('ficha-cliente').value = ficha.clientName;
+                document.getElementById('ficha-obs').value = ficha.obs || '';
+                
+                // Limpar itens existentes
+                const container = document.getElementById('ficha-items-container');
+                container.innerHTML = '';
+                
+                // Adicionar os itens da ficha
+                ficha.items.forEach(item => {
+                    this.addFichaItem(item.type, item.name);
+                    const lastRow = container.lastElementChild;
+                    const valueInput = lastRow.querySelector('.item-value');
+                    const methodSelect = lastRow.querySelector('.item-method');
+                    
+                    if(valueInput) valueInput.value = item.value;
+                    if(methodSelect) methodSelect.value = item.method;
+                });
+                
+                this.calcFichaTotal();
+                
+                // Mudar o texto do botão para "Atualizar Ficha"
+                const submitBtn = document.getElementById('btn-save-ficha');
+                if(submitBtn) {
+                    submitBtn.textContent = '💾 Atualizar Ficha';
+                    submitBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
+                    submitBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                }
+                
+                // Mostrar botão de cancelar
+                const cancelBtn = document.getElementById('btn-cancel-ficha');
+                if(cancelBtn) {
+                    cancelBtn.classList.remove('hidden');
+                }
+                
+                // Scroll para o topo
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                
+                this.showMessage("Editando ficha. Modifique os campos e clique em 'Atualizar Ficha'.", "info");
+            },
+
+            cancelFichaEdit() {
+                this.editingFichaId = null;
+                this.resetFichaForm();
+                
+                // Esconder botão de cancelar
+                const cancelBtn = document.getElementById('btn-cancel-ficha');
+                if(cancelBtn) {
+                    cancelBtn.classList.add('hidden');
+                }
+                
+                this.showMessage("Edição cancelada.", "info");
             },
 
             // --- FECHAMENTO (Admin) ---
