@@ -2,8 +2,20 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Espaço Fran Kokott - Sistema Integrado</title>
+    
+    <!-- Meta tags para iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Fran Kokott">
+    
+    <!-- Meta tags para Android -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#6366f1">
+    
+    <!-- Prevenir zoom automático no iOS -->
+    <meta name="format-detection" content="telephone=no">
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,7 +36,7 @@
             onAuthStateChanged, 
             GoogleAuthProvider, 
             signInWithPopup, 
-            signOut, 
+            signOut,
             setPersistence, 
             browserLocalPersistence 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -132,11 +144,11 @@
             
             if (user) {
                 container.innerHTML = `
-                    <div class="flex flex-col items-end mr-3">
-                        <span class="text-xs font-bold text-gray-700 truncate max-w-[100px]">${user.displayName || 'Usuário'}</span>
-                        <span class="text-[10px] text-gray-500 truncate max-w-[100px]">${user.email}</span>
+                    <div class="flex flex-col items-center md:items-end flex-shrink" style="max-width: calc(100% - 90px); min-width: 0; margin-right: 0.5rem;">
+                        <span class="text-xs font-bold text-gray-700 truncate w-full text-center md:text-right" style="max-width: 100%;">${user.displayName || 'Usuário'}</span>
+                        <span class="text-[10px] text-gray-500 truncate w-full text-center md:text-right" style="max-width: 100%;">${user.email}</span>
                     </div>
-                    <button onclick="signOutUser()" class="text-xs bg-red-100 text-red-600 px-3 py-2 rounded hover:bg-red-200 font-medium transition-colors">Sair</button>
+                    <button onclick="signOutUser()" class="text-xs bg-red-100 text-red-600 px-3 py-2 rounded hover:bg-red-200 font-medium transition-colors whitespace-nowrap flex-shrink-0" style="margin-left: 0.5rem;">Sair</button>
                 `;
             } else {
                 container.innerHTML = `
@@ -187,13 +199,42 @@
         :root { --primary: #6366f1; --secondary: #8b5cf6; --success: #10b981; --danger: #ef4444; }
         * { box-sizing: border-box; }
         
-        body { font-family: 'Inter', sans-serif; background: #f3f4f6; padding: 1rem; -webkit-tap-highlight-color: transparent; }
+        /* Prevenir overflow horizontal em qualquer elemento */
+        html, body { 
+            max-width: 100%; 
+            overflow-x: hidden; 
+            position: relative;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: #f3f4f6; 
+            padding: 0.5rem; 
+            -webkit-tap-highlight-color: transparent;
+            -webkit-text-size-adjust: 100%;
+            -moz-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
         
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
-        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
+        .btn { 
+            padding: 0.5rem 1rem; 
+            border-radius: 0.5rem; 
+            font-weight: 600; 
+            transition: all 0.2s; 
+            cursor: pointer; 
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 44px;
+            min-width: 44px; /* Área mínima de toque recomendada */
+            touch-action: manipulation; /* Previne zoom duplo-toque */
+            -webkit-user-select: none;
+            user-select: none;
+        }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); }
         .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3); }
         .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(99, 102, 241, 0.4); }
@@ -202,7 +243,26 @@
         .btn-secondary { background: #4b5563; color: white; }
         .btn-edit { background: #f59e0b; color: white; }
         
-        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid rgba(0,0,0,0.05); }
+        .card { 
+            background: white; 
+            border-radius: 1rem; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); 
+            padding: 1.5rem; 
+            margin-bottom: 1.5rem; 
+            border: 1px solid rgba(0,0,0,0.05);
+            max-width: 100%;
+            overflow: hidden;
+        }
+        
+        /* Botões de ação (editar, excluir) */
+        button[title], button[onclick*="delete"], button[onclick*="edit"] {
+            min-width: 44px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+        }
         
         .nav-pill { padding: 0.75rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; color: #6b7280; transition: all 0.2s; border: 1px solid transparent; font-size: 0.9rem; }
         .nav-pill:hover { color: var(--primary); background: #eff6ff; }
@@ -215,10 +275,40 @@
         .input-field { 
             width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
             border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 0.6rem 0.75rem; 
-            transition: all 0.2s; font-size: 16px; -webkit-appearance: none;
+            transition: all 0.2s; font-size: 16px; 
+            -webkit-appearance: none; -moz-appearance: none; appearance: none;
         }
-        .input-field:focus { outline: none; border-color: var(--primary); ring: 2px; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
-        input[type="date"], input[type="time"] { -webkit-appearance: none; display: block; }
+        .input-field:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+        input[type="date"], input[type="time"] { 
+            -webkit-appearance: none; -moz-appearance: none; appearance: none; 
+            display: block; 
+        }
+        
+        /* Melhorias para selects */
+        select {
+            font-size: 16px;
+            min-height: 44px;
+            padding: 0.6rem 0.75rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            padding-right: 2.5rem;
+        }
+        
+        /* Textarea */
+        textarea {
+            font-size: 16px;
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        /* Prevenir zoom em inputs no iOS */
+        input, select, textarea {
+            font-size: 16px !important;
+        }
 
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; justify-content: center; align-items: center; padding: 1rem; }
         .modal.open { display: flex; }
@@ -228,26 +318,292 @@
         .status-concluido { background-color: #e0e7ff; color: #3730a3; }
         .status-cancelado { background-color: #fee2e2; color: #991b1b; opacity: 0.7; }
 
+        /* Otimizações Mobile - iOS e Android */
         @media (max-width: 640px) {
+            /* Forçar tudo a ficar dentro da tela */
+            * {
+                max-width: 100vw !important;
+                box-sizing: border-box !important;
+            }
+            
+            body { 
+                padding: 0.125rem !important;
+                margin: 0 !important;
+                width: 100vw !important;
+                overflow-x: hidden !important;
+            }
+            
+            /* Container principal sem padding extra */
+            .max-w-6xl {
+                padding-left: 0.125rem !important;
+                padding-right: 0.125rem !important;
+                width: calc(100vw - 0.25rem) !important;
+                max-width: calc(100vw - 0.25rem) !important;
+                box-sizing: border-box !important;
+            }
+            
+            /* Esconder cabeçalhos de tabela */
             .mobile-hide-header { display: none; }
-            .mobile-card-row { display: block; border-bottom: 1px solid #e5e7eb; padding: 1rem; }
-            .mobile-card-row td { display: block; padding: 2px 0; border: none; text-align: left; }
+            
+            /* Transformar linhas de tabela em cards */
+            .mobile-card-row { 
+                display: block; 
+                border-bottom: 1px solid #e5e7eb; 
+                padding: 0.75rem; 
+                margin-bottom: 0.5rem;
+                background: white;
+                border-radius: 0.5rem;
+            }
+            .mobile-card-row td { 
+                display: block; 
+                padding: 0.25rem 0; 
+                border: none; 
+                text-align: left !important;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
             .mobile-card-row td:last-child { margin-top: 0.5rem; }
+            
+            /* Ajustar header */
+            #main-header {
+                gap: 0.5rem !important;
+                padding: 0.25rem 0 !important;
+                flex-wrap: wrap;
+            }
+            
+            /* Auth status em mobile */
+            #auth-status {
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 0.5rem !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 0.5rem !important;
+            }
+            
+            #auth-status .flex {
+                flex-wrap: wrap;
+                max-width: 100%;
+            }
+            
+            #auth-status button {
+                white-space: nowrap;
+                flex-shrink: 0;
+                margin-left: 0.5rem !important;
+            }
+            
+            /* Container de navegação */
+            .bg-white.p-1.rounded-full {
+                max-width: 100% !important;
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                padding: 0.25rem !important;
+            }
+            
+            /* Ajustar navegação */
+            .nav-pill { 
+                font-size: 0.7rem; 
+                padding: 0.4rem 0.6rem;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            
+            /* Cards menores */
+            .card { 
+                padding: 0.75rem !important; 
+                margin-bottom: 0.75rem !important;
+                border-radius: 0.75rem;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                max-width: 100% !important;
+            }
+            
+            /* Títulos menores */
+            h1 { 
+                font-size: 1.25rem !important; 
+                line-height: 1.2 !important;
+                margin: 0 !important;
+            }
+            h2 { font-size: 1.125rem !important; }
+            h3 { font-size: 1rem !important; }
+            
+            /* Título do sistema */
+            .text-center.md\\:text-left {
+                width: 100%;
+                max-width: 100%;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            
+            /* Botões maiores para toque */
+            .btn { 
+                min-height: 48px;
+                padding: 0.75rem 1rem;
+                font-size: 0.95rem;
+            }
+            
+            /* Inputs maiores para facilitar digitação */
+            .input-field { 
+                font-size: 16px !important; /* Previne zoom no iOS */
+                padding: 0.75rem;
+                min-height: 48px;
+            }
+            
+            /* Tabelas responsivas */
+            table { 
+                display: block; 
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                white-space: nowrap;
+            }
+            
+            /* Prevenir texto quebrando layout */
+            * { 
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+            
+            /* Ajustar modais */
+            .modal { padding: 0.5rem; }
+            
+            /* Grid responsivo */
+            .grid { 
+                grid-template-columns: 1fr !important;
+                gap: 0.5rem !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            
+            /* Colunas de grid específicas */
+            .lg\\:col-span-4, .lg\\:col-span-8, .lg\\:col-span-12 {
+                grid-column: span 1 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            
+            /* Tab content */
+            .tab-content {
+                width: 100% !important;
+                max-width: 100% !important;
+                overflow-x: hidden !important;
+            }
+            
+            /* Flex wrap para navegação */
+            .flex-col, .flex-row {
+                flex-wrap: wrap;
+            }
+            
+            /* Ajustar espaçamentos */
+            .gap-6 { gap: 0.5rem !important; }
+            .gap-4 { gap: 0.5rem !important; }
+            .gap-3 { gap: 0.25rem !important; }
+            
+            /* Remover margens laterais que causam overflow */
+            .mx-auto { 
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+            }
+            
+            /* Bordas e sombras não devem causar overflow */
+            .border, .shadow, .shadow-sm, .shadow-lg {
+                box-shadow: none !important;
+            }
+            
+            .rounded, .rounded-lg, .rounded-xl {
+                border-radius: 0.5rem !important;
+            }
+            
+            /* Sticky elements */
+            .sticky { position: relative !important; }
+            
+            /* Corrigir bordas dos cards */
+            .card.border-t-4 {
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                width: calc(100vw - 0.5rem) !important;
+                max-width: calc(100vw - 0.5rem) !important;
+                box-sizing: border-box !important;
+            }
+            
+            /* Todos os cards em mobile */
+            .card {
+                width: 100% !important;
+                max-width: calc(100vw - 0.5rem) !important;
+                box-sizing: border-box !important;
+            }
+            
+            /* Overflow seguro */
+            .overflow-hidden { overflow: hidden; }
+            .overflow-x-auto { 
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+        
+        /* Melhorias para telas muito pequenas */
+        @media (max-width: 375px) {
+            body { 
+                padding: 0.125rem !important; 
+                margin: 0 !important;
+            }
+            .card { 
+                padding: 0.5rem !important; 
+                margin: 0.25rem 0 !important;
+            }
+            .nav-pill { 
+                font-size: 0.7rem; 
+                padding: 0.4rem 0.5rem; 
+            }
+            .max-w-6xl {
+                padding-left: 0.125rem !important;
+                padding-right: 0.125rem !important;
+            }
+        }
+        
+        /* Regra específica para iPhone e Chrome mobile */
+        @media (max-width: 430px) {
+            html {
+                overflow-x: hidden !important;
+                width: 100vw !important;
+            }
+            
+            body {
+                overflow-x: hidden !important;
+                width: 100vw !important;
+                position: relative !important;
+            }
+            
+            * {
+                max-width: 100% !important;
+            }
+            
+            .card, .grid, div {
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+            }
         }
     </style>
 </head>
 <body>
 
-    <div class="max-w-6xl mx-auto pb-20">
+    <div class="max-w-6xl mx-auto pb-20" style="max-width: calc(100vw - 0.25rem); overflow-x: hidden; box-sizing: border-box; padding-left: 0.125rem; padding-right: 0.125rem;">
         
         <!-- Header -->
-        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 pt-2">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 pt-2" id="main-header">
             <div class="text-center md:text-left">
                 <h1 class="text-2xl font-bold text-gray-800 tracking-tight">Espaço Fran Kokott</h1>
                 <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Sistema de Gestão Integrado</p>
             </div>
             
-            <div class="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex overflow-x-auto max-w-full">
+            <div class="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex overflow-x-auto max-w-full" style="scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch;">
+                <style>.bg-white.p-1::-webkit-scrollbar { display: none; }</style>
                 <div onclick="window.appLogic.switchTab('agenda')" id="nav-agenda" class="nav-pill active flex items-center whitespace-nowrap">
                     <span class="mr-2">📅</span> Agenda
                 </div>
@@ -301,7 +657,7 @@
                             <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Dia</label><input type="date" id="agenda-date-input" class="input-field bg-gray-50"></div>
                             <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Hora</label><input type="time" id="agenda-time-input" class="input-field bg-gray-50"></div>
                             <div class="grid grid-cols-1 gap-4">
-                                <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label><input type="text" id="agenda-profissional" list="profissionais-list" placeholder="Quem vai atender?" class="input-field" autocomplete="off"></div>
+                                <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label><input type="text" id="agenda-profissional" list="profissionais-list" placeholder="Colaboradora" class="input-field" autocomplete="off"></div>
                                 <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cliente</label><input type="text" id="agenda-cliente" list="clientes-list" placeholder="Nome da Cliente" class="input-field" autocomplete="off"></div>
                             </div>
                             <div class="border-t border-gray-100 my-4 pt-4">
@@ -343,7 +699,7 @@
                         <div class="space-y-4">
                             <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Data</label><input type="date" id="ficha-date" class="input-field bg-gray-50"></div>
                             <div class="grid grid-cols-1 gap-4">
-                                <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label><input type="text" id="ficha-profissional" list="profissionais-list" placeholder="Quem atendeu?" class="input-field" autocomplete="off"></div>
+                                <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label><input type="text" id="ficha-profissional" list="profissionais-list" placeholder="Colaboradora" class="input-field" autocomplete="off"></div>
                                 <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cliente</label><input type="text" id="ficha-cliente" list="clientes-list" placeholder="Nome da Cliente" class="input-field" autocomplete="off"></div>
                             </div>
                             <div class="border-t border-gray-100 my-4 pt-4">
@@ -353,16 +709,19 @@
                             </div>
                             <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Observações da Ficha</label><textarea id="ficha-obs" class="input-field bg-gray-50 text-sm h-20" placeholder="Ex: Pagamento pendente, Vale, Pix direto..."></textarea></div>
                             <div class="bg-gray-50 p-4 rounded-lg flex justify-between items-center border border-gray-100 shadow-inner"><span class="text-sm font-medium text-gray-500">Total</span><div class="text-xl font-bold text-gray-800" id="ficha-total-display">R$ 0,00</div></div>
-                            <button onclick="window.appLogic.saveFicha()" id="btn-save-ficha" class="btn btn-primary w-full py-4 shadow-lg active:scale-95 text-base">Salvar Ficha</button>
+                            <div class="flex gap-2">
+                                <button onclick="window.appLogic.cancelFichaEdit()" id="btn-cancel-ficha" class="btn bg-gray-200 text-gray-700 w-1/3 hidden">Cancelar</button>
+                                <button onclick="window.appLogic.saveFicha()" id="btn-save-ficha" class="btn btn-primary flex-grow py-4 shadow-lg active:scale-95 text-base">Salvar Ficha</button>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="lg:col-span-8">
                     <div class="card h-full p-4 sm:p-6">
                         <div class="flex justify-between items-center mb-6"><h2 class="text-lg font-bold text-gray-800">Meus Registros Recentes</h2><button onclick="window.appLogic.loadFichas()" class="text-xs bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200">↻ Atualizar</button></div>
-                        <div class="overflow-hidden rounded-lg border border-gray-100">
-                            <table class="w-full text-sm text-left">
-                                <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs mobile-hide-header"><tr><th class="p-4">Data</th><th class="p-4">Profissional</th><th class="p-4">Cliente/Obs</th><th class="p-4">Itens</th><th class="p-4 text-right">Valor</th><th class="p-4 text-center">Ação</th></tr></thead>
+                        <div class="overflow-x-auto rounded-lg border border-gray-100">
+                            <table class="w-full text-sm text-left" style="min-width: 100%;">
+                                <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs mobile-hide-header"><tr><th class="p-4">Data</th><th class="p-4">Horário</th><th class="p-4">Profissional</th><th class="p-4">Cliente/Obs</th><th class="p-4">Itens</th><th class="p-4 text-right">Valor</th><th class="p-4 text-center">Ação</th></tr></thead>
                                 <tbody id="fichas-history-body" class="bg-white"></tbody>
                             </table>
                         </div>
@@ -393,8 +752,8 @@
                             <h2 class="text-lg font-bold text-gray-800">Base de Clientes</h2>
                             <div class="relative w-full sm:w-64"><input type="text" id="client-search" class="input-field pl-8 py-2" placeholder="Buscar cliente..." oninput="window.appLogic.filterClients(this.value)"><svg class="w-4 h-4 absolute left-2.5 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
                         </div>
-                        <div class="overflow-hidden rounded-lg border border-gray-100">
-                            <table class="w-full text-sm text-left"><thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs"><tr><th class="p-4">Nome</th><th class="p-4 hidden sm:table-cell">Contato</th><th class="p-4 hidden sm:table-cell">Obs</th><th class="p-4 text-center">Ações</th></tr></thead><tbody id="clients-list-body" class="bg-white divide-y divide-gray-100"></tbody></table>
+                        <div class="overflow-x-auto rounded-lg border border-gray-100">
+                            <table class="w-full text-sm text-left" style="min-width: 100%;"><thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs"><tr><th class="p-4">Nome</th><th class="p-4 hidden sm:table-cell">Contato</th><th class="p-4 hidden sm:table-cell">Obs</th><th class="p-4 text-center">Ações</th></tr></thead><tbody id="clients-list-body" class="bg-white divide-y divide-gray-100"></tbody></table>
                         </div>
                     </div>
                 </div>
@@ -421,7 +780,7 @@
                             <h2 class="text-lg font-bold text-gray-800">Controle de Estoque</h2>
                             <div class="flex gap-2"><select id="stock-filter-cat" class="input-field text-sm py-1" onchange="window.appLogic.loadStock()"><option value="all">Todas as Categorias</option><option value="venda">Venda</option><option value="uso_interno">Uso Interno</option><option value="bebidas">Bebidas</option></select><button onclick="window.appLogic.loadStock()" class="text-xs bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200">↻</button></div>
                         </div>
-                        <div class="overflow-hidden rounded-lg border border-gray-100"><table class="w-full text-sm text-left"><thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs"><tr><th class="p-4">Produto</th><th class="p-4 text-center">Qtd</th><th class="p-4 text-center">Ações</th></tr></thead><tbody id="stock-list-body" class="bg-white divide-y divide-gray-100"></tbody></table></div>
+                        <div class="overflow-x-auto rounded-lg border border-gray-100"><table class="w-full text-sm text-left" style="min-width: 100%;"><thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs"><tr><th class="p-4">Produto</th><th class="p-4 text-center">Qtd</th><th class="p-4 text-center">Ações</th></tr></thead><tbody id="stock-list-body" class="bg-white divide-y divide-gray-100"></tbody></table></div>
                     </div>
                 </div>
             </div>
@@ -462,8 +821,8 @@
                         </div>
 
                         <!-- Lista de Transações -->
-                        <div class="overflow-hidden rounded-lg border border-gray-200">
-                            <table class="w-full text-sm text-left">
+                        <div class="overflow-x-auto rounded-lg border border-gray-200">
+                            <table class="w-full text-sm text-left" style="min-width: 100%;">
                                 <thead class="bg-gray-100 text-gray-600 text-xs uppercase">
                                     <tr>
                                         <th class="p-3">Data</th>
@@ -512,8 +871,9 @@
         </div>
     </div>
 
-    <!-- Datalist de Clientes -->
+    <!-- Datalists -->
     <datalist id="clientes-list"></datalist>
+    <datalist id="profissionais-list"></datalist>
 
     <!-- Modals -->
     <div id="confirm-modal" class="modal">
@@ -651,6 +1011,7 @@
             editingClientId: null, 
             editingAgendaId: null, 
             editingExpenseId: null, // Nova variável para controle de edição do fluxo
+            editingFichaId: null, // Nova variável para controle de edição de fichas
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
@@ -776,6 +1137,7 @@
                 if(!monthInput) return;
 
                 const list = document.getElementById('fluxo-list-body');
+                if(!list) return;
                 list.innerHTML = '<tr><td colspan="5" class="text-center py-4"><span class="loading-spinner border-gray-400"></span></td></tr>';
 
                 try {
@@ -903,7 +1265,11 @@
                         list.appendChild(tr);
                     });
 
-                } catch(e) { console.error(e); list.innerHTML = '<tr><td colspan="5" class="text-center text-red-500">Erro ao carregar.</td></tr>'; }
+                } catch(e) { 
+                    console.error("Erro ao carregar fluxo:", e); 
+                    list.innerHTML = '<tr><td colspan="5" class="text-center text-red-500 py-4">Erro ao carregar fluxo de caixa</td></tr>';
+                    this.showMessage("Erro ao carregar fluxo de caixa", "error");
+                }
             },
 
             async cleanupOldAgenda(todayDate) {
@@ -1027,19 +1393,20 @@
 
             async loadStock() {
                 if(!window.userId || !window.db) return;
-                const catFilter = document.getElementById('stock-filter-cat') ? document.getElementById('stock-filter-cat').value : 'all';
-                
-                let q;
-                if(catFilter === 'all') {
-                    q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/estoque`));
-                } else {
-                    q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/estoque`), window.where('category', '==', catFilter));
-                }
+                try {
+                    const catFilter = document.getElementById('stock-filter-cat') ? document.getElementById('stock-filter-cat').value : 'all';
+                    
+                    let q;
+                    if(catFilter === 'all') {
+                        q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/estoque`));
+                    } else {
+                        q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/estoque`), window.where('category', '==', catFilter));
+                    }
 
-                const snapshot = await window.getDocs(q);
-                this.stock = [];
-                snapshot.forEach(doc => this.stock.push({id: doc.id, ...doc.data()}));
-                this.stock.sort((a,b) => a.name.localeCompare(b.name));
+                    const snapshot = await window.getDocs(q);
+                    this.stock = [];
+                    snapshot.forEach(doc => this.stock.push({id: doc.id, ...doc.data()}));
+                    this.stock.sort((a,b) => a.name.localeCompare(b.name));
 
                 const tbody = document.getElementById('stock-list-body');
                 if(tbody) {
@@ -1071,6 +1438,10 @@
                             </tr>
                         `;
                     });
+                }
+                } catch(e) {
+                    console.error("Erro ao carregar estoque:", e);
+                    this.showMessage("Erro ao carregar estoque", "error");
                 }
             },
 
@@ -1159,19 +1530,25 @@
 
             async loadClients() {
                 if(!window.userId || !window.db) return;
-                const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/clientes`));
-                const snapshot = await window.getDocs(q);
-                
-                this.clients = [];
-                snapshot.forEach(doc => this.clients.push({id: doc.id, ...doc.data()}));
-                this.clients.sort((a,b) => a.name.localeCompare(b.name));
+                try {
+                    const q = window.query(window.collection(window.db, `artifacts/${window.appId}/public/data/clientes`));
+                    const snapshot = await window.getDocs(q);
+                    
+                    this.clients = [];
+                    snapshot.forEach(doc => this.clients.push({id: doc.id, ...doc.data()}));
+                    this.clients.sort((a,b) => a.name.localeCompare(b.name));
 
-                this.updateClientDatalist(); 
-                this.renderClientsList(this.clients);
+                    this.updateClientDatalist(); 
+                    this.renderClientsList(this.clients);
+                } catch(e) {
+                    console.error("Erro ao carregar clientes:", e);
+                    this.showMessage("Erro ao carregar clientes", "error");
+                }
             },
 
             updateClientDatalist() {
                 const datalist = document.getElementById('clientes-list');
+                if(!datalist) return;
                 datalist.innerHTML = '';
                 this.clients.forEach(c => {
                     const option = document.createElement('option');
@@ -1180,17 +1557,34 @@
                 });
             },
 
+            updateProfessionalsDatalist() {
+                const datalist = document.getElementById('profissionais-list');
+                if(!datalist) return;
+                
+                // Extrair profissionais únicos das fichas
+                const professionals = new Set();
+                this.fichas.forEach(f => {
+                    if(f.professionalName) professionals.add(f.professionalName);
+                });
+                
+                datalist.innerHTML = '';
+                professionals.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    datalist.appendChild(option);
+                });
+            },
+
             renderClientsList(listData) {
                 const tbody = document.getElementById('clients-list-body');
-                tbody.innerHTML = '';
+                if(!tbody) return;
                 
-                listData.forEach(c => {
+                const rows = listData.map(c => {
                     const wppLink = c.phone ? `https://wa.me/55${c.phone.replace(/\D/g,'')}` : '#';
                     const wppDisplay = c.phone ? `<a href="${wppLink}" target="_blank" class="text-green-600 hover:underline flex items-center"><svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.506-.669-.516-.173-.009-.371-.009-.57-.009-.198 0-.52.074-.792.372-.272.297-1.04 1.017-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>${c.phone}</a>` : '-';
-
                     const clientStr = encodeURIComponent(JSON.stringify(c));
 
-                    tbody.innerHTML += `
+                    return `
                         <tr class="hover:bg-gray-50 mobile-card-row">
                             <td class="p-4 font-medium text-gray-900">${c.name}</td>
                             <td class="p-4 text-gray-600">${wppDisplay}</td>
@@ -1202,6 +1596,8 @@
                         </tr>
                     `;
                 });
+                
+                tbody.innerHTML = rows.join('');
             },
 
             filterClients(term) {
@@ -1222,6 +1618,7 @@
             // --- AGENDA ---
             addAgendaItem(type, presetValue = '') {
                 const container = document.getElementById('agenda-items-container');
+                if(!container) return;
                 const div = document.createElement('div');
                 div.className = "flex gap-2 items-center animate-fade-in item-row-agenda bg-yellow-50 p-2 rounded border border-yellow-200";
                 
@@ -1329,6 +1726,7 @@
                 const list = document.getElementById('agenda-list');
                 const empty = document.getElementById('agenda-empty');
                 
+                if(!list) return;
                 list.innerHTML = '<div class="text-center py-4"><span class="loading-spinner border-gray-400"></span></div>';
                 
                 try {
@@ -1403,7 +1801,11 @@
                         list.appendChild(div);
                     });
 
-                } catch(e) { console.error(e); list.innerHTML="Erro ao carregar"; }
+                } catch(e) { 
+                    console.error("Erro ao carregar agenda:", e); 
+                    list.innerHTML = '<div class="text-center py-8 text-red-500">Erro ao carregar agenda</div>';
+                    this.showMessage("Erro ao carregar agenda", "error");
+                }
             },
             
             deleteAgendaItem(id, creatorId) {
@@ -1453,6 +1855,7 @@
             // --- FICHAS ---
             addFichaItem(type, presetValue = '') {
                 const container = document.getElementById('ficha-items-container');
+                if(!container) return;
                 const div = document.createElement('div');
                 div.className = "flex flex-col gap-2 animate-fade-in item-row bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm mb-3"; 
                 div.dataset.type = type;
@@ -1491,7 +1894,8 @@
             calcFichaTotal() {
                 let total = 0;
                 document.querySelectorAll('.item-value').forEach(input => total += parseFloat(input.value) || 0);
-                document.getElementById('ficha-total-display').textContent = total.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+                const displayEl = document.getElementById('ficha-total-display');
+                if(displayEl) displayEl.textContent = total.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
                 return total;
             },
 
@@ -1515,15 +1919,37 @@
                 this.toggleLoading('btn-save-ficha', true);
                 try {
                     const path = `artifacts/${window.appId}/public/data/fichas`;
-                    await window.addDoc(window.collection(window.db, path), {
-                        createdBy: window.userId,
-                        creatorEmail: window.auth.currentUser.email,
-                        date, clientName: client, professionalName: professional, items, obs,
-                        total: this.calcFichaTotal(),
-                        createdAt: window.Timestamp.now()
-                    });
+                    const total = this.calcFichaTotal();
                     
-                    this.showMessage("Ficha salva!", "success");
+                    if (this.editingFichaId) {
+                        // Modo de edição
+                        await window.updateDoc(window.doc(window.db, path, this.editingFichaId), {
+                            date, 
+                            clientName: client, 
+                            professionalName: professional, 
+                            items, 
+                            obs,
+                            total,
+                            updatedAt: window.Timestamp.now()
+                        });
+                        this.showMessage("Ficha atualizada!", "success");
+                        this.editingFichaId = null;
+                    } else {
+                        // Modo de criação
+                        await window.addDoc(window.collection(window.db, path), {
+                            createdBy: window.userId,
+                            creatorEmail: window.auth.currentUser.email,
+                            date, 
+                            clientName: client, 
+                            professionalName: professional, 
+                            items, 
+                            obs,
+                            total,
+                            createdAt: window.Timestamp.now()
+                        });
+                        this.showMessage("Ficha salva!", "success");
+                    }
+                    
                     this.resetFichaForm();
                     this.loadFichas();
                 } catch (e) { console.error(e); this.showMessage("Erro: " + e.message, "error"); } 
@@ -1532,10 +1958,28 @@
 
             resetFichaForm() {
                 document.getElementById('ficha-cliente').value = '';
+                document.getElementById('ficha-profissional').value = '';
                 document.getElementById('ficha-obs').value = '';
                 document.getElementById('ficha-items-container').innerHTML = '';
                 this.addFichaItem('servico');
                 this.calcFichaTotal();
+                
+                // Resetar o botão para o estado original
+                const submitBtn = document.getElementById('btn-save-ficha');
+                if(submitBtn) {
+                    submitBtn.textContent = 'Salvar Ficha';
+                    submitBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
+                    submitBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+                }
+                
+                // Esconder botão de cancelar
+                const cancelBtn = document.getElementById('btn-cancel-ficha');
+                if(cancelBtn) {
+                    cancelBtn.classList.add('hidden');
+                }
+                
+                // Limpar o ID de edição
+                this.editingFichaId = null;
             },
 
             async loadFichas() {
@@ -1555,23 +1999,42 @@
                     snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
                     data.sort((a,b) => b.createdAt - a.createdAt);
                     
+                    this.fichas = data; // Armazenar para usar no datalist
+                    this.updateProfessionalsDatalist();
+                    
                     const tbody = document.getElementById('fichas-history-body');
-                    tbody.innerHTML = '';
-                    data.slice(0, 20).forEach(f => {
+                    if(!tbody) return;
+                    
+                    const rows = data.slice(0, 20).map(f => {
                         const date = new Date(f.date + 'T12:00').toLocaleDateString('pt-BR');
-                        const clientDisplay = f.obs ? `${f.clientName} <br><span class="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">Obs: ${f.obs}</span>` : f.clientName;
                         
-                        tbody.innerHTML += `
+                        // Extrair horário do createdAt (Timestamp do Firebase)
+                        let timeDisplay = '-';
+                        if(f.createdAt && f.createdAt.toDate) {
+                            const createdDate = f.createdAt.toDate();
+                            timeDisplay = createdDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        }
+                        
+                        const clientDisplay = f.obs ? `${f.clientName} <br><span class="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">Obs: ${f.obs}</span>` : f.clientName;
+                        const fichaStr = encodeURIComponent(JSON.stringify(f));
+                        
+                        return `
                             <tr class="hover:bg-gray-50 border-b border-gray-100 mobile-card-row">
                                 <td class="p-4 text-gray-500 font-medium">${date}</td>
+                                <td class="p-4 text-gray-600 font-mono text-sm">${timeDisplay}</td>
                                 <td class="p-4 font-bold text-indigo-900">${f.professionalName}</td>
                                 <td class="p-4 text-gray-800">${clientDisplay}</td>
                                 <td class="p-4 text-xs text-gray-400">${f.items.length} itens</td>
                                 <td class="p-4 text-right font-bold text-gray-700">R$ ${f.total.toFixed(2)}</td>
-                                <td class="p-4 text-center"><button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-300 hover:text-red-500 p-2">✕</button></td>
+                                <td class="p-4 text-center">
+                                    <button onclick="window.appLogic.startEditFicha(JSON.parse(decodeURIComponent('${fichaStr}')))" class="text-gray-400 hover:text-blue-500 p-2 mr-1" title="Editar">✏️</button>
+                                    <button onclick="window.appLogic.deleteFicha('${f.id}')" class="text-gray-300 hover:text-red-500 p-2" title="Excluir">✕</button>
+                                </td>
                             </tr>
                         `;
                     });
+                    
+                    tbody.innerHTML = rows.join('');
                 } catch (e) {
                     console.error("Erro ao carregar fichas:", e);
                 }
@@ -1592,6 +2055,69 @@
                         m.classList.remove('open');
                     } catch(e) { this.showMessage("Erro ao excluir", "error"); }
                 };
+            },
+
+            startEditFicha(ficha) {
+                if (!window.ADMIN_EMAILS || !window.ADMIN_EMAILS.includes(window.userEmail)) {
+                    return this.showMessage("Apenas administradores podem editar registros salvos.", "error");
+                }
+
+                this.editingFichaId = ficha.id;
+                
+                // Preencher os campos do formulário
+                document.getElementById('ficha-date').value = ficha.date;
+                document.getElementById('ficha-profissional').value = ficha.professionalName;
+                document.getElementById('ficha-cliente').value = ficha.clientName;
+                document.getElementById('ficha-obs').value = ficha.obs || '';
+                
+                // Limpar itens existentes
+                const container = document.getElementById('ficha-items-container');
+                container.innerHTML = '';
+                
+                // Adicionar os itens da ficha
+                ficha.items.forEach(item => {
+                    this.addFichaItem(item.type, item.name);
+                    const lastRow = container.lastElementChild;
+                    const valueInput = lastRow.querySelector('.item-value');
+                    const methodSelect = lastRow.querySelector('.item-method');
+                    
+                    if(valueInput) valueInput.value = item.value;
+                    if(methodSelect) methodSelect.value = item.method;
+                });
+                
+                this.calcFichaTotal();
+                
+                // Mudar o texto do botão para "Atualizar Ficha"
+                const submitBtn = document.getElementById('btn-save-ficha');
+                if(submitBtn) {
+                    submitBtn.textContent = '💾 Atualizar Ficha';
+                    submitBtn.classList.add('bg-amber-600', 'hover:bg-amber-700');
+                    submitBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                }
+                
+                // Mostrar botão de cancelar
+                const cancelBtn = document.getElementById('btn-cancel-ficha');
+                if(cancelBtn) {
+                    cancelBtn.classList.remove('hidden');
+                }
+                
+                // Scroll para o topo
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                
+                this.showMessage("Editando ficha. Modifique os campos e clique em 'Atualizar Ficha'.", "info");
+            },
+
+            cancelFichaEdit() {
+                this.editingFichaId = null;
+                this.resetFichaForm();
+                
+                // Esconder botão de cancelar
+                const cancelBtn = document.getElementById('btn-cancel-ficha');
+                if(cancelBtn) {
+                    cancelBtn.classList.add('hidden');
+                }
+                
+                this.showMessage("Edição cancelada.", "info");
             },
 
             // --- FECHAMENTO (Admin) ---
@@ -1981,8 +2507,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
