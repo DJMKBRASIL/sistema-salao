@@ -2,8 +2,20 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Espaço Fran Kokott - Sistema Integrado</title>
+    
+    <!-- Meta tags para iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Fran Kokott">
+    
+    <!-- Meta tags para Android -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#6366f1">
+    
+    <!-- Prevenir zoom automático no iOS -->
+    <meta name="format-detection" content="telephone=no">
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -187,13 +199,42 @@
         :root { --primary: #6366f1; --secondary: #8b5cf6; --success: #10b981; --danger: #ef4444; }
         * { box-sizing: border-box; }
         
-        body { font-family: 'Inter', sans-serif; background: #f3f4f6; padding: 1rem; -webkit-tap-highlight-color: transparent; }
+        /* Prevenir overflow horizontal em qualquer elemento */
+        html, body { 
+            max-width: 100%; 
+            overflow-x: hidden; 
+            position: relative;
+        }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: #f3f4f6; 
+            padding: 0.5rem; 
+            -webkit-tap-highlight-color: transparent;
+            -webkit-text-size-adjust: 100%;
+            -moz-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
         
         .tab-content { display: none; animation: fadeIn 0.3s ease; }
         .tab-content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
-        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
+        .btn { 
+            padding: 0.5rem 1rem; 
+            border-radius: 0.5rem; 
+            font-weight: 600; 
+            transition: all 0.2s; 
+            cursor: pointer; 
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 44px;
+            min-width: 44px; /* Área mínima de toque recomendada */
+            touch-action: manipulation; /* Previne zoom duplo-toque */
+            -webkit-user-select: none;
+            user-select: none;
+        }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); }
         .btn-primary { background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3); }
         .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(99, 102, 241, 0.4); }
@@ -202,7 +243,26 @@
         .btn-secondary { background: #4b5563; color: white; }
         .btn-edit { background: #f59e0b; color: white; }
         
-        .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid rgba(0,0,0,0.05); }
+        .card { 
+            background: white; 
+            border-radius: 1rem; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); 
+            padding: 1.5rem; 
+            margin-bottom: 1.5rem; 
+            border: 1px solid rgba(0,0,0,0.05);
+            max-width: 100%;
+            overflow: hidden;
+        }
+        
+        /* Botões de ação (editar, excluir) */
+        button[title], button[onclick*="delete"], button[onclick*="edit"] {
+            min-width: 44px;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+        }
         
         .nav-pill { padding: 0.75rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; color: #6b7280; transition: all 0.2s; border: 1px solid transparent; font-size: 0.9rem; }
         .nav-pill:hover { color: var(--primary); background: #eff6ff; }
@@ -223,6 +283,32 @@
             -webkit-appearance: none; -moz-appearance: none; appearance: none; 
             display: block; 
         }
+        
+        /* Melhorias para selects */
+        select {
+            font-size: 16px;
+            min-height: 44px;
+            padding: 0.6rem 0.75rem;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            padding-right: 2.5rem;
+        }
+        
+        /* Textarea */
+        textarea {
+            font-size: 16px;
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        /* Prevenir zoom em inputs no iOS */
+        input, select, textarea {
+            font-size: 16px !important;
+        }
 
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 50; justify-content: center; align-items: center; padding: 1rem; }
         .modal.open { display: flex; }
@@ -232,17 +318,124 @@
         .status-concluido { background-color: #e0e7ff; color: #3730a3; }
         .status-cancelado { background-color: #fee2e2; color: #991b1b; opacity: 0.7; }
 
+        /* Otimizações Mobile - iOS e Android */
         @media (max-width: 640px) {
+            body { padding: 0.5rem; }
+            
+            /* Esconder cabeçalhos de tabela */
             .mobile-hide-header { display: none; }
-            .mobile-card-row { display: block; border-bottom: 1px solid #e5e7eb; padding: 1rem; }
-            .mobile-card-row td { display: block; padding: 2px 0; border: none; text-align: left; }
+            
+            /* Transformar linhas de tabela em cards */
+            .mobile-card-row { 
+                display: block; 
+                border-bottom: 1px solid #e5e7eb; 
+                padding: 0.75rem; 
+                margin-bottom: 0.5rem;
+                background: white;
+                border-radius: 0.5rem;
+            }
+            .mobile-card-row td { 
+                display: block; 
+                padding: 0.25rem 0; 
+                border: none; 
+                text-align: left !important;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
             .mobile-card-row td:last-child { margin-top: 0.5rem; }
+            
+            /* Ajustar navegação */
+            .nav-pill { 
+                font-size: 0.75rem; 
+                padding: 0.5rem 0.75rem;
+                white-space: nowrap;
+            }
+            
+            /* Cards menores */
+            .card { 
+                padding: 1rem; 
+                margin-bottom: 1rem;
+                border-radius: 0.75rem;
+            }
+            
+            /* Títulos menores */
+            h1 { font-size: 1.5rem !important; }
+            h2 { font-size: 1.125rem !important; }
+            h3 { font-size: 1rem !important; }
+            
+            /* Botões maiores para toque */
+            .btn { 
+                min-height: 48px;
+                padding: 0.75rem 1rem;
+                font-size: 0.95rem;
+            }
+            
+            /* Inputs maiores para facilitar digitação */
+            .input-field { 
+                font-size: 16px !important; /* Previne zoom no iOS */
+                padding: 0.75rem;
+                min-height: 48px;
+            }
+            
+            /* Tabelas responsivas */
+            table { 
+                display: block; 
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                white-space: nowrap;
+            }
+            
+            /* Prevenir texto quebrando layout */
+            * { 
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+            
+            /* Ajustar modais */
+            .modal { padding: 0.5rem; }
+            
+            /* Grid responsivo */
+            .grid { 
+                grid-template-columns: 1fr !important;
+            }
+            
+            /* Colunas de grid específicas */
+            .lg\\:col-span-4, .lg\\:col-span-8, .lg\\:col-span-12 {
+                grid-column: span 1 !important;
+            }
+            
+            /* Flex wrap para navegação */
+            .flex-col, .flex-row {
+                flex-wrap: wrap;
+            }
+            
+            /* Ajustar espaçamentos */
+            .gap-6 { gap: 1rem; }
+            .gap-4 { gap: 0.75rem; }
+            .gap-3 { gap: 0.5rem; }
+            
+            /* Sticky elements */
+            .sticky { position: relative !important; }
+            
+            /* Overflow seguro */
+            .overflow-hidden { overflow: hidden; }
+            .overflow-x-auto { 
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+        
+        /* Melhorias para telas muito pequenas */
+        @media (max-width: 375px) {
+            body { padding: 0.25rem; }
+            .card { padding: 0.75rem; }
+            .nav-pill { font-size: 0.7rem; padding: 0.4rem 0.6rem; }
         }
     </style>
 </head>
 <body>
 
-    <div class="max-w-6xl mx-auto pb-20">
+    <div class="max-w-6xl mx-auto pb-20" style="max-width: 100%; overflow-x: hidden;">
         
         <!-- Header -->
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 pt-2">
@@ -251,7 +444,8 @@
                 <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Sistema de Gestão Integrado</p>
             </div>
             
-            <div class="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex overflow-x-auto max-w-full">
+            <div class="bg-white p-1 rounded-full shadow-sm border border-gray-100 flex overflow-x-auto max-w-full" style="scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch;">
+                <style>.bg-white.p-1::-webkit-scrollbar { display: none; }</style>
                 <div onclick="window.appLogic.switchTab('agenda')" id="nav-agenda" class="nav-pill active flex items-center whitespace-nowrap">
                     <span class="mr-2">📅</span> Agenda
                 </div>
@@ -367,9 +561,9 @@
                 <div class="lg:col-span-8">
                     <div class="card h-full p-4 sm:p-6">
                         <div class="flex justify-between items-center mb-6"><h2 class="text-lg font-bold text-gray-800">Meus Registros Recentes</h2><button onclick="window.appLogic.loadFichas()" class="text-xs bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200">↻ Atualizar</button></div>
-                        <div class="overflow-hidden rounded-lg border border-gray-100">
-                            <table class="w-full text-sm text-left">
-                                <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs mobile-hide-header"><tr><th class="p-4">Data</th><th class="p-4">Profissional</th><th class="p-4">Cliente/Obs</th><th class="p-4">Itens</th><th class="p-4 text-right">Valor</th><th class="p-4 text-center">Ação</th></tr></thead>
+                        <div class="overflow-x-auto rounded-lg border border-gray-100">
+                            <table class="w-full text-sm text-left" style="min-width: 100%;">
+                                <thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs mobile-hide-header"><tr><th class="p-4">Data</th><th class="p-4">Horário</th><th class="p-4">Profissional</th><th class="p-4">Cliente/Obs</th><th class="p-4">Itens</th><th class="p-4 text-right">Valor</th><th class="p-4 text-center">Ação</th></tr></thead>
                                 <tbody id="fichas-history-body" class="bg-white"></tbody>
                             </table>
                         </div>
@@ -400,8 +594,8 @@
                             <h2 class="text-lg font-bold text-gray-800">Base de Clientes</h2>
                             <div class="relative w-full sm:w-64"><input type="text" id="client-search" class="input-field pl-8 py-2" placeholder="Buscar cliente..." oninput="window.appLogic.filterClients(this.value)"><svg class="w-4 h-4 absolute left-2.5 top-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
                         </div>
-                        <div class="overflow-hidden rounded-lg border border-gray-100">
-                            <table class="w-full text-sm text-left"><thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs"><tr><th class="p-4">Nome</th><th class="p-4 hidden sm:table-cell">Contato</th><th class="p-4 hidden sm:table-cell">Obs</th><th class="p-4 text-center">Ações</th></tr></thead><tbody id="clients-list-body" class="bg-white divide-y divide-gray-100"></tbody></table>
+                        <div class="overflow-x-auto rounded-lg border border-gray-100">
+                            <table class="w-full text-sm text-left" style="min-width: 100%;"><thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs"><tr><th class="p-4">Nome</th><th class="p-4 hidden sm:table-cell">Contato</th><th class="p-4 hidden sm:table-cell">Obs</th><th class="p-4 text-center">Ações</th></tr></thead><tbody id="clients-list-body" class="bg-white divide-y divide-gray-100"></tbody></table>
                         </div>
                     </div>
                 </div>
@@ -428,7 +622,7 @@
                             <h2 class="text-lg font-bold text-gray-800">Controle de Estoque</h2>
                             <div class="flex gap-2"><select id="stock-filter-cat" class="input-field text-sm py-1" onchange="window.appLogic.loadStock()"><option value="all">Todas as Categorias</option><option value="venda">Venda</option><option value="uso_interno">Uso Interno</option><option value="bebidas">Bebidas</option></select><button onclick="window.appLogic.loadStock()" class="text-xs bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200">↻</button></div>
                         </div>
-                        <div class="overflow-hidden rounded-lg border border-gray-100"><table class="w-full text-sm text-left"><thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs"><tr><th class="p-4">Produto</th><th class="p-4 text-center">Qtd</th><th class="p-4 text-center">Ações</th></tr></thead><tbody id="stock-list-body" class="bg-white divide-y divide-gray-100"></tbody></table></div>
+                        <div class="overflow-x-auto rounded-lg border border-gray-100"><table class="w-full text-sm text-left" style="min-width: 100%;"><thead class="bg-gray-50 text-gray-500 uppercase font-semibold text-xs"><tr><th class="p-4">Produto</th><th class="p-4 text-center">Qtd</th><th class="p-4 text-center">Ações</th></tr></thead><tbody id="stock-list-body" class="bg-white divide-y divide-gray-100"></tbody></table></div>
                     </div>
                 </div>
             </div>
@@ -469,8 +663,8 @@
                         </div>
 
                         <!-- Lista de Transações -->
-                        <div class="overflow-hidden rounded-lg border border-gray-200">
-                            <table class="w-full text-sm text-left">
+                        <div class="overflow-x-auto rounded-lg border border-gray-200">
+                            <table class="w-full text-sm text-left" style="min-width: 100%;">
                                 <thead class="bg-gray-100 text-gray-600 text-xs uppercase">
                                     <tr>
                                         <th class="p-3">Data</th>
@@ -1655,12 +1849,21 @@
                     
                     const rows = data.slice(0, 20).map(f => {
                         const date = new Date(f.date + 'T12:00').toLocaleDateString('pt-BR');
+                        
+                        // Extrair horário do createdAt (Timestamp do Firebase)
+                        let timeDisplay = '-';
+                        if(f.createdAt && f.createdAt.toDate) {
+                            const createdDate = f.createdAt.toDate();
+                            timeDisplay = createdDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        }
+                        
                         const clientDisplay = f.obs ? `${f.clientName} <br><span class="text-[10px] text-amber-600 bg-amber-50 px-1 rounded">Obs: ${f.obs}</span>` : f.clientName;
                         const fichaStr = encodeURIComponent(JSON.stringify(f));
                         
                         return `
                             <tr class="hover:bg-gray-50 border-b border-gray-100 mobile-card-row">
                                 <td class="p-4 text-gray-500 font-medium">${date}</td>
+                                <td class="p-4 text-gray-600 font-mono text-sm">${timeDisplay}</td>
                                 <td class="p-4 font-bold text-indigo-900">${f.professionalName}</td>
                                 <td class="p-4 text-gray-800">${clientDisplay}</td>
                                 <td class="p-4 text-xs text-gray-400">${f.items.length} itens</td>
