@@ -38,7 +38,7 @@
             getDocs, 
             addDoc,
             updateDoc, 
-            setDoc, // Adicionado para permitir salvar relatórios com ID específico
+            setDoc,
             Timestamp 
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -85,11 +85,9 @@
                         window.userEmail = user.email;
                         updateAuthUI(user);
                         checkPermissions(user.email);
-                        // Verifica se appLogic já carregou antes de chamar init
                         if(window.appLogic) {
                             window.appLogic.init();
                         } else {
-                            console.warn("appLogic ainda não carregado, tentando novamente em 500ms");
                             setTimeout(() => window.appLogic && window.appLogic.init(), 500);
                         }
                     } else {
@@ -162,9 +160,6 @@
                     msg = "O navegador bloqueou a janela de login. Por favor, permita pop-ups para este site.";
                     alert(msg);
                 }
-                if (e.code === 'auth/web-storage-unsupported') {
-                    msg = "Navegador bloqueando cookies. Tente abrir no Chrome ou Safari.";
-                }
                 if(window.appLogic && window.appLogic.showMessage) window.appLogic.showMessage(msg, 'error'); 
             }
         };
@@ -176,7 +171,6 @@
 
         document.addEventListener('DOMContentLoaded', initializeFirebase);
 
-        // Exports para uso no appLogic
         window.collection = collection;
         window.addDoc = addDoc;
         window.updateDoc = updateDoc;
@@ -206,6 +200,7 @@
         .btn-danger { background: var(--danger); color: white; }
         .btn-success { background: var(--success); color: white; }
         .btn-secondary { background: #4b5563; color: white; }
+        .btn-edit { background: #f59e0b; color: white; }
         
         .card { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid rgba(0,0,0,0.05); }
         
@@ -461,8 +456,8 @@
 
                         <!-- Botão Adicionar Despesa -->
                         <div class="flex justify-end mb-4">
-                            <button onclick="document.getElementById('expense-modal').classList.add('open')" class="btn btn-danger text-sm shadow-sm">
-                                ➖ Lançar Despesa
+                            <button onclick="window.appLogic.openExpenseModal()" class="btn btn-primary bg-gray-800 text-sm shadow-sm">
+                                ➕ Novo Lançamento
                             </button>
                         </div>
 
@@ -535,24 +530,32 @@
     <!-- Modal Lançar Despesa (Fluxo) -->
     <div id="expense-modal" class="modal">
         <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
-            <h3 class="text-lg font-bold text-gray-900 mb-4">Nova Despesa</h3>
+            <h3 class="text-lg font-bold text-gray-900 mb-4" id="expense-modal-title">Novo Lançamento</h3>
             <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Tipo</label>
+                    <select id="expense-type" class="input-field font-bold">
+                        <option value="out" selected>🔴 Saída (Despesa)</option>
+                        <option value="in">🟢 Entrada (Receita)</option>
+                    </select>
+                </div>
                 <div><label class="block text-xs font-semibold text-gray-500 mb-1">Data</label><input type="date" id="expense-date" class="input-field"></div>
-                <div><label class="block text-xs font-semibold text-gray-500 mb-1">Descrição</label><input type="text" id="expense-desc" class="input-field" placeholder="Ex: Conta de Luz"></div>
+                <div><label class="block text-xs font-semibold text-gray-500 mb-1">Descrição</label><input type="text" id="expense-desc" class="input-field" placeholder="Ex: Conta de Luz / Venda Avulsa"></div>
                 <div><label class="block text-xs font-semibold text-gray-500 mb-1">Categoria</label>
                     <select id="expense-cat" class="input-field">
-                        <option value="insumos">Insumos</option>
+                        <option value="insumos">Insumos/Produtos</option>
                         <option value="pessoal">Pessoal/Comissões</option>
                         <option value="fixas">Contas Fixas</option>
                         <option value="marketing">Marketing</option>
+                        <option value="venda_extra">Venda Extra</option>
                         <option value="outros">Outros</option>
                     </select>
                 </div>
                 <div><label class="block text-xs font-semibold text-gray-500 mb-1">Valor (R$)</label><input type="number" id="expense-val" class="input-field" step="0.01"></div>
             </div>
             <div class="flex justify-end gap-3 mt-6">
-                <button onclick="document.getElementById('expense-modal').classList.remove('open')" class="btn bg-gray-100 text-gray-700">Cancelar</button>
-                <button onclick="window.appLogic.saveExpense()" class="btn btn-danger">Lançar</button>
+                <button onclick="window.appLogic.cancelEditExpense()" class="btn bg-gray-100 text-gray-700">Cancelar</button>
+                <button onclick="window.appLogic.saveExpense()" class="btn btn-primary bg-gray-800" id="btn-save-expense">Salvar</button>
             </div>
         </div>
     </div>
@@ -647,6 +650,7 @@
             targetCollabForPDF: null, 
             editingClientId: null, 
             editingAgendaId: null, 
+            editingExpenseId: null, // Nova variável para controle de edição do fluxo
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
@@ -684,26 +688,77 @@
             },
 
             // --- FLUXO DE CAIXA ---
+            openExpenseModal() {
+                this.editingExpenseId = null;
+                document.getElementById('expense-modal-title').textContent = "Novo Lançamento";
+                document.getElementById('btn-save-expense').textContent = "Salvar";
+                document.getElementById('expense-desc').value = '';
+                document.getElementById('expense-val').value = '';
+                document.getElementById('expense-type').value = 'out'; // Default
+                document.getElementById('expense-cat').value = 'insumos';
+                
+                const now = new Date();
+                const today = now.toISOString().split('T')[0];
+                document.getElementById('expense-date').value = today;
+
+                document.getElementById('expense-modal').classList.add('open');
+            },
+
+            cancelEditExpense() {
+                this.editingExpenseId = null;
+                document.getElementById('expense-modal').classList.remove('open');
+            },
+
             async saveExpense() {
                 if(!window.userId) return this.showMessage("Faça login", "error");
                 const date = document.getElementById('expense-date').value;
                 const desc = document.getElementById('expense-desc').value.trim();
                 const category = document.getElementById('expense-cat').value;
+                const type = document.getElementById('expense-type').value; // 'in' ou 'out'
                 const value = parseFloat(document.getElementById('expense-val').value) || 0;
 
                 if(!date || !desc || value <= 0) return this.showMessage("Preencha todos os campos", "error");
 
                 try {
-                    await window.addDoc(window.collection(window.db, `artifacts/${window.appId}/public/data/expenses`), {
-                        date, desc, category, value, type: 'out',
-                        createdAt: window.Timestamp.now()
-                    });
-                    document.getElementById('expense-modal').classList.remove('open');
-                    this.showMessage("Despesa lançada!", "success");
-                    document.getElementById('expense-desc').value = '';
-                    document.getElementById('expense-val').value = '';
+                    const collectionPath = `artifacts/${window.appId}/public/data/expenses`;
+                    
+                    if (this.editingExpenseId) {
+                        // Edição
+                        await window.updateDoc(window.doc(window.db, collectionPath, this.editingExpenseId), {
+                            date, desc, category, value, type
+                        });
+                        this.showMessage("Lançamento atualizado!", "success");
+                    } else {
+                        // Criação
+                        await window.addDoc(window.collection(window.db, collectionPath), {
+                            date, desc, category, value, type,
+                            createdAt: window.Timestamp.now()
+                        });
+                        this.showMessage("Lançamento salvo!", "success");
+                    }
+                    
+                    this.cancelEditExpense();
                     this.loadFluxo();
-                } catch(e) { this.showMessage("Erro ao salvar despesa", "error"); }
+                } catch(e) { this.showMessage("Erro ao salvar", "error"); }
+            },
+
+            startEditExpense(transaction) {
+                if(transaction.isSystem) {
+                    alert("Este item foi gerado automaticamente por uma Ficha. Edite a Ficha original para corrigir.");
+                    return;
+                }
+
+                this.editingExpenseId = transaction.id;
+                document.getElementById('expense-modal-title').textContent = "Editar Lançamento";
+                document.getElementById('btn-save-expense').textContent = "Atualizar";
+                
+                document.getElementById('expense-date').value = transaction.date;
+                document.getElementById('expense-desc').value = transaction.desc;
+                document.getElementById('expense-cat').value = transaction.category;
+                document.getElementById('expense-val').value = transaction.value;
+                document.getElementById('expense-type').value = transaction.type;
+
+                document.getElementById('expense-modal').classList.add('open');
             },
 
             async deleteExpense(id) {
@@ -739,30 +794,69 @@
                     let totalIn = 0;
                     let totalOut = 0;
 
+                    // Processa Fichas e SEPARA Produtos de Serviços
                     snapFichas.forEach(doc => {
                         const d = doc.data();
-                        totalIn += d.total;
-                        transactions.push({
-                            id: doc.id,
-                            date: d.date,
-                            desc: `Atendimento: ${d.clientName}`,
-                            category: 'Serviços',
-                            value: d.total,
-                            type: 'in',
-                            isSystem: true
-                        });
+                        
+                        let serviceTotal = 0;
+                        
+                        if(d.items && Array.isArray(d.items)) {
+                            d.items.forEach(item => {
+                                if(item.type === 'produto') {
+                                    // Adiciona produto como linha individual de entrada
+                                    totalIn += item.value;
+                                    transactions.push({
+                                        id: doc.id,
+                                        date: d.date,
+                                        desc: `Venda: ${item.name} (${d.clientName})`,
+                                        category: 'venda_extra',
+                                        value: item.value,
+                                        type: 'in',
+                                        isSystem: true // Veio de ficha
+                                    });
+                                } else {
+                                    // Soma serviços
+                                    serviceTotal += item.value;
+                                }
+                            });
+                        } else {
+                            // Fallback para fichas antigas sem array de itens estruturado
+                            serviceTotal = d.total;
+                        }
+
+                        if (serviceTotal > 0) {
+                            totalIn += serviceTotal;
+                            transactions.push({
+                                id: doc.id,
+                                date: d.date,
+                                desc: `Atendimento: ${d.clientName}`,
+                                category: 'Serviços',
+                                value: serviceTotal,
+                                type: 'in',
+                                isSystem: true
+                            });
+                        }
                     });
 
+                    // Processa Lançamentos Manuais
                     snapExpenses.forEach(doc => {
                         const d = doc.data();
-                        totalOut += d.value;
+                        // Verifica o tipo (se não tiver 'type', assume 'out' por compatibilidade antiga)
+                        const type = d.type || 'out';
+                        
+                        if (type === 'in') {
+                            totalIn += d.value;
+                        } else {
+                            totalOut += d.value;
+                        }
+
                         transactions.push({
                             id: doc.id,
                             date: d.date,
                             desc: d.desc,
                             category: d.category,
                             value: d.value,
-                            type: 'out',
+                            type: type,
                             isSystem: false
                         });
                     });
@@ -777,15 +871,22 @@
                     balEl.className = `text-2xl font-bold ${bal >= 0 ? 'text-blue-600' : 'text-red-600'}`;
 
                     list.innerHTML = '';
-                    const catMap = { 'insumos': 'Insumos', 'pessoal': 'Pessoal', 'fixas': 'Fixas', 'marketing': 'Mkt', 'outros': 'Outros' };
+                    const catMap = { 'insumos': 'Insumos', 'pessoal': 'Pessoal', 'fixas': 'Fixas', 'marketing': 'Mkt', 'venda_extra': 'Venda', 'outros': 'Outros' };
 
                     transactions.forEach(t => {
                         const colorClass = t.type === 'in' ? 'text-green-600' : 'text-red-600';
                         const sign = t.type === 'in' ? '+' : '-';
                         const dateFmt = t.date.split('-').reverse().slice(0,2).join('/');
                         
-                        const delBtn = t.isSystem ? '<span class="text-xs text-gray-300">Auto</span>' : 
-                            `<button onclick="window.appLogic.deleteExpense('${t.id}')" class="text-gray-400 hover:text-red-500">✕</button>`;
+                        const transactionStr = encodeURIComponent(JSON.stringify(t));
+
+                        // Botão de deletar (apenas manuais)
+                        const delBtn = t.isSystem ? '' : 
+                            `<button onclick="window.appLogic.deleteExpense('${t.id}')" class="text-gray-400 hover:text-red-500 p-1" title="Excluir">✕</button>`;
+                        
+                        // Botão de editar (apenas manuais, ou alerta para sistema)
+                        const editBtn = t.isSystem ? '<span class="text-xs text-gray-300 mr-2">Auto</span>' : 
+                            `<button onclick="window.appLogic.startEditExpense(JSON.parse(decodeURIComponent('${transactionStr}')))" class="text-gray-400 hover:text-blue-500 p-1 mr-1" title="Editar">✏️</button>`;
 
                         const tr = document.createElement('tr');
                         tr.className = "hover:bg-gray-50 border-b border-gray-100";
@@ -794,7 +895,10 @@
                             <td class="p-3 font-medium text-gray-800">${t.desc}</td>
                             <td class="p-3 text-xs text-gray-500 uppercase">${catMap[t.category] || t.category}</td>
                             <td class="p-3 text-right font-bold ${colorClass}">${sign} R$ ${t.value.toFixed(2)}</td>
-                            <td class="p-3 text-center">${delBtn}</td>
+                            <td class="p-3 text-center flex justify-center items-center">
+                                ${editBtn}
+                                ${delBtn}
+                            </td>
                         `;
                         list.appendChild(tr);
                     });
@@ -1531,8 +1635,9 @@
                 const collabs = {}; const products = [];
                 let gross = 0; let fees = 0;
 
-                const signalRegex = /(?:sinal|adiantamento)[^\d]*[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)/i;
-                const signalRegexReverse = /[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)\s*(?:sinal|adiantamento)/i;
+                // regex atualizado para incluir "vale"
+                const signalRegex = /(?:sinal|adiantamento|vale)[^\d]*[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)/i;
+                const signalRegexReverse = /[-]?\s*(?:R\$)?\s*(\d+(?:[.,]\d{2})?)\s*(?:sinal|adiantamento|vale)/i;
 
                 fichas.forEach(f => {
                     const prof = f.professionalName || 'Desconhecido';
@@ -1611,7 +1716,7 @@
                         `<div class="mt-3 bg-amber-50 p-2 rounded text-[10px] text-amber-800 border border-amber-100"><strong>Obs Fichas:</strong><br>${c.obsList.join('<br>')}</div>` : '';
 
                     const advanceHtml = c.advances > 0 ? 
-                        `<div class="text-red-600 font-bold mt-1">(-) Adiantamentos/Sinais: R$ ${c.advances.toFixed(2)}</div>` : '';
+                        `<div class="text-red-600 font-bold mt-1">(-) Adiantamentos/Sinais/Vales: R$ ${c.advances.toFixed(2)}</div>` : '';
 
                     cContainer.innerHTML += `
                         <div class="bg-white border border-gray-100 rounded-xl p-6 shadow-sm relative">
