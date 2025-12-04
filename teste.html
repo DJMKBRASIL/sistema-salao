@@ -509,6 +509,14 @@
             /* Sticky elements */
             .sticky { position: relative !important; }
             
+            /* Corrigir bordas dos cards */
+            .card.border-t-4 {
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            
             /* Overflow seguro */
             .overflow-hidden { overflow: hidden; }
             .overflow-x-auto { 
@@ -627,7 +635,7 @@
                             <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Dia</label><input type="date" id="agenda-date-input" class="input-field bg-gray-50"></div>
                             <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Hora</label><input type="time" id="agenda-time-input" class="input-field bg-gray-50"></div>
                             <div class="grid grid-cols-1 gap-4">
-                                <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label><input type="text" id="agenda-profissional" list="profissionais-list" placeholder="Quem vai atender?" class="input-field" autocomplete="off"></div>
+                                <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label><input type="text" id="agenda-profissional" list="profissionais-list" placeholder="Colaboradora" class="input-field" autocomplete="off"></div>
                                 <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cliente</label><input type="text" id="agenda-cliente" list="clientes-list" placeholder="Nome da Cliente" class="input-field" autocomplete="off"></div>
                             </div>
                             <div class="border-t border-gray-100 my-4 pt-4">
@@ -669,7 +677,7 @@
                         <div class="space-y-4">
                             <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Data</label><input type="date" id="ficha-date" class="input-field bg-gray-50"></div>
                             <div class="grid grid-cols-1 gap-4">
-                                <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label><input type="text" id="ficha-profissional" list="profissionais-list" placeholder="Quem atendeu?" class="input-field" autocomplete="off"></div>
+                                <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Profissional</label><input type="text" id="ficha-profissional" list="profissionais-list" placeholder="Colaboradora" class="input-field" autocomplete="off"></div>
                                 <div><label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Cliente</label><input type="text" id="ficha-cliente" list="clientes-list" placeholder="Nome da Cliente" class="input-field" autocomplete="off"></div>
                             </div>
                             <div class="border-t border-gray-100 my-4 pt-4">
