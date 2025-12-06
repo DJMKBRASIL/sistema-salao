@@ -2706,8 +2706,36 @@
                 // Salvar
                 doc.save(`recibo_${collabName.replace(/\s+/g, '_')}_${this.reportData.end}.pdf`);
                 
+                // Verificar se deve lançar no fluxo de caixa
+                const shouldRegisterExpense = document.getElementById('register-expense-check').checked;
+                
+                if(shouldRegisterExpense) {
+                    try {
+                        // Lançar saída no fluxo de caixa
+                        const today = new Date();
+                        const dateStr = today.toISOString().split('T')[0];
+                        
+                        await window.addDoc(window.collection(window.db, `artifacts/${window.appId}/public/data/expenses`), {
+                            type: 'saida',
+                            date: dateStr,
+                            desc: `Pagamento - ${collabName}`,
+                            cat: 'pessoal',
+                            value: finalPay,
+                            createdBy: window.userId,
+                            createdAt: window.Timestamp.now(),
+                            source: 'fechamento_pdf' // Identificar origem
+                        });
+                        
+                        this.showMessage(files.length > 0 ? `PDF gerado com ${files.length} anexo(s) e lançado no Fluxo de Caixa!` : "PDF Gerado e lançado no Fluxo de Caixa!", "success");
+                    } catch(e) {
+                        console.error('Erro ao lançar no fluxo:', e);
+                        this.showMessage("PDF gerado, mas erro ao lançar no Fluxo: " + e.message, "error");
+                    }
+                } else {
+                    this.showMessage(files.length > 0 ? `PDF gerado com ${files.length} anexo(s)!` : "PDF Gerado!", "success");
+                }
+                
                 document.getElementById('receipt-modal').classList.remove('open');
-                this.showMessage(files.length > 0 ? `PDF gerado com ${files.length} anexo(s)!` : "PDF Gerado!", "success");
             },
 
             readFileAsDataURL(file) {
