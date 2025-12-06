@@ -320,6 +320,36 @@
         .status-concluido { background-color: #e0e7ff; color: #3730a3; }
         .status-cancelado { background-color: #fee2e2; color: #991b1b; opacity: 0.7; }
 
+        /* Abas da Agenda */
+        .agenda-tab-btn {
+            background-color: #f3f4f6;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+        }
+        .agenda-tab-btn:hover {
+            background-color: #e5e7eb;
+            color: #374151;
+        }
+        .agenda-tab-btn.active {
+            background-color: #6366f1;
+            color: white;
+            border-color: #6366f1;
+        }
+        .scrollbar-thin::-webkit-scrollbar {
+            height: 6px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
         /* Otimizações Mobile - iOS e Android */
         @media (max-width: 640px) {
             /* Forçar tudo a ficar dentro da tela */
@@ -675,16 +705,29 @@
                         </div>
                     </div>
                 </div>
-                <!-- Coluna Direita: Lista Agenda -->
+                <!-- Coluna Direita: Lista Agenda com Abas por Colaboradora -->
                 <div class="lg:col-span-8">
                     <div class="card h-full p-4 sm:p-6">
-                        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                        <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                             <h2 class="text-lg font-bold text-gray-800">Agenda do Dia</h2>
                             <div class="flex gap-2 w-full sm:w-auto">
                                 <input type="date" id="agenda-filter-date" class="input-field py-1 text-sm w-full sm:w-auto" onchange="window.appLogic.loadAgenda()">
                                 <button onclick="window.appLogic.loadAgenda()" class="text-xs bg-gray-100 text-gray-600 px-3 py-2 rounded hover:bg-gray-200">↻</button>
                             </div>
                         </div>
+                        
+                        <!-- Abas de Colaboradoras -->
+                        <div class="border-b border-gray-200 mb-4">
+                            <div id="agenda-tabs" class="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                                <button onclick="window.appLogic.switchAgendaTab('todas')" 
+                                        class="agenda-tab-btn px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap active"
+                                        data-tab="todas">
+                                    📋 Todas
+                                </button>
+                                <!-- Abas dinâmicas serão inseridas aqui -->
+                            </div>
+                        </div>
+                        
                         <div id="agenda-list" class="space-y-3"></div>
                         <div id="agenda-empty" class="text-center py-12 text-gray-400 hidden">Nenhum agendamento para este dia.</div>
                     </div>
@@ -1045,6 +1088,8 @@
             editingAgendaId: null, 
             editingExpenseId: null, // Nova variável para controle de edição do fluxo
             editingFichaId: null, // Nova variável para controle de edição de fichas
+            currentAgendaTab: 'todas', // Aba atual da agenda
+            agendaItems: [], // Armazenar todos os itens da agenda
             cardRates: { 'pix': 0, 'dinheiro': 0, 'pendente': 0, 'debito': 0.0137, 'credito_1x': 0.0315, 'credito_2x': 0.0539, 'credito_3x': 0.0612 },
 
             init() {
@@ -1772,6 +1817,8 @@
                     list.innerHTML = '';
                     if(snapshot.empty) {
                         empty.classList.remove('hidden');
+                        this.agendaItems = [];
+                        this.updateAgendaTabs();
                         return;
                     }
                     empty.classList.add('hidden');
@@ -1779,66 +1826,145 @@
                     const items = [];
                     snapshot.forEach(doc => items.push({id: doc.id, ...doc.data()}));
                     items.sort((a,b) => a.time.localeCompare(b.time));
-
-                    items.forEach(item => {
-                        const statusColors = {
-                            'agendado': 'status-agendado',
-                            'confirmado': 'status-confirmado',
-                            'concluido': 'status-concluido',
-                            'cancelado': 'status-cancelado'
-                        };
-                        const cls = statusColors[item.status] || '';
-                        
-                        const turnBtn = item.status === 'concluido' 
-                            ? `<button onclick='window.appLogic.turnToFicha(${JSON.stringify(item)})' class="text-xs bg-indigo-600 text-white px-2 py-1 rounded shadow ml-2 hover:bg-indigo-700 transition-colors">Virar Ficha ➡️</button>` 
-                            : '';
-
-                        const itemStr = encodeURIComponent(JSON.stringify(item));
-                        
-                        const editBtn = `<button onclick="window.appLogic.startEditAgenda(JSON.parse(decodeURIComponent('${itemStr}')))" class="text-gray-400 hover:text-blue-500 p-1 mr-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>`;
-                        
-                        const deleteBtn = `<button onclick="window.appLogic.deleteAgendaItem('${item.id}', '${item.createdBy}')" class="text-gray-400 hover:text-red-500 p-1 ml-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
-
-                        const servicesDisplay = Array.isArray(item.services) ? item.services.join(', ') : (item.service || 'Serviço não especificado');
-
-                        const div = document.createElement('div');
-                        div.className = `p-4 rounded-lg border shadow-sm flex flex-col gap-2 ${cls} border-opacity-50 transition-all hover:shadow-md`;
-                        div.innerHTML = `
-                            <div class="flex justify-between items-start">
-                                <div class="flex gap-3">
-                                    <div class="text-2xl font-bold opacity-80 font-mono">${item.time}</div>
-                                    <div>
-                                        <div class="font-bold text-lg leading-tight text-gray-900">${item.client}</div>
-                                        <div class="text-sm opacity-90 mt-0.5">${servicesDisplay}</div>
-                                        <div class="text-xs font-semibold uppercase tracking-wide mt-1 opacity-75 flex items-center gap-1">
-                                            <span class="w-2 h-2 rounded-full bg-current opacity-50"></span> ${item.prof}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="flex flex-col items-end gap-2">
-                                    <div class="flex items-center bg-white/50 rounded p-0.5">
-                                        <select onchange="window.appLogic.updateAgendaStatus('${item.id}', this.value)" class="text-xs border-none bg-transparent font-medium focus:ring-0 cursor-pointer py-1 pl-1 pr-6">
-                                            <option value="agendado" ${item.status==='agendado'?'selected':''}>🟡 Agendado</option>
-                                            <option value="confirmado" ${item.status==='confirmado'?'selected':''}>🟢 Confirmado</option>
-                                            <option value="concluido" ${item.status==='concluido'?'selected':''}>✅ Concluído</option>
-                                            <option value="cancelado" ${item.status==='cancelado'?'selected':''}>🔴 Cancelado</option>
-                                        </select>
-                                        ${editBtn}
-                                        ${deleteBtn}
-                                    </div>
-                                    ${turnBtn}
-                                </div>
-                            </div>
-                            ${item.obs ? `<div class="text-xs mt-2 pt-2 border-t border-black/10 text-gray-600 italic">Obs: ${item.obs}</div>` : ''}
-                        `;
-                        list.appendChild(div);
-                    });
+                    
+                    // Armazenar todos os itens
+                    this.agendaItems = items;
+                    
+                    // Atualizar abas
+                    this.updateAgendaTabs();
+                    
+                    // Renderizar itens filtrados
+                    this.renderAgendaItems();
 
                 } catch(e) { 
                     console.error("Erro ao carregar agenda:", e); 
                     list.innerHTML = '<div class="text-center py-8 text-red-500">Erro ao carregar agenda</div>';
                     this.showMessage("Erro ao carregar agenda", "error");
                 }
+            },
+
+            updateAgendaTabs() {
+                const tabsContainer = document.getElementById('agenda-tabs');
+                if(!tabsContainer) return;
+                
+                // Extrair colaboradoras únicas
+                const collaborators = [...new Set(this.agendaItems.map(item => item.prof))].sort();
+                
+                // Limpar abas existentes (exceto "Todas")
+                tabsContainer.innerHTML = `
+                    <button onclick="window.appLogic.switchAgendaTab('todas')" 
+                            class="agenda-tab-btn px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${this.currentAgendaTab === 'todas' ? 'active' : ''}"
+                            data-tab="todas">
+                        📋 Todas
+                    </button>
+                `;
+                
+                // Adicionar aba para cada colaboradora
+                collaborators.forEach(collab => {
+                    const count = this.agendaItems.filter(item => item.prof === collab).length;
+                    const isActive = this.currentAgendaTab === collab;
+                    
+                    tabsContainer.innerHTML += `
+                        <button onclick="window.appLogic.switchAgendaTab('${collab}')" 
+                                class="agenda-tab-btn px-4 py-2 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${isActive ? 'active' : ''}"
+                                data-tab="${collab}">
+                            👤 ${collab} <span class="ml-1 opacity-60">(${count})</span>
+                        </button>
+                    `;
+                });
+            },
+
+            switchAgendaTab(tabName) {
+                this.currentAgendaTab = tabName;
+                
+                // Atualizar visual das abas
+                document.querySelectorAll('.agenda-tab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                    if(btn.dataset.tab === tabName) {
+                        btn.classList.add('active');
+                    }
+                });
+                
+                // Renderizar itens filtrados
+                this.renderAgendaItems();
+            },
+
+            renderAgendaItems() {
+                const list = document.getElementById('agenda-list');
+                const empty = document.getElementById('agenda-empty');
+                
+                if(!list) return;
+                
+                // Filtrar itens pela aba atual
+                const filteredItems = this.currentAgendaTab === 'todas' 
+                    ? this.agendaItems 
+                    : this.agendaItems.filter(item => item.prof === this.currentAgendaTab);
+                
+                list.innerHTML = '';
+                
+                if(filteredItems.length === 0) {
+                    empty.classList.remove('hidden');
+                    empty.textContent = this.currentAgendaTab === 'todas' 
+                        ? 'Nenhum agendamento para este dia.' 
+                        : `Nenhum agendamento para ${this.currentAgendaTab} neste dia.`;
+                    return;
+                }
+                
+                empty.classList.add('hidden');
+                
+                filteredItems.forEach(item => {
+                    const statusColors = {
+                        'agendado': 'status-agendado',
+                        'confirmado': 'status-confirmado',
+                        'concluido': 'status-concluido',
+                        'cancelado': 'status-cancelado'
+                    };
+                    const cls = statusColors[item.status] || '';
+                    
+                    const turnBtn = item.status === 'concluido' 
+                        ? `<button onclick='window.appLogic.turnToFicha(${JSON.stringify(item)})' class="text-xs bg-indigo-600 text-white px-2 py-1 rounded shadow ml-2 hover:bg-indigo-700 transition-colors">Virar Ficha ➡️</button>` 
+                        : '';
+
+                    const itemStr = encodeURIComponent(JSON.stringify(item));
+                    
+                    const editBtn = `<button onclick="window.appLogic.startEditAgenda(JSON.parse(decodeURIComponent('${itemStr}')))" class="text-gray-400 hover:text-blue-500 p-1 mr-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>`;
+                    
+                    const deleteBtn = `<button onclick="window.appLogic.deleteAgendaItem('${item.id}', '${item.createdBy}')" class="text-gray-400 hover:text-red-500 p-1 ml-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>`;
+
+                    const servicesDisplay = Array.isArray(item.services) ? item.services.join(', ') : (item.service || 'Serviço não especificado');
+
+                    const div = document.createElement('div');
+                    div.className = `p-4 rounded-lg border shadow-sm flex flex-col gap-2 ${cls} border-opacity-50 transition-all hover:shadow-md`;
+                    div.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div class="flex gap-3">
+                                <div class="text-2xl font-bold opacity-80 font-mono">${item.time}</div>
+                                <div>
+                                    <div class="font-bold text-lg leading-tight text-gray-900">${item.client}</div>
+                                    <div class="text-sm opacity-90 mt-0.5">${servicesDisplay}</div>
+                                    <div class="text-xs font-semibold uppercase tracking-wide mt-1 opacity-75 flex items-center gap-1">
+                                        <span class="w-2 h-2 rounded-full bg-current opacity-50"></span> ${item.prof}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end gap-2">
+                                <div class="flex items-center bg-white/50 rounded p-0.5">
+                                    <select onchange="window.appLogic.updateAgendaStatus('${item.id}', this.value)" class="text-xs border-none bg-transparent font-medium focus:ring-0 cursor-pointer py-1 pl-1 pr-6">
+                                        <option value="agendado" ${item.status==='agendado'?'selected':''}>🟡 Agendado</option>
+                                        <option value="confirmado" ${item.status==='confirmado'?'selected':''}>🟢 Confirmado</option>
+                                        <option value="concluido" ${item.status==='concluido'?'selected':''}>✅ Concluído</option>
+                                        <option value="cancelado" ${item.status==='cancelado'?'selected':''}>🔴 Cancelado</option>
+                                    </select>
+                                    ${editBtn}
+                                    ${deleteBtn}
+                                </div>
+                                ${turnBtn}
+                            </div>
+                        </div>
+                        ${item.obs ? `<div class="text-xs mt-2 pt-2 border-t border-black/10 text-gray-600 italic">Obs: ${item.obs}</div>` : ''}
+                    `;
+                    list.appendChild(div);
+                });
             },
             
             deleteAgendaItem(id, creatorId) {
