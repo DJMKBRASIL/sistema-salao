@@ -47,7 +47,8 @@
             collection, 
             query, 
             where, 
-            getDocs, 
+            getDocs,
+            getDoc, 
             addDoc,
             updateDoc, 
             setDoc,
@@ -190,6 +191,7 @@
         window.query = query;
         window.where = where;
         window.getDocs = getDocs;
+        window.getDoc = getDoc;
         window.deleteDoc = deleteDoc;
         window.doc = doc;
         window.Timestamp = Timestamp;
@@ -995,6 +997,37 @@
                 </table>
                 <div id="saved-loading" class="text-center py-8 hidden"><span class="loading-spinner border-gray-400"></span></div>
                 <div id="saved-empty" class="text-center py-8 text-gray-400 hidden">Nenhum fechamento salvo encontrado.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Fichas do Fechamento -->
+    <div id="edit-closing-modal" class="modal">
+        <div class="bg-white rounded-xl p-6 max-w-4xl w-full mx-4 shadow-2xl max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900">Editar Fichas</h3>
+                    <p class="text-sm text-gray-500 mt-1">Profissional: <span id="edit-modal-collab-name" class="font-semibold text-gray-700"></span></p>
+                </div>
+                <button onclick="window.appLogic.closeEditModal()" class="text-gray-400 hover:text-gray-600 p-2 text-2xl leading-none">✕</button>
+            </div>
+            <div class="overflow-y-auto flex-grow">
+                <div id="edit-modal-fichas-list" class="space-y-4">
+                    <!-- Fichas serão carregadas aqui -->
+                </div>
+                <div id="edit-modal-loading" class="text-center py-12 hidden">
+                    <span class="loading-spinner border-gray-400"></span>
+                    <p class="text-gray-500 mt-3">Carregando fichas...</p>
+                </div>
+                <div id="edit-modal-empty" class="text-center py-12 text-gray-400 hidden">
+                    <svg class="w-16 h-16 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <p>Nenhuma ficha encontrada para este profissional.</p>
+                </div>
+            </div>
+            <div class="border-t pt-4 mt-4">
+                <button onclick="window.appLogic.closeEditModal()" class="btn bg-gray-200 text-gray-700 w-full">Fechar</button>
             </div>
         </div>
     </div>
@@ -2120,6 +2153,180 @@
                 this.showMessage("Edição cancelada.", "info");
             },
 
+            // --- EDIÇÃO DE FICHAS NO FECHAMENTO ---
+            async openEditModalFromClosing(collabName) {
+                if(!this.reportData) return;
+                
+                const modal = document.getElementById('edit-closing-modal');
+                const collabNameEl = document.getElementById('edit-modal-collab-name');
+                const listEl = document.getElementById('edit-modal-fichas-list');
+                const loadingEl = document.getElementById('edit-modal-loading');
+                const emptyEl = document.getElementById('edit-modal-empty');
+                
+                // Mostrar modal e loading
+                modal.classList.add('open');
+                collabNameEl.textContent = collabName;
+                listEl.innerHTML = '';
+                listEl.classList.add('hidden');
+                emptyEl.classList.add('hidden');
+                loadingEl.classList.remove('hidden');
+                
+                try {
+                    // Buscar fichas do período e profissional
+                    const path = `artifacts/${window.appId}/public/data/fichas`;
+                    const start = this.reportData.start;
+                    const end = this.reportData.end;
+                    
+                    const q = window.query(
+                        window.collection(window.db, path),
+                        window.where('date', '>=', start),
+                        window.where('date', '<=', end),
+                        window.where('professionalName', '==', collabName)
+                    );
+                    
+                    const snapshot = await window.getDocs(q);
+                    const fichas = [];
+                    snapshot.forEach(doc => fichas.push({id: doc.id, ...doc.data()}));
+                    
+                    loadingEl.classList.add('hidden');
+                    
+                    if(fichas.length === 0) {
+                        emptyEl.classList.remove('hidden');
+                        return;
+                    }
+                    
+                    // Ordenar por data
+                    fichas.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    
+                    // Renderizar fichas
+                    listEl.classList.remove('hidden');
+                    fichas.forEach(ficha => {
+                        const total = ficha.total || 0;
+                        const dateFormatted = new Date(ficha.date + 'T00:00:00').toLocaleDateString('pt-BR');
+                        
+                        const itemsHtml = ficha.items.map(item => {
+                            const typeIcon = item.type === 'servico' ? '💇' : '🛍️';
+                            return `
+                                <div class="flex justify-between text-xs py-1 border-b border-gray-50">
+                                    <span>${typeIcon} ${item.name}</span>
+                                    <span class="font-mono">R$ ${item.value.toFixed(2)} (${item.method})</span>
+                                </div>
+                            `;
+                        }).join('');
+                        
+                        listEl.innerHTML += `
+                            <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div>
+                                        <div class="font-semibold text-gray-800">${ficha.clientName}</div>
+                                        <div class="text-xs text-gray-500 mt-1">📅 ${dateFormatted}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-xs text-gray-500 uppercase">Total</div>
+                                        <div class="font-bold text-lg text-green-600">R$ ${total.toFixed(2)}</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-gray-50 rounded p-3 mb-3 max-h-40 overflow-y-auto">
+                                    ${itemsHtml}
+                                </div>
+                                
+                                ${ficha.obs ? `
+                                    <div class="bg-amber-50 border-l-4 border-amber-400 p-2 mb-3 text-xs text-amber-800">
+                                        <strong>Obs:</strong> ${ficha.obs}
+                                    </div>
+                                ` : ''}
+                                
+                                <div class="flex gap-2 justify-end">
+                                    <button onclick="window.appLogic.editFichaInline('${ficha.id}')" class="text-xs bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors">
+                                        ✏️ Editar Ficha
+                                    </button>
+                                    <button onclick="window.appLogic.deleteFichaFromClosing('${ficha.id}', '${collabName}')" class="text-xs bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors">
+                                        🗑️ Excluir
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                } catch(e) {
+                    console.error(e);
+                    loadingEl.classList.add('hidden');
+                    listEl.classList.remove('hidden');
+                    listEl.innerHTML = `<div class="text-center py-8 text-red-500">Erro ao carregar fichas: ${e.message}</div>`;
+                }
+            },
+
+            editFichaInline(fichaId) {
+                // Fechar modal de edição
+                document.getElementById('edit-closing-modal').classList.remove('open');
+                
+                // Mudar para aba de fichas
+                this.switchTab('fichas');
+                
+                // Carregar ficha para edição
+                const ficha = this.fichas.find(f => f.id === fichaId);
+                if(!ficha) {
+                    // Se não estiver em cache, buscar do banco
+                    this.loadFichaForEditById(fichaId);
+                } else {
+                    this.loadFichaForEdit(ficha);
+                }
+                
+                // Scroll suave para o formulário
+                setTimeout(() => {
+                    const formElement = document.getElementById('ficha-date');
+                    if(formElement) {
+                        formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 100);
+            },
+
+            async loadFichaForEditById(fichaId) {
+                try {
+                    const path = `artifacts/${window.appId}/public/data/fichas`;
+                    const docRef = window.doc(window.db, path, fichaId);
+                    const docSnap = await window.getDoc(docRef);
+                    
+                    if(docSnap.exists()) {
+                        const ficha = {id: docSnap.id, ...docSnap.data()};
+                        this.loadFichaForEdit(ficha);
+                    } else {
+                        this.showMessage("Ficha não encontrada", "error");
+                    }
+                } catch(e) {
+                    console.error(e);
+                    this.showMessage("Erro ao carregar ficha: " + e.message, "error");
+                }
+            },
+
+            async deleteFichaFromClosing(fichaId, collabName) {
+                if(!confirm('Tem certeza que deseja excluir esta ficha? Esta ação não pode ser desfeita.')) {
+                    return;
+                }
+                
+                try {
+                    const path = `artifacts/${window.appId}/public/data/fichas`;
+                    await window.deleteDoc(window.doc(window.db, path, fichaId));
+                    
+                    this.showMessage("Ficha excluída com sucesso!", "success");
+                    
+                    // Recarregar a lista de fichas no modal
+                    this.openEditModalFromClosing(collabName);
+                    
+                    // Recarregar o relatório de fechamento
+                    this.generateClosingReport();
+                    
+                } catch(e) {
+                    console.error(e);
+                    this.showMessage("Erro ao excluir ficha: " + e.message, "error");
+                }
+            },
+
+            closeEditModal() {
+                document.getElementById('edit-closing-modal').classList.remove('open');
+            },
+
             // --- FECHAMENTO (Admin) ---
             async generateClosingReport() {
                 if(!window.userId) return this.showMessage("Faça login", "error");
@@ -2262,7 +2469,10 @@
                             </div>
                             <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
                                 <details><summary class="text-xs font-bold text-indigo-500 cursor-pointer">Ver Detalhes</summary><ul class="mt-2 text-xs text-gray-600 space-y-1 max-h-40 overflow-y-auto">${c.items.map(i=>`<li>${i.c} - ${i.s}: R$${i.v.toFixed(0)} (${i.m})</li>`).join('')}</ul></details>
-                                <button onclick="window.appLogic.promptCollaboratorPDF('${c.name}')" class="text-xs bg-gray-800 text-white px-3 py-2 rounded hover:bg-gray-700">📄 PDF Individual</button>
+                                <div class="flex gap-2">
+                                    <button onclick="window.appLogic.openEditModalFromClosing('${c.name}')" class="text-xs bg-indigo-600 text-white px-3 py-2 rounded hover:bg-indigo-700">✏️ Editar</button>
+                                    <button onclick="window.appLogic.promptCollaboratorPDF('${c.name}')" class="text-xs bg-gray-800 text-white px-3 py-2 rounded hover:bg-gray-700">📄 PDF Individual</button>
+                                </div>
                             </div>
                         </div>
                     `;
