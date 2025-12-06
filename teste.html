@@ -2172,7 +2172,7 @@
                 loadingEl.classList.remove('hidden');
                 
                 try {
-                    // Buscar fichas do período e profissional
+                    // Buscar fichas do período (sem filtrar por profissional no query para evitar índice composto)
                     const path = `artifacts/${window.appId}/public/data/fichas`;
                     const start = this.reportData.start;
                     const end = this.reportData.end;
@@ -2180,13 +2180,19 @@
                     const q = window.query(
                         window.collection(window.db, path),
                         window.where('date', '>=', start),
-                        window.where('date', '<=', end),
-                        window.where('professionalName', '==', collabName)
+                        window.where('date', '<=', end)
                     );
                     
                     const snapshot = await window.getDocs(q);
                     const fichas = [];
-                    snapshot.forEach(doc => fichas.push({id: doc.id, ...doc.data()}));
+                    
+                    // Filtrar por profissional no JavaScript
+                    snapshot.forEach(doc => {
+                        const data = doc.data();
+                        if(data.professionalName === collabName) {
+                            fichas.push({id: doc.id, ...data});
+                        }
+                    });
                     
                     loadingEl.classList.add('hidden');
                     
