@@ -1955,15 +1955,22 @@
                     const total = this.calcFichaTotal();
                     
                     if (this.editingFichaId) {
-                        // Modo de edição
-                        await window.updateDoc(window.doc(window.db, path, this.editingFichaId), {
+                        // Modo de edição - buscar ficha existente para preservar createdBy
+                        const existingFichaRef = window.doc(window.db, path, this.editingFichaId);
+                        const existingFichaSnap = await window.getDoc(existingFichaRef);
+                        const existingData = existingFichaSnap.exists() ? existingFichaSnap.data() : {};
+                        
+                        await window.updateDoc(existingFichaRef, {
                             date, 
                             clientName: client, 
                             professionalName: professional, 
                             items, 
                             obs,
                             total,
-                            updatedAt: window.Timestamp.now()
+                            updatedAt: window.Timestamp.now(),
+                            // Preservar campos originais se existirem
+                            createdBy: existingData.createdBy || window.userId,
+                            creatorEmail: existingData.creatorEmail || window.auth.currentUser.email
                         });
                         this.showMessage("Ficha atualizada!", "success");
                         this.editingFichaId = null;
@@ -2022,14 +2029,21 @@
                 try {
                     let q;
                     if (window.ADMIN_EMAILS && window.ADMIN_EMAILS.includes(window.userEmail)) {
+                        console.log('Carregando TODAS as fichas (modo admin)');
                         q = window.query(window.collection(window.db, path));
                     } else {
+                        console.log('Carregando apenas fichas do usuário:', window.userId);
                         q = window.query(window.collection(window.db, path), window.where('createdBy', '==', window.userId));
                     }
                     
                     const snapshot = await window.getDocs(q);
                     let data = [];
-                    snapshot.forEach(doc => data.push({id: doc.id, ...doc.data()}));
+                    snapshot.forEach(doc => {
+                        const fichaData = {id: doc.id, ...doc.data()};
+                        data.push(fichaData);
+                        console.log('Ficha carregada:', fichaData.professionalName, fichaData.clientName, 'createdBy:', fichaData.createdBy);
+                    });
+                    console.log('Total de fichas carregadas:', data.length);
                     data.sort((a,b) => b.createdAt - a.createdAt);
                     
                     this.fichas = data; // Armazenar para usar no datalist
