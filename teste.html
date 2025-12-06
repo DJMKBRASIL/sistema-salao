@@ -2718,8 +2718,8 @@
                         await window.addDoc(window.collection(window.db, `artifacts/${window.appId}/public/data/expenses`), {
                             type: 'saida',
                             date: dateStr,
-                            desc: `Pagamento - ${collabName}`,
-                            cat: 'pessoal',
+                            desc: `Pagamento Colaborador(a) - ${collabName}`,
+                            category: 'pessoal',
                             value: finalPay,
                             createdBy: window.userId,
                             createdAt: window.Timestamp.now(),
